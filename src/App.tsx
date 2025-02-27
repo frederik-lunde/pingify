@@ -2,6 +2,7 @@ import {useEffect, useState } from 'react';
 import './App.css';
 import { fetchUsers, fetchUserById } from './services/userService';
 import Button from '@mui/material/Button';
+import Grid from '@mui/material/Grid2';
 
 
 
@@ -39,18 +40,21 @@ function App() {
 
   return (
     <>
-      <div>
-        <h1>Users</h1>
-        <ul>
+    <h1>Users</h1>
+      <Grid container spacing={2}>
           {users.map(user => (
-            <li key={user.id}>
-              {user.username} {user.password}
-              <Button variant='contained' onClick={() => handleFetchUserById(user.id)}>View Details</Button>
-            </li>
+
+            <Grid border={2} padding={3} size={3} key={user.id} >
+              <div>
+                <h2>{user.username}</h2>
+                <p>{user.password}</p>
+                <Button variant='contained' onClick={() => handleFetchUserById(user.id)}>View Details</Button>
+              </div>
+            </Grid>
           ))}
-        </ul>
-      </div>
-      {selectedUser && (
+        </Grid>
+
+        {selectedUser && (
         <div>
           <h2>Selected User Details</h2>
           <p>ID: {selectedUser.id}</p>
