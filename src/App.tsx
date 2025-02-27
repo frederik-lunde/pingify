@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState } from 'react';
 import './App.css';
+import { fetchUsers, fetchUserById } from './services/userService';
+
 
 type User = {
   id: number;
@@ -9,20 +11,29 @@ type User = {
 
 function App() {
   const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const getUsers = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/users');
-        const data: User[] = await response.json();
+        const data = await fetchUsers();
         setUsers(data);
       } catch (error) {
         console.error('Error fetching users:', error);
       }
     };
 
-    fetchUsers();
+    getUsers();
   }, []);
+
+  const handleFetchUserById = async (id: number) => {
+    try {
+      const data = await fetchUserById(id);
+      setSelectedUser(data);
+    } catch (error) {
+      console.error('Error fetching user:', error);
+    }
+  };
 
   return (
     <>
@@ -32,10 +43,19 @@ function App() {
           {users.map(user => (
             <li key={user.id}>
               {user.username} {user.password}
+              <button onClick={() => handleFetchUserById(user.id)}>View Details</button>
             </li>
           ))}
         </ul>
       </div>
+      {selectedUser && (
+        <div>
+          <h2>Selected User Details</h2>
+          <p>ID: {selectedUser.id}</p>
+          <p>Username: {selectedUser.username}</p>
+          <p>Password: {selectedUser.password}</p>
+        </div>
+      )}
     </>
   );
 }
