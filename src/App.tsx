@@ -1,6 +1,8 @@
 import {useEffect, useState } from 'react';
 import './App.css';
 import { fetchUsers, fetchUserById } from './services/userService';
+import Button from '@mui/material/Button';
+
 
 
 type User = {
@@ -43,7 +45,7 @@ function App() {
           {users.map(user => (
             <li key={user.id}>
               {user.username} {user.password}
-              <button onClick={() => handleFetchUserById(user.id)}>View Details</button>
+              <Button variant='contained' onClick={() => handleFetchUserById(user.id)}>View Details</Button>
             </li>
           ))}
         </ul>
