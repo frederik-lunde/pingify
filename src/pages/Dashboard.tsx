@@ -8,6 +8,7 @@ type User = {
   id: number;
   username: string;
   password: string;
+  created_at: string;
 };
 
 function Dashboard() {
@@ -39,6 +40,7 @@ function Dashboard() {
   return (
     <>
     <h1>Users</h1>
+    <Button variant='contained' href='/create'>Create User</Button>
     <Grid container spacing={{ xs: 2, md: 3 }} columns={{ xs: 4, sm: 8, md: 12 }}>
           {users.map(user => (
 
@@ -58,6 +60,7 @@ function Dashboard() {
           <p>ID: {selectedUser.id}</p>
           <p>Username: {selectedUser.username}</p>
           <p>Password: {selectedUser.password}</p>
+          <p>Created at: {selectedUser.created_at}</p>
         </div>
       )}
     </>

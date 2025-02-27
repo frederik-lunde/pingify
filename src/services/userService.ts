@@ -3,6 +3,7 @@ type User = {
     id: number;
     username: string;
     password: string;
+    created_at: string;
   };
   
 export const fetchUsers = async (): Promise<User[]> => {

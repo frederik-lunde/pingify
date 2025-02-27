@@ -2,6 +2,7 @@ import {useState } from 'react';
 import { createUser } from '../services/userService';
 import '../App.css';
 import Button from '@mui/material/Button';
+import { useNavigate } from 'react-router-dom';
 
 type User = {
   id: number;
@@ -18,6 +19,8 @@ function CreateUser(){
         created_at: '',
     });
     
+    const navigate = useNavigate();
+
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = event.target;
         setUser((prevUser) => ({
@@ -31,6 +34,7 @@ function CreateUser(){
         try {
         const data = await createUser(user);
         console.log('User created:', data);
+        navigate('/');
         } catch (error) {
         console.error('Error creating user:', error);
         }
