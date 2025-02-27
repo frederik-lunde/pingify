@@ -25,4 +25,18 @@ const getUserById = async (req, res) => {
     }
 }
 
-export default { getUsers, getUserById };
+const createUser = async (req, res) => {
+    const { username, password } = req.body;
+    try {
+        const user = await prisma.users.create({
+            data: {
+                username,
+                password,
+            },
+        });
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: "Error creating user" });
+    }
+}
+export default { getUsers, getUserById, createUser };

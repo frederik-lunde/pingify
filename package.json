@@ -4,15 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-  "dev": "vite",
-  "build": "tsc -b && vite build",
-  "lint": "eslint .",
-  "preview": "vite preview",
-  "start": "node src/api/server.js",
-  "dev:frontend": "vite",
-  "dev:backend": "node src/api/server.js",
-  "dev:both": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\""
-},
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "start": "node src/api/server.js",
+    "dev:frontend": "vite",
+    "dev:backend": "node src/api/server.js",
+    "dev:both": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\""
+  },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
@@ -23,7 +23,8 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
