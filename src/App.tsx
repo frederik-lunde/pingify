@@ -1,8 +1,10 @@
 import {useEffect, useState } from 'react';
+
 import './App.css';
 import { fetchUsers, fetchUserById } from './services/userService';
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid2';
+
 
 
 
@@ -41,10 +43,10 @@ function App() {
   return (
     <>
     <h1>Users</h1>
-      <Grid container spacing={2}>
+    <Grid container spacing={{ xs: 2, md: 3 }} columns={{ xs: 4, sm: 8, md: 12 }}>
           {users.map(user => (
 
-            <Grid border={2} padding={3} size={3} key={user.id} >
+            <Grid border={2} padding={3} size={{ xs: 2, sm: 4, md: 4 }} key={user.id} >
               <div>
                 <h2>{user.username}</h2>
                 <p>{user.password}</p>
