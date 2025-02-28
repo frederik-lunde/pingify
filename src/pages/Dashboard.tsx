@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import '../App.css';
 import { fetchUsers, fetchUserById } from '../services/userService';
 import Button from '@mui/material/Button';
-import Grid from '@mui/material/Grid';
+import Grid from '@mui/material/Grid2';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
@@ -51,7 +51,7 @@ function Dashboard() {
       </Button>
       <Grid container spacing={{ xs: 2, md: 3 }} columns={{ xs: 4, sm: 8, md: 12 }}>
         {users.map((user) => (
-          <Grid item xs={2} sm={4} md={4} key={user.id}>
+          <Grid  size={{ xs: 2, sm: 4, md: 3 }} key={user.id}>
             <Paper elevation={3} sx={{ p: 2, backgroundColor: 'green' }}>
               <Box>
                 <Typography variant="h2">{user.username}</Typography>
