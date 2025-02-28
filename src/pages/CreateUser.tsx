@@ -53,9 +53,8 @@ function CreateUser() {
         gap: 2,
         maxWidth: 400,
         mx: 'auto',
-        my: 4,
+        my: 25,
         p: 3,
-        boxShadow: 3,
         borderRadius: 2,
         backgroundColor: 'background.paper',
       }}
