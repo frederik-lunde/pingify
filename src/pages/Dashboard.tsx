@@ -49,9 +49,9 @@ function Dashboard() {
       <Button variant="contained" href="/create" sx={{ mb: 3 }}>
         Create User
       </Button>
-      <Grid container spacing={{ xs: 2, md: 3 }} columns={{ xs: 1, sm: 8, md: 12 }}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         {users.map((user) => (
-          <Grid  size={{ xs: 1, sm: 4, md: 3 }} key={user.id}>
+          <Grid  size={{ xs: 12, sm: 6, md: 3 }} key={user.id}>
             <Paper elevation={3} sx={{ p: 2, backgroundColor: 'green' }}>
               <Box>
                 <Typography variant="h2">{user.username}</Typography>
