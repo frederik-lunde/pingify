@@ -1,8 +1,12 @@
-import {useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import '../App.css';
 import { fetchUsers, fetchUserById } from '../services/userService';
 import Button from '@mui/material/Button';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import Paper from '@mui/material/Paper';
+import Box from '@mui/material/Box';
+import Container from '@mui/material/Container';
 
 type User = {
   id: number;
@@ -38,32 +42,41 @@ function Dashboard() {
   };
 
   return (
-    <>
-    <h1>Users</h1>
-    <Button variant='contained' href='/create'>Create User</Button>
-    <Grid container spacing={{ xs: 2, md: 3 }} columns={{ xs: 4, sm: 8, md: 12 }}>
-          {users.map(user => (
+    <Container>
+      <Typography variant="h1" gutterBottom>
+        Users
+      </Typography>
+      <Button variant="contained" href="/create" sx={{ mb: 3 }}>
+        Create User
+      </Button>
+      <Grid container spacing={{ xs: 2, md: 3 }} columns={{ xs: 4, sm: 8, md: 12 }}>
+        {users.map((user) => (
+          <Grid item xs={2} sm={4} md={4} key={user.id}>
+            <Paper elevation={3} sx={{ p: 2, backgroundColor: 'green' }}>
+              <Box>
+                <Typography variant="h2">{user.username}</Typography>
+                <Typography variant="body1">{user.password}</Typography>
+                <Button variant="contained" onClick={() => handleFetchUserById(user.id)}>
+                  View Details
+                </Button>
+              </Box>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
 
-            <Grid border={2} padding={3} size={{ xs: 2, sm: 4, md: 4 }} key={user.id} >
-              <div>
-                <h2>{user.username}</h2>
-                <p>{user.password}</p>
-                <Button variant='contained' onClick={() => handleFetchUserById(user.id)}>View Details</Button>
-              </div>
-            </Grid>
-          ))}
-        </Grid>
-
-        {selectedUser && (
-        <div>
-          <h2>Selected User Details</h2>
-          <p>ID: {selectedUser.id}</p>
-          <p>Username: {selectedUser.username}</p>
-          <p>Password: {selectedUser.password}</p>
-          <p>Created at: {selectedUser.created_at}</p>
-        </div>
+      {selectedUser && (
+        <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
+          <Typography variant="h2" gutterBottom>
+            Selected User Details
+          </Typography>
+          <Typography variant="body1">ID: {selectedUser.id}</Typography>
+          <Typography variant="body1">Username: {selectedUser.username}</Typography>
+          <Typography variant="body1">Password: {selectedUser.password}</Typography>
+          <Typography variant="body1">Created at: {selectedUser.created_at}</Typography>
+        </Paper>
       )}
-    </>
+    </Container>
   );
 }
 
