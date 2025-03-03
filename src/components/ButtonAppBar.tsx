@@ -34,9 +34,9 @@ export default function ButtonAppBar({ onMenuClick, drawerOpen }: ButtonAppBarPr
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            News
+            HEADSPIN
           </Typography>
-          <Button color="inherit">Login</Button>
+          <Button color="inherit">Login/Logout</Button>
         </Toolbar>
       </AppBar>
       <Toolbar /> {/* Spacer */}

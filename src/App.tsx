@@ -4,8 +4,8 @@ import Dashboard from './pages/Dashboard';
 import CreateUser from './pages/CreateUser';
 import { CssBaseline } from '@mui/material';
 import * as React from 'react';
-import ButtonAppBar from './components/ButtonAppBar'; // Update the path as needed
-import TemporaryDrawer from './components/TemporaryDrawer'; // Update the path as needed
+import ButtonAppBar from './components/ButtonAppBar'; 
+import TemporaryDrawer from './components/TemporaryDrawer'; 
 
 function App() {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
