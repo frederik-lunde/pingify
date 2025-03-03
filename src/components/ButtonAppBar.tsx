@@ -1,4 +1,3 @@
-import * as React from 'react';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
@@ -7,17 +6,30 @@ import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
 
-export default function ButtonAppBar() {
+interface ButtonAppBarProps {
+  onMenuClick: () => void;
+  drawerOpen: boolean; // Add this to track drawer state
+}
+
+export default function ButtonAppBar({ onMenuClick, drawerOpen }: ButtonAppBarProps) {
   return (
     <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static">
+      <AppBar position="fixed">
         <Toolbar>
           <IconButton
             size="large"
             edge="start"
             color="inherit"
             aria-label="menu"
-            sx={{ mr: 2 }}
+            sx={{ 
+              mr: 2,
+              // Apply highlight style when drawer is open
+              backgroundColor: drawerOpen ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.2)'
+              }
+            }}
+            onClick={onMenuClick}
           >
             <MenuIcon />
           </IconButton>
@@ -27,6 +39,7 @@ export default function ButtonAppBar() {
           <Button color="inherit">Login</Button>
         </Toolbar>
       </AppBar>
+      <Toolbar /> {/* Spacer */}
     </Box>
   );
 }
