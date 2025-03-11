@@ -1,4 +1,3 @@
-// server/src/routes/user.routes.ts
 import { Router } from 'express';
 import * as userController from '../controllers/userController';
 
@@ -9,3 +8,4 @@ userRouter.get('/:id', userController.getUserById);
 userRouter.post('/', userController.createUser);
 
 export default userRouter;
+    
