@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { createUser } from '../services/userService';
-import '../App.css';
 import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 type User = {
   id: number;
