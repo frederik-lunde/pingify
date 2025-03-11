@@ -1,5 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import './App.css';
+import { BrowserRouter, Routes, Route } from 'react-router';
 import Dashboard from './pages/Dashboard';
 import CreateUser from './pages/CreateUser';
 import { CssBaseline } from '@mui/material';

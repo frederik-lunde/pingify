@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import '../App.css';
 import { fetchUsers, fetchUserById } from '../services/userService';
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid2';
