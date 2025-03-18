@@ -2,6 +2,7 @@ import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
 import userRoutes from './routes/userRoutes';
+import websiteRoutes from './routes/websiteRoutes';
 import testRoutes from './routes/testRoutes';
 import errorMiddleware from './middleware/errorMiddleware';
 
@@ -14,9 +15,11 @@ app.use(morgan('dev'));
 
 // Your API routes
 app.use('/api/users', userRoutes);
+app.use('/api/websites', websiteRoutes);
 app.use('/api', testRoutes);
 
 // Global error handler (should be the last middleware)
 app.use(errorMiddleware);
 
 export default app;
+

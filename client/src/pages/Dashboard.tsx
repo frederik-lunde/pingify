@@ -1,43 +1,35 @@
 import { useEffect, useState } from 'react';
-import { fetchUsers, fetchUserById } from '../services/userService';
+import { getWebsitesForUser } from '../services/websiteService';
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid2';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
+import { Website } from '../types/types';
 
-type User = {
-  id: number;
-  username: string;
-  password: string;
-  created_at: string;
-};
+
 
 function Dashboard() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [websites, setWebsites] = useState<Website[]>([]);
+  // const [users, setUsers] = useState<User[]>([]);
+  const [selectedWebsite, setSelectedWebsite] = useState<Website | null>(null);
 
   useEffect(() => {
-    const getUsers = async () => {
+    const getWebsites = async () => {
       try {
-        const data = await fetchUsers();
-        setUsers(data);
+        const data = await getWebsitesForUser(1);
+        setWebsites(data);
       } catch (error) {
         console.error('Error fetching users:', error);
       }
     };
 
-    getUsers();
+    getWebsites();
   }, []);
 
-  const handleFetchUserById = async (id: number) => {
-    try {
-      const data = await fetchUserById(id);
-      setSelectedUser(data);
-    } catch (error) {
-      console.error('Error fetching user:', error);
-    }
+  const handleFetchWebsiteDetails = async () => {
+    //Placeholder get website by websiteid
   };
 
   return (
@@ -49,13 +41,13 @@ function Dashboard() {
         Create User
       </Button>
       <Grid container spacing={{ xs: 2, md: 3 }}>
-        {users.map((user) => (
-          <Grid  size={{ xs: 12, sm: 6, md: 3 }} key={user.id}>
+        {websites.map((website) => (
+          <Grid  size={{ xs: 12, sm: 6, md: 3 }} key={website.id}>
             <Paper elevation={3} sx={{ p: 2, backgroundColor: 'green' }}>
               <Box>
-                <Typography variant="h2">{user.username}</Typography>
-                <Typography variant="body1">{user.password}</Typography>
-                <Button variant="contained" onClick={() => handleFetchUserById(user.id)}>
+                <Typography variant="h2">{website.name}</Typography>
+                <Typography variant="body1">{website.url}</Typography>
+                <Button variant="contained" onClick={() => handleFetchWebsiteDetails()}>
                   View Details
                 </Button>
               </Box>
@@ -64,15 +56,13 @@ function Dashboard() {
         ))}
       </Grid>
 
-      {selectedUser && (
+      {selectedWebsite && (
         <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
           <Typography variant="h2" gutterBottom>
             Selected User Details
           </Typography>
-          <Typography variant="body1">ID: {selectedUser.id}</Typography>
-          <Typography variant="body1">Username: {selectedUser.username}</Typography>
-          <Typography variant="body1">Password: {selectedUser.password}</Typography>
-          <Typography variant="body1">Created at: {selectedUser.created_at}</Typography>
+          <Typography variant="body1">ID: {selectedWebsite.url}</Typography>
+
         </Paper>
       )}
     </Container>

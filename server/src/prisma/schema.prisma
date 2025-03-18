@@ -8,9 +8,54 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-model users {
-  id         Int      @id @default(autoincrement())
-  username   String   @unique(map: "username") @db.VarChar(50)
-  password   String   @db.VarChar(255)
-  created_at DateTime @default(now()) @db.Timestamp(0)
+model Website {
+  id                Int                @id @default(autoincrement())
+  name              String
+  url               String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  interval          Int                @default(300)
+  isActive          Boolean            @default(true)
+  alertThreshold    Int                @default(2000)
+  alertEnabled      Boolean            @default(true)
+  userId            Int
+  alerts            Alert[]
+  monitoringResults MonitoringResult[]
+  user              User               @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model MonitoringResult {
+  id           Int      @id @default(autoincrement())
+  websiteId    Int
+  timestamp    DateTime @default(now())
+  responseTime Int?
+  isAvailable  Boolean
+  statusCode   Int?
+  website      Website  @relation(fields: [websiteId], references: [id])
+
+  @@index([websiteId])
+  @@index([timestamp])
+}
+
+model Alert {
+  id        Int      @id @default(autoincrement())
+  websiteId Int
+  timestamp DateTime @default(now())
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  website   Website  @relation(fields: [websiteId], references: [id])
+
+  @@index([websiteId])
+  @@index([timestamp])
+}
+
+model User {
+  id       Int       @id @default(autoincrement())
+  email    String    @unique
+  password String
+  name     String?
+  websites Website[]
 }

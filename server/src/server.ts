@@ -1,5 +1,6 @@
 import app from './app';
 import { config } from './config/config';
+import './utils/monitorWebsites';
 
 const PORT = config.port || 5000;
 
