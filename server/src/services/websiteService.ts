@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 
 
-export const getWebsitesForUser = async (userId: number) => {
+export const getAllWebsites = async () => {
   return await prisma.website.findMany({
     include: { monitoringResults: true } // optionally include monitoring data
   });

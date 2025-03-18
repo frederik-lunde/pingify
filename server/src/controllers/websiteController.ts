@@ -3,10 +3,9 @@ import { Request, Response, NextFunction } from 'express';
 import * as websiteService from '../services/websiteService';
 import { Website, CreateWebsiteBody } from '../types';
 
-export const getWebsitesForUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getAllWebsites = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { userId } = req.params;
-    const websites = await websiteService.getWebsitesForUser(parseInt(userId, 10));
+    const websites = await websiteService.getAllWebsites();
     res.json(websites);
   } catch (error) {
     next(error);

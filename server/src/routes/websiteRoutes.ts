@@ -5,7 +5,7 @@ import * as websiteController from '../controllers/websiteController';
 const websiteRouter: Router = Router();
 
 // Get all websites for a given user
-websiteRouter.get('/:userId', websiteController.getWebsitesForUser);
+websiteRouter.get('/', websiteController.getAllWebsites);
 
 // Create a new website to monitor
 websiteRouter.post('/', websiteController.createWebsite);

@@ -6,7 +6,7 @@ export const getWebsitesForUser = async (userId: Number): Promise<Website[]> => 
     userId = 1;
 
     try {
-        const response = await axios.get(`http://localhost:3001/api/websites/${userId}`);
+        const response = await axios.get(`http://localhost:3001/api/websites/`);
         return response.data;
     } catch (error) {
         console.error('Error fetching websites:', error);

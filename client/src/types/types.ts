@@ -5,5 +5,4 @@ export interface Website {
     interval: number;
     isActive: boolean;
     alertThreshold: number;
-    userId: number;
 }
