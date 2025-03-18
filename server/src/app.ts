@@ -23,6 +23,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/websites', websiteRoutes);
 app.use('/api', testRoutes);
 
+//Start monitoring (will fill db)
 scheduleMonitoring();
 
 
