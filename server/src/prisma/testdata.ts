@@ -14,16 +14,19 @@ async function main() {
           {
             name: 'Google',
             url: 'https://www.google.com',
-            // Using default values: interval (300), isActive (true),
-            // alertThreshold (2000), alertEnabled (true)
+            interval: 300, // 5 minutes
+            isActive: true,
+            alertThreshold: 2000,
+            alertEnabled: true,
+            notifyEmail: 'alerts@example.com'
           },
           {
-            name: 'Example',
-            url: 'https://www.asdklk.com',
-            interval: 600, // Custom interval (10 minutes)
+            name: 'Example (Nonexistent)',
+            url: 'https://www.nonexistent-example.com',
+            interval: 600, // 10 minutes
             isActive: true,
-            alertThreshold: 1500, // Custom threshold
-            alertEnabled: false,  // Alert disabled for this website
+            alertThreshold: 1500,
+            alertEnabled: false
           },
         ],
       },
@@ -41,14 +44,77 @@ async function main() {
           {
             name: 'GitHub',
             url: 'https://www.github.com',
-            // All other fields will use the default values
+            interval: 300,
+            isActive: true,
+            alertThreshold: 1800,
+            alertEnabled: true,
+            notifyEmail: 'jane@example.com'
           },
         ],
       },
     },
   });
 
+  // Create sample monitoring results
+  await createSampleData();
+
+  console.log('Seed data created successfully!');
   console.log({ john, jane });
+}
+
+async function createSampleData() {
+  // Get all websites
+  const websites = await prisma.website.findMany();
+  
+  for (const website of websites) {
+    // Create 24 hours of sample data (one per hour)
+    const now = new Date();
+    
+    for (let i = 0; i < 24; i++) {
+      const timestamp = new Date(now.getTime() - (i * 60 * 60 * 1000)); // i hours ago
+      
+      // For the nonexistent site, make it down occasionally
+      const isDown = website.url.includes('nonexistent') ? 
+        true : // Always down for nonexistent site
+        (Math.random() < 0.05); // 5% chance of downtime for real sites
+      
+      await prisma.monitoringResult.create({
+        data: {
+          websiteId: website.id,
+          checkedAt: timestamp,
+          responseTime: isDown ? null : Math.floor(Math.random() * 2000) + 100, // 100-2100ms
+          isAvailable: !isDown,
+          statusCode: isDown ? (Math.random() < 0.5 ? 404 : 500) : 200,
+          errorMessage: isDown ? 'Connection failed' : null
+        }
+      });
+    }
+    
+    // Create sample alerts
+    if (website.url.includes('nonexistent')) {
+      await prisma.alert.create({
+        data: {
+          websiteId: website.id,
+          createdAt: new Date(now.getTime() - (2 * 60 * 60 * 1000)), // 2 hours ago
+          message: `Website is down: ${website.name}`,
+          type: 'down',
+          isRead: false
+        }
+      });
+    }
+    
+    if (website.url.includes('github')) {
+      await prisma.alert.create({
+        data: {
+          websiteId: website.id,
+          createdAt: new Date(now.getTime() - (12 * 60 * 60 * 1000)), // 12 hours ago
+          message: `Website is responding slowly: ${website.name} (1892ms)`,
+          type: 'slow',
+          isRead: true
+        }
+      });
+    }
+  }
 }
 
 main()

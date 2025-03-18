@@ -27,16 +27,16 @@ export const createWebsite = async (
 };
 
 // New: Get monitoring results for a given website
-export const getMonitoringResultsForWebsite = async (
-  req: Request<{ websiteId: string }>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { websiteId } = req.params;
-    const results = await websiteService.getMonitoringResultsForWebsite(parseInt(websiteId, 10));
-    res.json(results);
-  } catch (error) {
-    next(error);
-  }
-};
+// export const getMonitoringResultsForWebsite = async (
+//   req: Request<{ websiteId: string }>,
+//   res: Response,
+//   next: NextFunction
+// ): Promise<void> => {
+//   try {
+//     const { websiteId } = req.params;
+//     const results = await websiteService.getMonitoringResultsForWebsite(parseInt(websiteId, 10));
+//     res.json(results);
+//   } catch (error) {
+//     next(error);
+//   }
+// };

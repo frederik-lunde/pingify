@@ -8,54 +8,61 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-model Website {
-  id                Int                @id @default(autoincrement())
-  name              String
-  url               String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  interval          Int                @default(300)
-  isActive          Boolean            @default(true)
-  alertThreshold    Int                @default(2000)
-  alertEnabled      Boolean            @default(true)
-  userId            Int
-  alerts            Alert[]
-  monitoringResults MonitoringResult[]
-  user              User               @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-}
-
-model MonitoringResult {
-  id           Int      @id @default(autoincrement())
-  websiteId    Int
-  timestamp    DateTime @default(now())
-  responseTime Int?
-  isAvailable  Boolean
-  statusCode   Int?
-  website      Website  @relation(fields: [websiteId], references: [id])
-
-  @@index([websiteId])
-  @@index([timestamp])
-}
-
-model Alert {
-  id        Int      @id @default(autoincrement())
-  websiteId Int
-  timestamp DateTime @default(now())
-  message   String
-  type      String
-  isRead    Boolean  @default(false)
-  website   Website  @relation(fields: [websiteId], references: [id])
-
-  @@index([websiteId])
-  @@index([timestamp])
-}
-
 model User {
   id       Int       @id @default(autoincrement())
   email    String    @unique
   password String
   name     String?
   websites Website[]
+}
+
+model Website {
+  id                Int                @id @default(autoincrement())
+  name              String
+  url               String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  interval          Int   
+  lastChecked       DateTime?  
+  isActive          Boolean            @default(true)
+  alertThreshold    Int                @default(2000)
+  alertEnabled      Boolean            @default(true)
+  userId            Int
+  notifyEmail       String?
+  alerts            Alert[]
+  monitoringResults MonitoringResult[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+model MonitoringResult {
+  id           Int      @id @default(autoincrement())
+  websiteId    Int
+  responseTime Int?
+  isAvailable  Boolean
+  statusCode   Int?
+  errorMessage String?  @db.Text
+  checkedAt    DateTime @default(now())
+  website      Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+  @@index([checkedAt])
+  @@index([isAvailable])
+}
+
+model Alert {
+  id        Int      @id @default(autoincrement())
+  websiteId Int
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+  @@index([createdAt])
+  @@index([type])
+  @@index([isRead])
 }

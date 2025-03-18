@@ -31,9 +31,9 @@ export const createWebsite = async (data: CreateWebsiteBody) => {
 };
 
 // New: Get monitoring results for a specific website
-export const getMonitoringResultsForWebsite = async (websiteId: number) => {
-  return await prisma.monitoringResult.findMany({
-    where: { websiteId },
-    orderBy: { timestamp: 'desc' } // most recent first
-  });
-};
+// export const getMonitoringResultsForWebsite = async (websiteId: number) => {
+//   return await prisma.monitoringResult.findMany({
+//     where: { websiteId },
+//     orderBy: { timestamp: 'desc' } // most recent first
+//   });
+// };

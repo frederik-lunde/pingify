@@ -11,6 +11,6 @@ websiteRouter.get('/:userId', websiteController.getWebsitesForUser);
 websiteRouter.post('/', websiteController.createWebsite);
 
 // New: Get monitoring results for a specific website
-websiteRouter.get('/:websiteId/results', websiteController.getMonitoringResultsForWebsite);
+// websiteRouter.get('/:websiteId/results', websiteController.getMonitoringResultsForWebsite);
 
 export default websiteRouter;

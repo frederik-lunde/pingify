@@ -23,13 +23,16 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "morgan": "^1.x",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.10.0",
+    "p-limit": "^6.2.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/morgan": "^1.9.3",
     "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^6.4.17",
     "prisma": "^6.5.0",
     "ts-node-dev": "^x.x.x",
     "typescript": "^x.x.x"
