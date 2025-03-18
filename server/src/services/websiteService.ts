@@ -1,19 +1,13 @@
 // server/src/services/websiteService.ts
 import { PrismaClient } from "@prisma/client";
+import {CreateWebsiteBody} from "../types";
 
 const prisma = new PrismaClient();
 
-interface CreateWebsiteBody {
-  name: string;
-  url: string;
-  interval?: number;
-  isActive?: boolean;
-  userId: number;
-}
+
 
 export const getWebsitesForUser = async (userId: number) => {
   return await prisma.website.findMany({
-    where: { userId },
     include: { monitoringResults: true } // optionally include monitoring data
   });
 };
@@ -25,7 +19,6 @@ export const createWebsite = async (data: CreateWebsiteBody) => {
       url: data.url,
       interval: data.interval || 300,
       isActive: data.isActive !== undefined ? data.isActive : true,
-      userId: data.userId,
     },
   });
 };

@@ -3,15 +3,10 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Create a user with two websites
-  const john = await prisma.user.create({
-    data: {
-      email: 'john@example.com',
-      password: 'password123', // In production, ensure passwords are hashed
-      name: 'John Doe',
-      websites: {
-        create: [
-          {
+  // Create two websites
+  const google = await prisma.website.create({
+      data: {
+          
             name: 'Google',
             url: 'https://www.google.com',
             interval: 300, // 5 minutes
@@ -20,46 +15,26 @@ async function main() {
             alertEnabled: true,
             notifyEmail: 'alerts@example.com'
           },
-          {
-            name: 'Example (Nonexistent)',
-            url: 'https://www.nonexistent-example.com',
-            interval: 600, // 10 minutes
-            isActive: true,
-            alertThreshold: 1500,
-            alertEnabled: false
-          },
-        ],
-      },
     },
-  });
-
-  // Create another user with one website
-  const jane = await prisma.user.create({
+);
+const sj = await prisma.website.create({
     data: {
-      email: 'jane@example.com',
-      password: 'password456',
-      name: 'Jane Smith',
-      websites: {
-        create: [
-          {
-            name: 'GitHub',
-            url: 'https://www.github.com',
-            interval: 300,
-            isActive: true,
-            alertThreshold: 1800,
-            alertEnabled: true,
-            notifyEmail: 'jane@example.com'
-          },
-        ],
-      },
-    },
-  });
+        
+          name: 'sj',
+          url: 'https://www.sj.no',
+          interval: 300, // 5 minutes
+          isActive: true,
+          alertThreshold: 2000,
+          alertEnabled: true,
+          notifyEmail: 'alerts@example.com'
+        },
+  },
+);  
 
   // Create sample monitoring results
   await createSampleData();
 
   console.log('Seed data created successfully!');
-  console.log({ john, jane });
 }
 
 async function createSampleData() {

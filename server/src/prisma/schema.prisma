@@ -13,7 +13,6 @@ model User {
   email    String    @unique
   password String
   name     String?
-  websites Website[]
 }
 
 model Website {
@@ -27,13 +26,10 @@ model Website {
   isActive          Boolean            @default(true)
   alertThreshold    Int                @default(2000)
   alertEnabled      Boolean            @default(true)
-  userId            Int
   notifyEmail       String?
   alerts            Alert[]
   monitoringResults MonitoringResult[]
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
   @@index([isActive])
 }
 

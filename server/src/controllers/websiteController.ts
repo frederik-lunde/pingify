@@ -1,6 +1,7 @@
 // server/src/controllers/websiteController.ts
 import { Request, Response, NextFunction } from 'express';
 import * as websiteService from '../services/websiteService';
+import { Website, CreateWebsiteBody } from '../types';
 
 export const getWebsitesForUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -13,13 +14,13 @@ export const getWebsitesForUser = async (req: Request, res: Response, next: Next
 };
 
 export const createWebsite = async (
-  req: Request<{}, {}, { name: string; url: string; interval?: number; isActive?: boolean; userId: number }>,
+  req: Request<{}, {}, CreateWebsiteBody>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { name, url, interval, isActive, userId } = req.body;
-    const website = await websiteService.createWebsite({ name, url, interval, isActive, userId });
+    const { name, url, interval, isActive} = req.body;
+    const website = await websiteService.createWebsite({ name, url, interval, isActive});
     res.json(website);
   } catch (error) {
     next(error);

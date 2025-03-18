@@ -28,3 +28,10 @@ export interface Website {
     type: string;
     message: string;
   }
+
+export interface CreateWebsiteBody {
+  name: string;
+  url: string;
+  interval: number;
+  isActive: boolean;
+}
