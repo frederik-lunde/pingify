@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
-import { Website } from '../types/types';
+import { Website } from '../types';
 
 
 
@@ -18,7 +18,7 @@ function Dashboard() {
   useEffect(() => {
     const getWebsites = async () => {
       try {
-        const data = await getWebsitesForUser(1);
+        const data = await getWebsitesForUser();
         setWebsites(data);
       } catch (error) {
         console.error('Error fetching users:', error);

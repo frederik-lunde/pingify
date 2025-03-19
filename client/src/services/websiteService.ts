@@ -1,9 +1,8 @@
 import axios from 'axios';
-import { Website } from '../types/types';
+import { Website } from '../types';
 
 
-export const getWebsitesForUser = async (userId: Number): Promise<Website[]> => {
-    userId = 1;
+export const getWebsitesForUser = async (): Promise<Website[]> => {
 
     try {
         const response = await axios.get(`http://localhost:3001/api/websites/`);

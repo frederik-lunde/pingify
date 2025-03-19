@@ -1,16 +1,27 @@
-// server/src/routes/websiteRoutes.ts
 import { Router } from 'express';
 import * as websiteController from '../controllers/websiteController';
 
-const websiteRouter: Router = Router();
+const router = Router();
 
-// Get all websites for a given user
-websiteRouter.get('/', websiteController.getAllWebsites);
+// Get all websites
+router.get('/', websiteController.getAllWebsites);
 
-// Create a new website to monitor
-websiteRouter.post('/', websiteController.createWebsite);
+// Get a specific website
+router.get('/:id', websiteController.getWebsiteById);
 
-// New: Get monitoring results for a specific website
-// websiteRouter.get('/:websiteId/results', websiteController.getMonitoringResultsForWebsite);
+// Create a new website
+router.post('/', websiteController.createWebsite);
 
-export default websiteRouter;
+// Update a website
+router.put('/:id', websiteController.updateWebsite);
+
+// Delete a website
+router.delete('/:id', websiteController.deleteWebsite);
+
+// Toggle a website's active status
+router.patch('/:id/toggle', websiteController.toggleWebsiteStatus);
+
+// Get monitoring results for a website
+router.get('/:id/results', websiteController.getMonitoringResults);
+
+export default router;
