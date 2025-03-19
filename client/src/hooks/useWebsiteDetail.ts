@@ -1,5 +1,8 @@
+// src/hooks/useWebsiteDetail.ts
 import { useState, useCallback } from 'react';
-import { useWebsiteResults, triggerWebsiteCheck } from '../services/monitoringService';
+// Update import paths to use new structure
+import { useWebsiteResults } from '../api/hooks/useMonitoring';
+import { triggerWebsiteCheck } from '../api/monitoring';
 
 export function useWebsiteDetail(websiteId: number) {
   const [isChecking, setIsChecking] = useState(false);
@@ -8,7 +11,7 @@ export function useWebsiteDetail(websiteId: number) {
     loading, 
     error, 
     refetch 
-  } = useWebsiteResults(websiteId, 50);
+  } = useWebsiteResults(websiteId, 50); 
 
   // Handle manual check button click
   const handleCheckNow = useCallback(async (): Promise<void> => {

@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router';
 import Dashboard from './pages/Dashboard';
-import WebsiteDetails from './components/WebsiteDetails';
+import WebsiteDetails from './pages/WebsiteDetails';
 import { CssBaseline } from '@mui/material';
 import Navbar from './components/Navbar'; 
 
