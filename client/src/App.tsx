@@ -1,27 +1,14 @@
 import { BrowserRouter, Routes, Route } from 'react-router';
-import Dashboard from './components/Dashboard';
+import Dashboard from './pages/Dashboard';
 import WebsiteDetails from './components/WebsiteDetails';
 import { CssBaseline } from '@mui/material';
-import * as React from 'react';
 import ButtonAppBar from './components/ButtonAppBar'; 
-import TemporaryDrawer from './components/TemporaryDrawer'; 
 
 function App() {
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
-
-  const handleDrawerOpen = () => {
-    setDrawerOpen(true);
-  };
-
-  const handleDrawerClose = () => {
-    setDrawerOpen(false);
-  };
-
   return (
     <BrowserRouter>
       <CssBaseline />
-      <ButtonAppBar onMenuClick={handleDrawerOpen} drawerOpen={drawerOpen} />
-      <TemporaryDrawer open={drawerOpen} onClose={handleDrawerClose} />
+      <ButtonAppBar />
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/website/:id" element={<WebsiteDetails />} />
