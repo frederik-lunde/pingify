@@ -1,82 +1,65 @@
-import { useEffect, useState } from 'react';
-import { fetchUsers, fetchUserById } from '../services/userService';
-import Button from '@mui/material/Button';
-import Grid from '@mui/material/Grid2';
-import Typography from '@mui/material/Typography';
-import Paper from '@mui/material/Paper';
-import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
+// src/components/Dashboard.tsx
+import React from 'react';
+import { Container, Box, CircularProgress, Grid } from '@mui/material';
+import { useWebsiteStats } from '../services/monitoringService';
+import { useWebsiteData } from '../hooks/useWebsiteData';
+import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
+import StatsCard from '../components/StatsCard';
+import AlertsSection from '../components/dashboard/AlertsSection';
+import WebsiteStatusSection from '../components/dashboard/WebsiteStatusSection';
+import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
 
-type User = {
-  id: number;
-  username: string;
-  password: string;
-  created_at: string;
-};
+const Dashboard: React.FC = () => {
+  const { stats, loading: statsLoading } = useWebsiteStats();
+  const { websitesWithLatestResults, loading: websitesLoading } = useWebsiteData();
 
-function Dashboard() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const getUsers = async () => {
-      try {
-        const data = await fetchUsers();
-        setUsers(data);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-
-    getUsers();
-  }, []);
-
-  const handleFetchUserById = async (id: number) => {
-    try {
-      const data = await fetchUserById(id);
-      setSelectedUser(data);
-    } catch (error) {
-      console.error('Error fetching user:', error);
-    }
-  };
+  if (statsLoading || websitesLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
-    <Container>
-      <Typography variant="h1" gutterBottom>
-        Users
-      </Typography>
-      <Button variant="contained" href="/create" sx={{ mb: 3 }}>
-        Create User
-      </Button>
-      <Grid container spacing={{ xs: 2, md: 3 }}>
-        {users.map((user) => (
-          <Grid  size={{ xs: 12, sm: 6, md: 3 }} key={user.id}>
-            <Paper elevation={3} sx={{ p: 2, backgroundColor: 'green' }}>
-              <Box>
-                <Typography variant="h2">{user.username}</Typography>
-                <Typography variant="body1">{user.password}</Typography>
-                <Button variant="contained" onClick={() => handleFetchUserById(user.id)}>
-                  View Details
-                </Button>
-              </Box>
-            </Paper>
-          </Grid>
-        ))}
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <h1>Website Monitoring Dashboard</h1>
+      
+      {/* Summary Cards */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={4}>
+          <StatsCard 
+            title="Total Websites" 
+            value={stats?.totalWebsites || 0} 
+            subtitle={`${stats?.activeWebsites || 0} active`} 
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <StatsCard 
+            title="Overall Uptime" 
+            value={`${stats?.overallUptime?.toFixed(2) || 0}%`} 
+            color={stats?.overallUptime ? getStatusColor(stats.overallUptime) : 'default'} 
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <StatsCard 
+            title="Avg. Response Time" 
+            value={`${stats?.overallResponseTime?.toFixed(0) || 0}ms`} 
+            color={stats?.overallResponseTime ? getResponseTimeColor(stats.overallResponseTime) : 'default'} 
+          />
+        </Grid>
       </Grid>
 
-      {selectedUser && (
-        <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
-          <Typography variant="h2" gutterBottom>
-            Selected User Details
-          </Typography>
-          <Typography variant="body1">ID: {selectedUser.id}</Typography>
-          <Typography variant="body1">Username: {selectedUser.username}</Typography>
-          <Typography variant="body1">Password: {selectedUser.password}</Typography>
-          <Typography variant="body1">Created at: {selectedUser.created_at}</Typography>
-        </Paper>
+      <WebsiteStatusSection websitesWithLatestResults={websitesWithLatestResults} />
+
+      <AlertsSection />
+      
+      
+      {stats?.websiteStats && stats.websiteStats.length > 0 && (
+        <WebsiteStatsSection websiteStats={stats.websiteStats} />
       )}
     </Container>
   );
-}
+};
 
 export default Dashboard;

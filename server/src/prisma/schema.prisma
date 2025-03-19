@@ -8,9 +8,57 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-model users {
-  id         Int      @id @default(autoincrement())
-  username   String   @unique(map: "username") @db.VarChar(50)
-  password   String   @db.VarChar(255)
-  created_at DateTime @default(now()) @db.Timestamp(0)
+model User {
+  id       Int       @id @default(autoincrement())
+  email    String    @unique
+  password String
+  name     String?
+}
+
+model Website {
+  id                Int                @id @default(autoincrement())
+  name              String
+  url               String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  interval          Int   
+  lastChecked       DateTime?  
+  isActive          Boolean            @default(true)
+  alertThreshold    Int                @default(2000)
+  alertEnabled      Boolean            @default(true)
+  notifyEmail       String?
+  alerts            Alert[]
+  monitoringResults MonitoringResult[]
+
+  @@index([isActive])
+}
+
+model MonitoringResult {
+  id           Int      @id @default(autoincrement())
+  websiteId    Int
+  responseTime Int?
+  isAvailable  Boolean
+  statusCode   Int?
+  errorMessage String?  @db.Text
+  checkedAt    DateTime @default(now())
+  website      Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+  @@index([checkedAt])
+  @@index([isAvailable])
+}
+
+model Alert {
+  id        Int      @id @default(autoincrement())
+  websiteId Int
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+  @@index([createdAt])
+  @@index([type])
+  @@index([isRead])
 }

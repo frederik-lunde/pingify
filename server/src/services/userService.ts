@@ -8,19 +8,19 @@ interface CreateUserBody {
 }
 
 export const getUsers = async () => {
-  return await prisma.users.findMany();
+  return await prisma.user.findMany();
 };
 
 export const getUserById = async (id: string) => {
-  return await prisma.users.findUnique({
+  return await prisma.user.findUnique({
     where: { id: parseInt(id, 10) },
   });
 };
 
 export const createUser = async (data: CreateUserBody) => {
-  return await prisma.users.create({
+  return await prisma.user.create({
     data: {
-      username: data.username,
+      email: data.username,
       password: data.password,
     },
   });
