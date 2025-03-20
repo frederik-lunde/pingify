@@ -28,8 +28,8 @@ app.use(morgan('dev'));
 app.use('/api/auth', authRoutes);
 
 // Protected routes for user-specific data
-app.use('/api/websites', authenticate, websiteRoutes);
-app.use('/api/monitoring', authenticate, monitoringRoutes);
+app.use('/api/websites', websiteRoutes);
+app.use('/api/monitoring', monitoringRoutes);
 
 // Start monitoring scheduler (runs for all websites regardless of user access)
 scheduleMonitoring();
