@@ -1,8 +1,9 @@
+// server/src/controllers/websiteController.ts
 import { Request, Response, NextFunction } from 'express';
-import * as websiteService from '../services/websiteService';
+import * as websiteService from '../services/website-service';
 
 /**
- * Get all websites
+ * Get all websites (admin function)
  */
 export const getAllWebsites = async (
   req: Request, 
@@ -11,6 +12,23 @@ export const getAllWebsites = async (
 ): Promise<void> => {
   try {
     const websites = await websiteService.getAllWebsites();
+    res.json(websites);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get websites for the authenticated user
+ */
+export const getUserWebsites = async (
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const websites = await websiteService.getWebsitesForUser(userId);
     res.json(websites);
   } catch (error) {
     next(error);
@@ -41,6 +59,34 @@ export const getWebsiteById = async (
 };
 
 /**
+ * Get website by ID (only if in user's dashboard)
+ */
+export const getUserWebsiteById = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const websiteId = parseInt(id, 10);
+    
+    // Check if user has access to this website
+    const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
+    
+    if (!hasAccess) {
+      res.status(404).json({ message: 'Website not found in your dashboard' });
+      return;
+    }
+    
+    const website = await websiteService.getWebsiteById(websiteId);
+    res.json(website);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Create a new website
  */
 export const createWebsite = async (
@@ -49,18 +95,7 @@ export const createWebsite = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { name, url, interval, isActive, alertEnabled, alertThreshold, notifyEmail } = req.body;
-    
-    const website = await websiteService.createWebsite({
-      name,
-      url,
-      interval,
-      isActive,
-      alertEnabled,
-      alertThreshold,
-      notifyEmail
-    });
-    
+    const website = await websiteService.createWebsite(req.body);
     res.status(201).json(website);
   } catch (error) {
     next(error);
@@ -132,6 +167,44 @@ export const getMonitoringResults = async (
     
     const results = await websiteService.getWebsiteResults(parseInt(id, 10), limit);
     res.json(results);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Add a website to user's dashboard
+ */
+export const addWebsiteToUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const websiteData = req.body;
+    
+    const website = await websiteService.addWebsiteToUser(userId, websiteData);
+    res.status(201).json(website);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Remove a website from user's dashboard
+ */
+export const removeWebsiteFromUser = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    
+    await websiteService.removeWebsiteFromUser(userId, parseInt(id, 10));
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

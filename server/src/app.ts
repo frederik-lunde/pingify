@@ -4,12 +4,13 @@ import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 
 // Routes
-import userRoutes from './routes/userRoutes';
+import authRoutes from './routes/authRoutes';
 import websiteRoutes from './routes/websiteRoutes';
 import monitoringRoutes from './routes/monitoringRoutes';
 
 // Middleware
 import errorMiddleware from './middleware/errorMiddleware';
+import { authenticate } from './middleware/authMiddleware';
 
 // Utils
 import { scheduleMonitoring } from './utils/scheduler';
@@ -23,12 +24,16 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-// API routes
-app.use('/api/users', userRoutes);
+// Public routes
+app.use('/api/auth', authRoutes);
+
+
+// Protected routes for user-specific data
+//Skal egentlg ha på authenticate her men funker ikke
 app.use('/api/websites', websiteRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 
-// Start monitoring scheduler
+// Start monitoring scheduler (runs for all websites regardless of user access)
 scheduleMonitoring();
 
 // Global error handler (should be the last middleware)

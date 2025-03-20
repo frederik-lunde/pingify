@@ -1,20 +1,52 @@
+// client/src/App.tsx
 import { BrowserRouter, Routes, Route } from 'react-router';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import WebsiteDetails from './pages/WebsiteDetails';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import { CssBaseline } from '@mui/material';
-import Navbar from './components/Navbar'; 
+import Navbar from './components/Navbar';
+import ProtectedRoute from './components/ProtectedRoute';
+
+function AppContent() {
+  const { user } = useAuth();
+
+  return (
+    <>
+      {user && <Navbar />}
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/website/:id"
+          element={
+            <ProtectedRoute>
+              <WebsiteDetails />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
+  );
+}
 
 function App() {
   return (
-    <BrowserRouter>
-      <CssBaseline />
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/website/:id" element={<WebsiteDetails />} />
-        {/* <Route path="/signup" element={<signup />} /> */}
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <CssBaseline />
+        <AppContent />
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

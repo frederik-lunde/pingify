@@ -1,3 +1,4 @@
+// Updated schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,10 +10,13 @@ datasource db {
 }
 
 model User {
-  id       Int       @id @default(autoincrement())
-  email    String    @unique
-  password String
-  name     String?
+  id            Int             @id @default(autoincrement())
+  email         String          @unique
+  password      String
+  name          String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  websiteUsers  WebsiteUser[]   // Relation to the join table
 }
 
 model Website {
@@ -29,8 +33,23 @@ model Website {
   notifyEmail       String?
   alerts            Alert[]
   monitoringResults MonitoringResult[]
+  websiteUsers      WebsiteUser[]      // Relation to the join table
 
   @@index([isActive])
+}
+
+// Join table for many-to-many relationship
+model WebsiteUser {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  websiteId   Int
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, websiteId]) // Ensures a user can only be associated with a website once
+  @@index([userId])
+  @@index([websiteId])
 }
 
 model MonitoringResult {
