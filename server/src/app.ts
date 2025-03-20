@@ -27,7 +27,9 @@ app.use(morgan('dev'));
 // Public routes
 app.use('/api/auth', authRoutes);
 
+
 // Protected routes for user-specific data
+//Skal egentlg ha på authenticate her men funker ikke
 app.use('/api/websites', websiteRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 
