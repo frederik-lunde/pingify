@@ -29,9 +29,8 @@ app.use('/api/auth', authRoutes);
 
 
 // Protected routes for user-specific data
-//Skal egentlg ha på authenticate her men funker ikke
-app.use('/api/websites', websiteRoutes);
-app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/websites',authenticate, websiteRoutes);
+app.use('/api/monitoring',authenticate, monitoringRoutes);
 
 // Start monitoring scheduler (runs for all websites regardless of user access)
 scheduleMonitoring();

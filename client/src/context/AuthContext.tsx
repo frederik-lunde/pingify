@@ -22,7 +22,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(localStorage.getItem('authToken'));
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(response.data.user);
       } catch (err) {
         console.error('Failed to load user', err);
-        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
         setToken(null);
         setError('Session expired. Please login again.');
       } finally {
@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await axios.post(`${API_BASE_URL}/auth/login`, { email, password });
       const { token, user } = response.data;
       
-      localStorage.setItem('token', token);
+      localStorage.setItem('authToken', token);
       setToken(token);
       setUser(user);
     } catch (err: any) {
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await axios.post(`${API_BASE_URL}/auth/register`, { email, password, name });
       const { token, user } = response.data;
       
-      localStorage.setItem('token', token);
+      localStorage.setItem('authToken', token);
       setToken(token);
       setUser(user);
     } catch (err: any) {
@@ -106,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('authToken');
     setToken(null);
     setUser(null);
   };
