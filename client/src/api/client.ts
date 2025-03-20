@@ -1,4 +1,4 @@
-// src/api/client.ts
+// client/src/api/client.ts
 import axios from 'axios';
 import { API_BASE_URL } from './config';
 
@@ -10,10 +10,10 @@ const apiClient = axios.create({
   },
 });
 
-// Add request interceptor for authentication if needed
+// Add request interceptor for authentication
 apiClient.interceptors.request.use(
   (config) => {
-    // Example: Add auth token from localStorage
+    // Get auth token from localStorage
     const token = localStorage.getItem('authToken');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
@@ -33,8 +33,8 @@ apiClient.interceptors.response.use(
     if (error.response) {
       if (error.response.status === 401) {
         // Unauthorized - redirect to login
-        console.error('Authentication required');
-        // Example: window.location.href = '/login';
+        localStorage.removeItem('authToken');
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
