@@ -19,10 +19,10 @@ import {
 import { useWebsiteDetail } from '../hooks/useWebsiteDetail';
 
 // Component imports
-import WebsiteHeader from './website-details/WebsiteHeader';
-import WebsiteStatsCards from './website-details/WebsiteStatsCards';
-import ResponseTimeChart from './website-details/ResponseTimeChart';
-import ResultsTable from './website-details/ResultsTable';
+import WebsiteHeader from '../components/website-details/WebsiteHeader';
+import WebsiteStatsCards from '../components/website-details/WebsiteStatsCards';
+import ResponseTimeChart from '../components/website-details/ResponseTimeChart';
+import ResultsTable from '../components/website-details/ResultsTable';
 
 // Register Chart.js components once
 ChartJS.register(

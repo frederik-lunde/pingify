@@ -1,6 +1,7 @@
 // src/hooks/useWebsiteData.ts
 import { useState, useEffect, useMemo } from 'react';
-import { getWebsites, useMonitoringResults } from '../services/monitoringService';
+import { useMonitoringResults } from '../api/hooks/useMonitoring'; 
+import { getWebsites } from '../api/websites';
 import { Website, MonitoringResult } from '../types';
 
 export interface WebsiteWithResult {

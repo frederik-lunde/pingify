@@ -1,7 +1,8 @@
 // src/components/Dashboard.tsx
 import React from 'react';
 import { Container, Box, CircularProgress, Grid } from '@mui/material';
-import { useWebsiteStats } from '../services/monitoringService';
+// Update import path for useWebsiteStats -> useMonitoringStats
+import { useMonitoringStats } from '../api/hooks/useMonitoring';
 import { useWebsiteData } from '../hooks/useWebsiteData';
 import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
 import StatsCard from '../components/StatsCard';
@@ -10,7 +11,8 @@ import WebsiteStatusSection from '../components/dashboard/WebsiteStatusSection';
 import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
 
 const Dashboard: React.FC = () => {
-  const { stats, loading: statsLoading } = useWebsiteStats();
+  // Rename to use new hook name
+  const { stats, loading: statsLoading } = useMonitoringStats();
   const { websitesWithLatestResults, loading: websitesLoading } = useWebsiteData();
 
   if (statsLoading || websitesLoading) {
@@ -53,7 +55,6 @@ const Dashboard: React.FC = () => {
       <WebsiteStatusSection websitesWithLatestResults={websitesWithLatestResults} />
 
       <AlertsSection />
-      
       
       {stats?.websiteStats && stats.websiteStats.length > 0 && (
         <WebsiteStatsSection websiteStats={stats.websiteStats} />

@@ -1,7 +1,7 @@
 // src/components/dashboard/AlertsSection.tsx
 import React from 'react';
 import { Paper, Typography, Box, CircularProgress, Table, TableHead, TableRow, TableCell, TableBody, Chip } from '@mui/material';
-import { useAlerts } from '../../services/monitoringService';
+import { useAlerts } from '../../api/hooks';
 import { getAlertTypeColor } from '../../utils/statusUtils';
 
 const AlertsSection: React.FC = () => {
