@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 const Register: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const { register, loading } = useAuth();
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ const Register: React.FC = () => {
     e.preventDefault();
 
     try {
-      await register(email, password);
+      await register(email, name, password);
       navigate('/');
     } catch (err) {
       setError('Registration failed');
@@ -48,6 +49,16 @@ const Register: React.FC = () => {
             autoFocus
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+          />
+          <TextField
+            margin="normal"
+            fullWidth
+            id="name"
+            label="Display Name"
+            name="name"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
           />
           <TextField
             margin="normal"
