@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as monitoringService from '../services/monitoring-service';
-import * as websiteService from '../services/websiteService';
+import * as websiteService from '../services/website-service';
 import * as alertService from '../services/alert-service';
 
 /**
