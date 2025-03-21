@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import * as monitoringService from '../services/monitoring-service';
+import { ResultsManager, WebsiteMonitor, StatsCalculator } from '../services/monitoring-service';
 import * as websiteService from '../services/website-service';
 import * as alertService from '../services/alert-service';
 
@@ -14,7 +14,7 @@ export const getAllResults = async (
   try {
     const { limit = '100', from, to } = req.query;
     
-    const results = await monitoringService.getAllResults({
+    const results = await ResultsManager.getAllResults({
       limit: parseInt(limit as string, 10),
       from: from ? new Date(from as string) : undefined,
       to: to ? new Date(to as string) : undefined
@@ -38,7 +38,7 @@ export const getResultsByWebsite = async (
     const { websiteId } = req.params;
     const { limit = '100', from, to } = req.query;
     
-    const results = await monitoringService.getResultsByWebsite(
+    const results = await ResultsManager.getFilteredResultsByWebsite(
       parseInt(websiteId, 10),
       {
         limit: parseInt(limit as string, 10),
@@ -70,7 +70,7 @@ export const triggerWebsiteCheck = async (
       return;
     }
     
-    await monitoringService.checkWebsite(website);
+    await WebsiteMonitor.checkWebsite(website);
     res.json({ message: 'Check triggered successfully' });
   } catch (error) {
     next(error);
@@ -89,8 +89,8 @@ export const getMonitoringStats = async (
     const { websiteId, period = '7d' } = req.query;
     
     const stats = websiteId 
-      ? await monitoringService.getWebsiteStats(parseInt(websiteId as string, 10), period as string)
-      : await monitoringService.getOverallStats(period as string);
+      ? await StatsCalculator.getWebsiteStats(parseInt(websiteId as string, 10), period as string)
+      : await StatsCalculator.getOverallStats(period as string);
     
     res.json(stats);
   } catch (error) {

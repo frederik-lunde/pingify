@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { PrismaClient, Website } from '@prisma/client';
 import { CONCURRENCY, DEFAULT_INTERVAL } from '../config/config';
-import { checkWebsite } from '../services/monitoring-service';
+import { WebsiteMonitor } from '../services/monitoring-service';
 
 const prisma = new PrismaClient();
 
@@ -45,7 +45,7 @@ async function getActiveWebsites(): Promise<Website[]> {
 async function processBatches(websites: Website[]): Promise<void> {
   for (let i = 0; i < websites.length; i += CONCURRENCY) {
     const batch = websites.slice(i, i + CONCURRENCY);
-    await Promise.all(batch.map(website => checkWebsite(website)));
+    await Promise.all(batch.map(website => WebsiteMonitor.checkWebsite(website)));
   }
 }
 

@@ -1,5 +1,5 @@
 import { PrismaClient, Website } from '@prisma/client';
-import { getMonitoringResultsForWebsite } from './monitoring-service';
+import { ResultsManager } from './monitoring-service';
 
 const prisma = new PrismaClient();
 
@@ -108,7 +108,7 @@ export async function toggleWebsiteStatus(id: number): Promise<Website> {
  * Get website monitoring results
  */
 export async function getWebsiteResults(id: number, limit = 100) {
-  return getMonitoringResultsForWebsite(id, limit);
+  return ResultsManager.getResultsForWebsite(id, limit);
 }
 
 /**

@@ -1,6 +1,6 @@
 import { PrismaClient, Website, Alert } from '@prisma/client';
 import { emailTransporter, EMAIL_FROM } from '../config/config';
-import { getLatestResultId } from './monitoring-service';
+import { ResultsManager } from './monitoring-service';
 
 const prisma = new PrismaClient();
 
@@ -150,7 +150,7 @@ export async function processAlerts(
     const lastResult = await prisma.monitoringResult.findFirst({
       where: { 
         websiteId: website.id,
-        id: { not: await getLatestResultId(website.id) }
+        id: { not: await ResultsManager.getLatestResultId(website.id) }
       },
       orderBy: { checkedAt: 'desc' },
     });
