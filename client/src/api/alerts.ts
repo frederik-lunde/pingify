@@ -6,7 +6,7 @@ import { Alert } from '../types';
  * Get all alerts
  */
 export const getAlerts = async (limit = 10, active?: boolean): Promise<Alert[]> => {
-  let url = `/monitoring/alerts?limit=${limit}`;
+  let url = `/alerts?limit=${limit}`;
   if (active !== undefined) {
     url += `&active=${active}`;
   }
@@ -15,15 +15,15 @@ export const getAlerts = async (limit = 10, active?: boolean): Promise<Alert[]> 
 };
 
 /**
- * Get alerts for a specific website
+ * Get alerts for a specific website 
  */
 export const getWebsiteAlerts = async (websiteId: number, limit = 10): Promise<Alert[]> => {
-  const response = await apiClient.get(`/monitoring/alerts?websiteId=${websiteId}&limit=${limit}`);
+  const response = await apiClient.get(`/websites/?websiteId=${websiteId}&limit=${limit}`);
   return response.data;
 };
 
 /**
- * Resolve an alert manually
+ * Resolve an alert manually (not implemented)
  */
 export const resolveAlert = async (alertId: number): Promise<Alert> => {
   const response = await apiClient.post(`/monitoring/alerts/${alertId}/resolve`);

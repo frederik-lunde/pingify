@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ResultsManager, WebsiteMonitor, StatsCalculator } from '../services/monitoring-service';
 import * as websiteService from '../services/website-service';
-import * as alertService from '../services/alert-service';
 
 /**
  * Get all monitoring results with optional filtering
@@ -93,54 +92,6 @@ export const getMonitoringStats = async (
       : await StatsCalculator.getOverallStats(period as string);
     
     res.json(stats);
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Get recent alerts
- */
-export const getRecentAlerts = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { limit = '50', type } = req.query;
-    
-    const alerts = await alertService.getRecentAlerts({
-      limit: parseInt(limit as string, 10),
-      type: type as string
-    });
-    
-    res.json(alerts);
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Get alerts for a specific website
- */
-export const getAlertsByWebsite = async (
-  req: Request<{ websiteId: string }>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { websiteId } = req.params;
-    const { limit = '50', type } = req.query;
-    
-    const alerts = await alertService.getAlertsByWebsite(
-      parseInt(websiteId, 10),
-      {
-        limit: parseInt(limit as string, 10),
-        type: type as string
-      }
-    );
-    
-    res.json(alerts);
   } catch (error) {
     next(error);
   }
