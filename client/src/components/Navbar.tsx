@@ -15,7 +15,11 @@ import AdbIcon from '@mui/icons-material/Adb';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router';
 
-const pages = ['Add Website', 'Export Data'];
+// Define the pages as objects with names and paths
+const pages = [
+  { name: 'Add Website', path: '/add-website' },
+  { name: 'Export Data', path: '#' }  // This will be implemented later
+];
 const settings = ['Profile', 'Logout'];
 
 function Navbar() {
@@ -23,7 +27,6 @@ function Navbar() {
   const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
 
   const { logout, user } = useAuth();
-  {console.log(user)}
   const navigate = useNavigate();
 
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -40,6 +43,11 @@ function Navbar() {
 
   const handleCloseUserMenu = () => {
     setAnchorElUser(null);
+  };
+
+  const handlePageClick = (path: string) => {
+    handleCloseNavMenu();
+    navigate(path);
   };
 
   const handleSettingClick = async (setting: string) => {
@@ -63,7 +71,7 @@ function Navbar() {
             variant="h6"
             noWrap
             component="a"
-            href="#app-bar-with-responsive-menu"
+            href="/"
             sx={{
               mr: 2,
               display: { xs: 'none', md: 'flex' },
@@ -74,7 +82,7 @@ function Navbar() {
               textDecoration: 'none',
             }}
           >
-            LOGO
+            PINGIFY
           </Typography>
 
           <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' } }}>
@@ -105,8 +113,8 @@ function Navbar() {
               sx={{ display: { xs: 'block', md: 'none' } }}
             >
               {pages.map((page) => (
-                <MenuItem key={page} onClick={handleCloseNavMenu}>
-                  <Typography sx={{ textAlign: 'center' }}>{page}</Typography>
+                <MenuItem key={page.name} onClick={() => handlePageClick(page.path)}>
+                  <Typography sx={{ textAlign: 'center' }}>{page.name}</Typography>
                 </MenuItem>
               ))}
             </Menu>
@@ -116,7 +124,7 @@ function Navbar() {
             variant="h5"
             noWrap
             component="a"
-            href="#app-bar-with-responsive-menu"
+            href="/"
             sx={{
               mr: 2,
               display: { xs: 'flex', md: 'none' },
@@ -128,22 +136,21 @@ function Navbar() {
               textDecoration: 'none',
             }}
           >
-            LOGO
+            PINGIFY
           </Typography>
           <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' } }}>
             {pages.map((page) => (
               <Button
-                key={page}
-                onClick={handleCloseNavMenu}
+                key={page.name}
+                onClick={() => handlePageClick(page.path)}
                 sx={{ my: 2, color: 'white', display: 'block' }}
               >
-                {page}
+                {page.name}
               </Button>
             ))}
           </Box>
           <Box sx={{ flexGrow: 0 }}>
             <Tooltip title="Open settings">
-              
               <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
                 <Avatar alt={user?.name} src="/static/images/avatar/2.jpg" />
               </IconButton>

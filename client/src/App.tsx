@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import WebsiteDetails from './pages/WebsiteDetails';
+import AddWebsite from './pages/AddWebsite'; // Import the new component
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { CssBaseline } from '@mui/material';
@@ -31,6 +32,15 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <WebsiteDetails />
+            </ProtectedRoute>
+          }
+        />
+        {/* Add the new route */}
+        <Route
+          path="/add-website"
+          element={
+            <ProtectedRoute>
+              <AddWebsite />
             </ProtectedRoute>
           }
         />

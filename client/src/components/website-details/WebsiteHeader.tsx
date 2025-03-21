@@ -1,12 +1,12 @@
 import React from 'react';
 import { 
-  Grid, 
   Typography, 
   Chip, 
   Button, 
   CircularProgress, 
   Paper 
 } from '@mui/material';
+import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
 import { 
   CheckCircleOutline as CheckIcon, 
   ErrorOutline as ErrorIcon, 
@@ -33,7 +33,7 @@ const WebsiteHeader: React.FC<WebsiteHeaderProps> = ({
   return (
     <Paper sx={{ p: 3, mb: 3 }}>
       <Grid container spacing={2} alignItems="center">
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Typography variant="h4" component="h1">
             {websiteName}
           </Typography>
@@ -41,7 +41,7 @@ const WebsiteHeader: React.FC<WebsiteHeaderProps> = ({
             {`ID: ${websiteId}`}
           </Typography>
         </Grid>
-        <Grid item xs={12} md={4} sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' } }}>
+        <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' } }}>
           <Chip 
             icon={statusColor === 'success' ? <CheckIcon /> : <ErrorIcon />}
             label={currentStatus}
