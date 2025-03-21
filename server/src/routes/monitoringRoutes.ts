@@ -15,10 +15,4 @@ router.post('/check/:websiteId', monitoringController.triggerWebsiteCheck);
 // Get performance statistics
 router.get('/stats', monitoringController.getMonitoringStats);
 
-// // Get recent alerts
-// router.get('/alerts', monitoringController.getRecentAlerts);
-
-// // Get alerts for a specific website
-// router.get('/website/:websiteId/alerts', monitoringController.getAlertsByWebsite);
-
 export default router;

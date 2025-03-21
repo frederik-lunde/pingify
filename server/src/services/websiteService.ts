@@ -108,6 +108,8 @@ export async function getWebsiteResults(id: number, limit = 100) {
  * Add a website to a user's dashboard 
  * Creates the website if it doesn't exist
  */
+
+//TROR DENNE GJØR JOBBEN VI TRENGER EGT
 export async function addWebsiteToUser(userId: number, websiteData: CreateWebsiteDTO): Promise<Website> {
   let website = await getWebsiteByUrl(websiteData.url);
   
