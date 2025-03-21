@@ -23,7 +23,7 @@ interface LoadingScreenProps {
 }
 
 const LoadingScreen: React.FC<LoadingScreenProps> = ({ 
-  message = "Loading your dashboard..." 
+  message = "Loading dashboard..." 
 }) => {
   return (
     <Box
@@ -78,7 +78,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
             maxWidth: '400px',
           }}
         >
-          Please wait while we load your data and verify your credentials.
+          Please wait
         </Typography>
       </Box>
     </Box>
