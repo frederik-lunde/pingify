@@ -1,21 +1,15 @@
 import { PrismaClient, User } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { LoginCredentials, RegisterUserData } from '../types';
 
 const prisma = new PrismaClient();
+
+//PUT IN ENV FOR PRODUCTION
 const JWT_SECRET = process.env.JWT_SECRET || 'b0fd5b5063b01700bb0f13d45f37de17e0c72e1a274cfc3f29df3769c289ae7a'; // Use environment variable in production
 const SALT_ROUNDS = 10;
 
-export interface RegisterUserData {
-  email: string;
-  password: string;
-  name?: string;
-}
 
-export interface LoginCredentials {
-  email: string;
-  password: string;
-}
 
 export async function registerUser(data: RegisterUserData): Promise<{ user: Omit<User, 'password'>, token: string }> {
   // Check if user already exists

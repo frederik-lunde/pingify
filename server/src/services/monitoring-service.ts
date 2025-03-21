@@ -3,33 +3,10 @@ import { performance } from 'perf_hooks';
 import { PrismaClient, Website, MonitoringResult } from '@prisma/client';
 import { TIMEOUT_MS } from '../config/config';
 import { processAlerts } from './alert-service';
+import {MonitoringResponse, ResultsQueryOptions, WebsiteStatsData} from '../types';
 
 const prisma = new PrismaClient();
 
-// Types
-interface MonitoringResponse {
-  responseTime: number | null;
-  isAvailable: boolean;
-  statusCode: number | null;
-  errorMessage: string | null;
-}
-
-interface ResultsQueryOptions {
-  limit?: number;
-  from?: Date;
-  to?: Date;
-}
-
-interface WebsiteStatsData {
-  websiteId: number;
-  websiteName: string;
-  url: string;
-  uptime: number;
-  averageResponseTime: number;
-  totalChecks: number;
-  lastCheck: Date | null;
-  consecutiveFailures: number;
-}
 
 // Website Checking
 export class WebsiteMonitor {

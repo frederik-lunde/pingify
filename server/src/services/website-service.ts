@@ -1,17 +1,10 @@
 import { PrismaClient, Website } from '@prisma/client';
 import { ResultsManager } from './monitoring-service';
+import { CreateWebsiteDTO } from '../types';
 
 const prisma = new PrismaClient();
 
-export interface CreateWebsiteDTO {
-  name: string;
-  url: string;
-  interval: number;
-  isActive?: boolean;
-  alertEnabled?: boolean;
-  alertThreshold?: number;
-  notifyEmail?: string;
-}
+
 
 /**
  * Get all websites

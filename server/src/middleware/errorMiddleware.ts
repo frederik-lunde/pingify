@@ -1,10 +1,8 @@
 // server/src/middleware/error.middleware.ts
 import { Request, Response, NextFunction } from 'express';
-
+import { CustomError } from '../types';
 // Optional: Define a custom error interface
-interface CustomError extends Error {
-  status?: number;
-}
+
 
 const errorMiddleware = (err: CustomError, req: Request, res: Response, next: NextFunction): void => {
   console.error(err); // Log the error for debugging

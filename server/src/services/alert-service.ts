@@ -1,23 +1,10 @@
 import { PrismaClient, Website, Alert } from '@prisma/client';
 import { emailTransporter, EMAIL_FROM } from '../config/config';
 import { ResultsManager } from './monitoring-service';
+import {AlertQueryOptions, EmailAlertOptions, AlertType} from '../types';
 
 const prisma = new PrismaClient();
 
-type AlertType = 'down' | 'recovered' | 'slow';
-
-interface AlertQueryOptions {
-  limit?: number;
-  type?: string;
-  from?: Date;
-  to?: Date;
-}
-
-interface EmailAlertOptions {
-  to: string;
-  subject: string;
-  body: string;
-}
 
 /**
  * Creates an alert record in the database
