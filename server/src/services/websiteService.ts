@@ -1,5 +1,5 @@
 import { PrismaClient, Website } from '@prisma/client';
-import { ResultsManager } from './monitoring-service';
+import { ResultsManager } from './monitoringService';
 import { CreateWebsiteDTO } from '../types';
 
 const prisma = new PrismaClient();

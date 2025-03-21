@@ -1,6 +1,6 @@
 import { PrismaClient, Website, Alert } from '@prisma/client';
 import { emailTransporter, EMAIL_FROM } from '../config/config';
-import { ResultsManager } from './monitoring-service';
+import { ResultsManager } from './monitoringService';
 import {AlertQueryOptions, EmailAlertOptions, AlertType} from '../types';
 
 const prisma = new PrismaClient();

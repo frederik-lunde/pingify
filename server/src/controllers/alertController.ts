@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import * as AlertService from '../services/alert-service';
+import * as AlertService from '../services/alertService';
 
 /**
  * Get recent alerts

@@ -1,6 +1,6 @@
 // server/src/controllers/websiteController.ts
 import { Request, Response, NextFunction } from 'express';
-import * as websiteService from '../services/website-service';
+import * as websiteService from '../services/websiteService';
 
 /**
  * Get all websites (admin function)

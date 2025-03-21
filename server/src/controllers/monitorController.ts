@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { ResultsManager, WebsiteMonitor, StatsCalculator } from '../services/monitoring-service';
-import * as websiteService from '../services/website-service';
+import { ResultsManager, WebsiteMonitor, StatsCalculator } from '../services/monitoringService';
+import * as websiteService from '../services/websiteService';
 
 /**
  * Get all monitoring results with optional filtering

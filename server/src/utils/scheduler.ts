@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { PrismaClient, Website } from '@prisma/client';
 import { CONCURRENCY, DEFAULT_INTERVAL } from '../config/config';
-import { WebsiteMonitor } from '../services/monitoring-service';
+import { WebsiteMonitor } from '../services/monitoringService';
 
 const prisma = new PrismaClient();
 

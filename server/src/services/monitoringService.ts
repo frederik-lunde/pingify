@@ -2,7 +2,7 @@ import axios from 'axios';
 import { performance } from 'perf_hooks';
 import { PrismaClient, Website, MonitoringResult } from '@prisma/client';
 import { TIMEOUT_MS } from '../config/config';
-import { processAlerts } from './alert-service';
+import { processAlerts } from './alertService';
 import {MonitoringResponse, ResultsQueryOptions, WebsiteStatsData} from '../types';
 
 const prisma = new PrismaClient();
