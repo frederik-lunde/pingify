@@ -1,5 +1,6 @@
 import React from 'react';
-import { Grid, Card, CardContent, Typography } from '@mui/material';
+import { Card, CardContent, Typography } from '@mui/material';
+import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
 import { MonitoringResult } from '../../types';
 
 interface WebsiteStatsCardsProps {
@@ -9,7 +10,7 @@ interface WebsiteStatsCardsProps {
 const WebsiteStatsCards: React.FC<WebsiteStatsCardsProps> = ({ latestResult }) => {
   return (
     <Grid container spacing={3} sx={{ mb: 3 }}>
-      <Grid item xs={12} md={4}>
+      <Grid size={{ xs: 12, md: 4 }}>
         <Card>
           <CardContent>
             <Typography color="textSecondary" gutterBottom>
@@ -21,7 +22,7 @@ const WebsiteStatsCards: React.FC<WebsiteStatsCardsProps> = ({ latestResult }) =
           </CardContent>
         </Card>
       </Grid>
-      <Grid item xs={12} md={4}>
+      <Grid size={{ xs: 12, md: 4 }}>
         <Card>
           <CardContent>
             <Typography color="textSecondary" gutterBottom>
@@ -33,7 +34,7 @@ const WebsiteStatsCards: React.FC<WebsiteStatsCardsProps> = ({ latestResult }) =
           </CardContent>
         </Card>
       </Grid>
-      <Grid item xs={12} md={4}>
+      <Grid size={{ xs: 12, md: 4 }}>
         <Card>
           <CardContent>
             <Typography color="textSecondary" gutterBottom>

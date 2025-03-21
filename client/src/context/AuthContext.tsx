@@ -1,47 +1,40 @@
+// client/src/context/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router';
 import { API_BASE_URL } from '../api/config';
+import { getAuthToken, storeAuthToken, removeAuthToken } from '../utils/authTokenUtils';
+import { User, AuthContextType } from '../types';
 
-interface User {
-  id: number;
-  email: string;
-  name?: string;
-}
-
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  loading: boolean;
-  error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
-  logout: () => void;
-}
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('authToken'));
+  const [token, setToken] = useState<string | null>(getAuthToken());
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Set up axios interceptor for authentication
+  // Handle authentication errors
   useEffect(() => {
-    const interceptor = axios.interceptors.request.use(
-      (config) => {
-        if (token) {
-          config.headers['Authorization'] = `Bearer ${token}`;
-        }
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-
-    return () => {
-      axios.interceptors.request.eject(interceptor);
+    const handleAuthError = () => {
+      // Clear auth data
+      removeAuthToken();
+      setToken(null);
+      setUser(null);
+      
+      // Redirect to login
+      navigate('/login', { replace: true });
     };
-  }, [token]);
+
+    // Listen for custom auth error events
+    window.addEventListener('auth-error', handleAuthError);
+    
+    return () => {
+      window.removeEventListener('auth-error', handleAuthError);
+    };
+  }, [navigate]);
 
   // Load user data if token exists
   useEffect(() => {
@@ -52,12 +45,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const response = await axios.get(`${API_BASE_URL}/auth/me`);
+        const response = await axios.get(`${API_BASE_URL}/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
         setUser(response.data.user);
+        setError(null);
       } catch (err) {
         console.error('Failed to load user', err);
-        localStorage.removeItem('authToken');
+        removeAuthToken();
         setToken(null);
+        setUser(null);
         setError('Session expired. Please login again.');
       } finally {
         setLoading(false);
@@ -67,17 +66,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadUser();
   }, [token]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe: boolean = false) => {
     try {
       setLoading(true);
       setError(null);
       
       const response = await axios.post(`${API_BASE_URL}/auth/login`, { email, password });
-      const { token, user } = response.data;
+      const { token: authToken, user: userData } = response.data;
       
-      localStorage.setItem('authToken', token);
-      setToken(token);
-      setUser(user);
+      storeAuthToken(authToken, rememberMe);
+      setToken(authToken);
+      setUser(userData);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');
       throw err;
@@ -92,11 +91,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(null);
       
       const response = await axios.post(`${API_BASE_URL}/auth/register`, { email, password, name });
-      const { token, user } = response.data;
+      const { token: authToken, user: userData } = response.data;
       
-      localStorage.setItem('authToken', token);
-      setToken(token);
-      setUser(user);
+      // For registration, we'll use sessionStorage by default (no "remember me" on registration)
+      storeAuthToken(authToken, false);
+      setToken(authToken);
+      setUser(userData);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
       throw err;
@@ -106,9 +106,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    localStorage.removeItem('authToken');
+    removeAuthToken();
     setToken(null);
     setUser(null);
+    navigate('/login');
   };
 
   return (

@@ -2,6 +2,7 @@
 import React from 'react';
 import { Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
+import LoadingScreen from './LoadingScreen';
 
 interface ProtectedRouteProps {
   children: React.ReactElement;
@@ -11,7 +12,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div>Loading...</div>; // Or your loading component
+    return <LoadingScreen />;
   }
 
   if (!user) {
