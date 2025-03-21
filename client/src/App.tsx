@@ -1,9 +1,9 @@
 // client/src/App.tsx
-import { BrowserRouter, Routes, Route } from 'react-router';
+import { BrowserRouter as Router, Routes, Route } from 'react-router';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import WebsiteDetails from './pages/WebsiteDetails';
-import AddWebsite from './pages/AddWebsite'; // Import the new component
+import AddWebsite from './pages/AddWebsite';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { CssBaseline } from '@mui/material';
@@ -35,7 +35,6 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
-        {/* Add the new route */}
         <Route
           path="/add-website"
           element={
@@ -51,12 +50,12 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <CssBaseline />
+    <Router>
+      <CssBaseline />
+      <AuthProvider>
         <AppContent />
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 

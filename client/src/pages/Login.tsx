@@ -99,8 +99,7 @@ const Login: React.FC = () => {
     if (!validateForm()) return;
     
     try {
-      await login(formData.email, formData.password);
-      
+      await login(formData.email, formData.password, formData.rememberMe);      
       // Show success message
       setSnackbarMessage('Login successful! Redirecting to dashboard...');
       setSnackbarOpen(true);
