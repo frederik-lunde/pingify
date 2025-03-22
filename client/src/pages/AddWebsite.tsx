@@ -20,31 +20,32 @@ import Grid from '@mui/material/Grid2';
 import { Add as AddIcon, HelpOutline as HelpIcon } from '@mui/icons-material';
 import { useWebsiteCrud } from '../api/hooks/useWebsites';
 import { WebsiteCreateDTO } from '../types';
-import WebsiteAutocomplete from '../components/Autocomplete'; // Import the autocomplete component
 
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
   const { create, loading, error } = useWebsiteCrud();
 
-  // Use WebsiteCreateDTO type for form data
+  // Use WebsiteCreateDTO type for the form state
   const [formData, setFormData] = useState<Partial<WebsiteCreateDTO>>({
     name: '',
     url: '',
     interval: 300, // Default: 5 minutes (in seconds)
     alertEnabled: false,
-    alertThreshold: 60, // Default threshold in ms (if alerts are enabled)
+    alertThreshold: 60, // Default: 60 milliseconds (if alerts are enabled)
     notifyEmail: '',
   });
 
+  // Form state for validation errors and snackbar
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
 
-  // Handle change for fields that use a standard TextField or Switch
+  // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     const newValue = type === 'checkbox' ? checked : value;
+
     setFormData((prev) => ({
       ...prev,
       [name]: newValue
@@ -59,13 +60,14 @@ const AddWebsite: React.FC = () => {
     }
   };
 
-  // Validate form fields before submission
+  // Form validation
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
 
     if (!formData.name?.trim()) {
       errors.name = 'Website name is required';
     }
+
     if (!formData.url?.trim()) {
       errors.url = 'URL is required';
     } else {
@@ -75,12 +77,14 @@ const AddWebsite: React.FC = () => {
         errors.url = 'Please enter a valid URL (include http:// or https://)';
       }
     }
+
     if (formData.interval) {
       const interval = Number(formData.interval);
       if (isNaN(interval) || interval < 30 || interval > 86400) {
         errors.interval = 'Interval must be between 30 seconds and 1 day (86400 seconds)';
       }
     }
+
     if (formData.alertEnabled) {
       if (formData.alertThreshold) {
         const threshold = Number(formData.alertThreshold);
@@ -90,6 +94,7 @@ const AddWebsite: React.FC = () => {
       } else {
         errors.alertThreshold = 'Response threshold is required when alerts are enabled';
       }
+
       if (!formData.notifyEmail) {
         errors.notifyEmail = 'Email is required when alerts are enabled';
       } else {
@@ -99,16 +104,18 @@ const AddWebsite: React.FC = () => {
         }
       }
     }
+
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // Form submission handler
+  // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     try {
+      // Build the WebsiteCreateDTO object
       const websiteData: WebsiteCreateDTO = {
         name: formData.name!.trim(),
         url: formData.url!.trim(),
@@ -174,27 +181,33 @@ const AddWebsite: React.FC = () => {
               />
             </Grid>
 
-            {/* Website URL Autocomplete */}
+            {/* Website URL */}
             <Grid size={12}>
-              <WebsiteAutocomplete
-                value={formData.url || ''}
-                onChange={(newValue: string) =>
-                  setFormData((prev) => ({ ...prev, url: newValue }))
-                }
-                onWebsiteSelect={(website) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    url: website.url,
-                    // Optionally, auto-fill the website name if not already provided
-                    name: prev.name || website.url,
-                  }))
-                }
+              <TextField
+                name="url"
+                label="Website URL"
+                value={formData.url}
+                onChange={handleChange}
+                fullWidth
+                required
+                variant="outlined"
+                placeholder="https://example.com"
+                error={!!validationErrors.url}
+                helperText={validationErrors.url}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Tooltip title="Full URL including http:// or https://">
+                          <IconButton size="small">
+                            <HelpIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </InputAdornment>
+                    )
+                  }
+                }}
               />
-              {validationErrors.url && (
-                <Typography variant="caption" color="error">
-                  {validationErrors.url}
-                </Typography>
-              )}
             </Grid>
 
             {/* Check Interval */}
