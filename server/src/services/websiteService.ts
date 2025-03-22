@@ -28,9 +28,10 @@ export async function getWebsitesForUser(userId: number): Promise<WebsiteUser[]>
  */
 export async function getWebsiteById(id: number): Promise<Website | null> {
   return prisma.website.findUnique({
-    where: { id },
+    where: { id }
   });
 }
+
 
 /**
  * Get website by URL (exact match)
