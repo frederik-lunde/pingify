@@ -1,6 +1,7 @@
 // server/src/controllers/websiteController.ts
 import { Request, Response, NextFunction } from 'express';
 import * as websiteService from '../services/websiteService';
+import { WebsiteUserDTO } from '../types';
 
 /**
  * Get all websites (admin function)
@@ -28,8 +29,8 @@ export const getUserWebsites = async (
 ): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const websites = await websiteService.getWebsitesForUser(userId);
-    res.json(websites);
+    const websiteUsers = await websiteService.getWebsitesForUser(userId);
+    res.json(websiteUsers);
   } catch (error) {
     next(error);
   }
@@ -59,7 +60,7 @@ export const getWebsiteById = async (
 };
 
 /**
- * Get website by ID (only if in user's dashboard)
+ * Get user's website configuration by ID
  */
 export const getUserWebsiteById = async (
   req: Request<{ id: string }>,
@@ -71,23 +72,21 @@ export const getUserWebsiteById = async (
     const userId = req.user!.id;
     const websiteId = parseInt(id, 10);
     
-    // Check if user has access to this website
-    const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
+    const userWebsite = await websiteService.getUserWebsiteById(userId, websiteId);
     
-    if (!hasAccess) {
+    if (!userWebsite) {
       res.status(404).json({ message: 'Website not found in your dashboard' });
       return;
     }
     
-    const website = await websiteService.getWebsiteById(websiteId);
-    res.json(website);
+    res.json(userWebsite);
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * Create a new website
+ * Create a new website (admin function)
  */
 export const createWebsite = async (
   req: Request,
@@ -103,7 +102,7 @@ export const createWebsite = async (
 };
 
 /**
- * Update a website
+ * Update a website's core properties (admin function)
  */
 export const updateWebsite = async (
   req: Request<{ id: string }>,
@@ -112,7 +111,7 @@ export const updateWebsite = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const website = await websiteService.updateWebsite(parseInt(id, 10), req.body);
+    const website = await websiteService.updateWebsiteCore(parseInt(id, 10), req.body);
     res.json(website);
   } catch (error) {
     next(error);
@@ -120,7 +119,41 @@ export const updateWebsite = async (
 };
 
 /**
- * Delete a website
+ * Update a user's website configuration
+ */
+export const updateUserWebsite = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const websiteId = parseInt(id, 10);
+    
+    // Validate if user has access to this website
+    const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
+    
+    if (!hasAccess) {
+      res.status(404).json({ message: 'Website not found in your dashboard' });
+      return;
+    }
+    
+    // Cast to Partial<WebsiteUserDTO> to make types compatible
+    const userWebsite = await websiteService.updateUserWebsite(
+      userId, 
+      websiteId, 
+      req.body as Partial<WebsiteUserDTO>
+    );
+    
+    res.json(userWebsite);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete a website (admin function)
  */
 export const deleteWebsite = async (
   req: Request<{ id: string }>,
@@ -137,7 +170,7 @@ export const deleteWebsite = async (
 };
 
 /**
- * Toggle a website's active status
+ * Toggle a website's active status (admin function)
  */
 export const toggleWebsiteStatus = async (
   req: Request<{ id: string }>,
@@ -182,10 +215,10 @@ export const addWebsiteToUser = async (
 ): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const websiteData = req.body;
+    const websiteData = req.body as WebsiteUserDTO;
     
-    const website = await websiteService.addWebsiteToUser(userId, websiteData);
-    res.status(201).json(website);
+    const websiteUser = await websiteService.addWebsiteToUser(userId, websiteData);
+    res.status(201).json(websiteUser);
   } catch (error) {
     next(error);
   }
@@ -205,6 +238,39 @@ export const removeWebsiteFromUser = async (
     
     await websiteService.removeWebsiteFromUser(userId, parseInt(id, 10));
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get alerts for the authenticated user
+ */
+export const getUserAlerts = async (
+  req: Request<{}, {}, {}, { limit?: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
+    
+    const alerts = await websiteService.getAlertsForUser(userId, limit);
+    res.json(alerts);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const searchWebsites = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { query } = req.query;
+    const websites = await websiteService.searchWebsites(query as string);
+    res.json(websites);
   } catch (error) {
     next(error);
   }

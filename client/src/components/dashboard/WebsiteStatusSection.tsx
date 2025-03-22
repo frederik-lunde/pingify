@@ -17,10 +17,10 @@ import {
   CheckCircleOutline as CheckIcon,
   ErrorOutline as ErrorIcon 
 } from '@mui/icons-material';
-import { MonitoringResult, Website } from '../../types';
+import { MonitoringResult, UserWebsite } from '../../types';
 
 interface WebsiteWithResult {
-  website: Website;
+  userWebsite: UserWebsite;
   latestResult?: MonitoringResult;
 }
 
@@ -61,19 +61,19 @@ const WebsiteStatusSection: React.FC<WebsiteStatusSectionProps> = ({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {websitesWithLatestResults.map(({ website, latestResult }) => (
-                  <TableRow key={website.id}>
+                {websitesWithLatestResults.map(({ userWebsite, latestResult }) => (
+                  <TableRow key={userWebsite.websiteId}>
                     <TableCell>
                       <Link 
-                        to={`/website/${website.id}`} 
+                        to={`/website/${userWebsite.websiteId}`} 
                         style={{ textDecoration: 'none', color: 'inherit', fontWeight: 500 }}
                       >
-                        {website.name || `Website #${website.id}`}
+                        {userWebsite.name || `Website #${userWebsite.websiteId}`}
                       </Link>
                     </TableCell>
                     <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       <Typography variant="body2" noWrap>
-                        {website.url}
+                        {userWebsite.website.url}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -104,7 +104,7 @@ const WebsiteStatusSection: React.FC<WebsiteStatusSectionProps> = ({
                       {latestResult ? new Date(latestResult.checkedAt).toLocaleString() : 'Never checked'}
                     </TableCell>
                     <TableCell>
-                      {website.interval} sec
+                      {userWebsite.interval} sec
                     </TableCell>
                   </TableRow>
                 ))}

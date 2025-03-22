@@ -35,8 +35,6 @@ ChartJS.register(
   Legend
 );
 
-
-
 const WebsiteDetails: React.FC = () => {
   const params = useParams<Record<string, string>>();
   const id = params.id;
@@ -52,7 +50,8 @@ const WebsiteDetails: React.FC = () => {
     latestResult, 
     currentStatus, 
     statusColor,
-    refetch
+    refetch,
+    userWebsite  // Added userWebsite from updated hook
   } = useWebsiteDetail(websiteId);
 
   // Loading state
@@ -89,15 +88,28 @@ const WebsiteDetails: React.FC = () => {
     );
   }
 
-  // Determine website name - in a real app, you might want to fetch the actual website name
-  const websiteName = `Website #${websiteId}`;
+  // No access state
+  if (!userWebsite) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
+        <Paper sx={{ p: 3, textAlign: 'center' }}>
+          <ErrorIcon color="error" sx={{ fontSize: 40, mb: 2 }} />
+          <Typography variant="h5" color="error">
+            Website Not Found
+          </Typography>
+          <Typography variant="body1" sx={{ mt: 2 }}>
+            This website doesn't exist or you don't have access to it.
+          </Typography>
+        </Paper>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* Header with status and check button */}
+      {/* Header with status and check button - updated to use userWebsite */}
       <WebsiteHeader 
-        websiteId={websiteId}
-        websiteName={websiteName}
+        userWebsite={userWebsite}
         currentStatus={currentStatus}
         statusColor={statusColor}
         isChecking={isChecking}

@@ -1,11 +1,11 @@
 // src/components/dashboard/AlertsSection.tsx
 import React from 'react';
 import { Paper, Typography, Box, CircularProgress, Table, TableHead, TableRow, TableCell, TableBody, Chip } from '@mui/material';
-import { useAlerts } from '../../api/hooks';
+import { useUserAlerts } from '../../api/hooks/useAlerts';
 import { getAlertTypeColor } from '../../utils/statusUtils';
 
 const AlertsSection: React.FC = () => {
-  const { alerts, loading } = useAlerts(5);
+  const { alerts, loading } = useUserAlerts(5);
   
   return (
     <>
@@ -41,7 +41,12 @@ const AlertsSection: React.FC = () => {
                       size="small" 
                     />
                   </TableCell>
-                  <TableCell>{`Website #${alert.websiteId}`}</TableCell>
+                  <TableCell>
+                    {alert.website?.websiteUsers && alert.website.websiteUsers.length > 0
+                      ? alert.website.websiteUsers[0].name
+                      : `Website #${alert.websiteId}`
+                    }
+                  </TableCell>
                   <TableCell>{alert.message}</TableCell>
                   <TableCell>{new Date(alert.createdAt).toLocaleString()}</TableCell>
                 </TableRow>

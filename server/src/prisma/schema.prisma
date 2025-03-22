@@ -21,16 +21,12 @@ model User {
 
 model Website {
   id                Int                @id @default(autoincrement())
-  name              String
-  url               String
+  url               String             @unique  // Unique URL to avoid duplicates
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
-  interval          Int   
   lastChecked       DateTime?  
-  isActive          Boolean            @default(true)
-  alertThreshold    Int?               // Changed to nullable
-  alertEnabled      Boolean            @default(false) // Changed default to false to match client logic
-  notifyEmail       String?
+  isActive          Boolean            @default(false)  // Master switch for monitoring
+  globalInterval    Int                @default(300)    // Global check interval in seconds
   alerts            Alert[]
   monitoringResults MonitoringResult[]
   websiteUsers      WebsiteUser[]      // Relation to the join table
@@ -38,14 +34,19 @@ model Website {
   @@index([isActive])
 }
 
-// Join table for many-to-many relationship
+// Join table for many-to-many relationship with user-specific settings
 model WebsiteUser {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  websiteId   Int
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  websiteId      Int
+  name           String?    // User's custom name for this website
+  interval       Int?       // User's preferred checking interval
+  alertThreshold Int?      // User's threshold for slow response alerts
+  alertEnabled   Boolean   @default(false)
+  notifyEmail    String?   // User's email for notifications
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  website        Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 
   @@unique([userId, websiteId]) // Ensures a user can only be associated with a website once
   @@index([userId])

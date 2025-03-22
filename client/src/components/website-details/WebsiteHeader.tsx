@@ -12,10 +12,10 @@ import {
   ErrorOutline as ErrorIcon, 
   Refresh as RefreshIcon 
 } from '@mui/icons-material';
+import { UserWebsite } from '../../types';
 
 interface WebsiteHeaderProps {
-  websiteId: number;
-  websiteName: string;
+  userWebsite: UserWebsite | null;
   currentStatus: string;
   statusColor: 'success' | 'error' | 'info';
   isChecking: boolean;
@@ -23,22 +23,31 @@ interface WebsiteHeaderProps {
 }
 
 const WebsiteHeader: React.FC<WebsiteHeaderProps> = ({
-  websiteId,
-  websiteName,
+  userWebsite,
   currentStatus,
   statusColor,
   isChecking,
   onCheckNow
 }) => {
+  if (!userWebsite) {
+    return (
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h4" component="h1">
+          Loading website...
+        </Typography>
+      </Paper>
+    );
+  }
+
   return (
     <Paper sx={{ p: 3, mb: 3 }}>
       <Grid container spacing={2} alignItems="center">
         <Grid size={{ xs: 12, md: 8 }}>
           <Typography variant="h4" component="h1">
-            {websiteName}
+            {userWebsite.name}
           </Typography>
           <Typography variant="body1" color="textSecondary" sx={{ mt: 1 }}>
-            {`ID: ${websiteId}`}
+            {userWebsite.website.url}
           </Typography>
         </Grid>
         <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' } }}>

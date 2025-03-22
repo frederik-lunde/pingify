@@ -1,20 +1,26 @@
 // src/api/hooks/useAlerts.ts
 import { useState, useEffect, useCallback } from 'react';
 import { Alert } from '../../types';
-import { getAlerts, getWebsiteAlerts, resolveAlert } from '../alerts';
+import { getUserAlerts, getAlertsByWebsite, getUserAlertStats } from '../alerts';
 import { DEFAULT_POLLING_INTERVAL } from '../config';
 
 /**
- * Hook for polling alerts
+ * Hook for polling user's alerts
  */
-export function useAlerts(limit = 10, active?: boolean, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useUserAlerts(
+  limit = 50, 
+  type?: string, 
+  from?: Date, 
+  to?: Date, 
+  pollingInterval = DEFAULT_POLLING_INTERVAL
+) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const data = await getAlerts(limit, active);
+      const data = await getUserAlerts(limit, type, from, to);
       setAlerts(data);
       setError(null);
     } catch (err) {
@@ -23,7 +29,7 @@ export function useAlerts(limit = 10, active?: boolean, pollingInterval = DEFAUL
     } finally {
       setLoading(false);
     }
-  }, [limit, active]);
+  }, [limit, type, from, to]);
 
   useEffect(() => {
     // Initial fetch
@@ -42,14 +48,21 @@ export function useAlerts(limit = 10, active?: boolean, pollingInterval = DEFAUL
 /**
  * Hook for polling alerts for a specific website
  */
-export function useWebsiteAlerts(websiteId: number, limit = 10, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useWebsiteAlerts(
+  websiteId: number, 
+  limit = 50, 
+  type?: string,
+  from?: Date, 
+  to?: Date,
+  pollingInterval = DEFAULT_POLLING_INTERVAL
+) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const data = await getWebsiteAlerts(websiteId, limit);
+      const data = await getAlertsByWebsite(websiteId, limit, type, from, to);
       setAlerts(data);
       setError(null);
     } catch (err) {
@@ -58,7 +71,7 @@ export function useWebsiteAlerts(websiteId: number, limit = 10, pollingInterval 
     } finally {
       setLoading(false);
     }
-  }, [websiteId, limit]);
+  }, [websiteId, limit, type, from, to]);
 
   useEffect(() => {
     // Initial fetch
@@ -75,27 +88,40 @@ export function useWebsiteAlerts(websiteId: number, limit = 10, pollingInterval 
 }
 
 /**
- * Hook for resolving an alert
+ * Hook for getting alert statistics for the user
  */
-export function useResolveAlert() {
-  const [loading, setLoading] = useState<boolean>(false);
+export function useAlertStats(days = 7, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+  const [stats, setStats] = useState<{
+    totalAlerts: number;
+    byType: Record<string, number>;
+    byWebsite: Array<{ websiteId: number, websiteName: string, count: number }>;
+  } | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const resolve = useCallback(async (alertId: number) => {
-    setLoading(true);
-    setError(null);
-    
+  const fetchStats = useCallback(async () => {
     try {
-      const result = await resolveAlert(alertId);
-      return result;
+      const data = await getUserAlertStats(days);
+      setStats(data);
+      setError(null);
     } catch (err) {
-      const errorObj = err instanceof Error ? err : new Error(`Failed to resolve alert ID: ${alertId}`);
-      setError(errorObj);
-      throw errorObj;
+      setError(err instanceof Error ? err : new Error('Failed to fetch alert statistics'));
+      console.error('Error fetching alert statistics:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [days]);
 
-  return { resolve, loading, error };
+  useEffect(() => {
+    // Initial fetch
+    fetchStats();
+
+    // Set up polling
+    const intervalId = setInterval(fetchStats, pollingInterval);
+
+    // Clean up on unmount
+    return () => clearInterval(intervalId);
+  }, [fetchStats, pollingInterval]);
+
+  return { stats, loading, error, refetch: fetchStats };
 }

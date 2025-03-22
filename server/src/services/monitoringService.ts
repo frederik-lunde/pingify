@@ -1,12 +1,11 @@
 import axios from 'axios';
 import { performance } from 'perf_hooks';
-import { PrismaClient, Website, MonitoringResult } from '@prisma/client';
+import { PrismaClient, Website, MonitoringResult, WebsiteUser } from '@prisma/client';
 import { TIMEOUT_MS } from '../config/config';
 import { processAlerts } from './alertService';
-import {MonitoringResponse, ResultsQueryOptions, WebsiteStatsData} from '../types';
+import { MonitoringResponse, ResultsQueryOptions, WebsiteStatsData } from '../types';
 
 const prisma = new PrismaClient();
-
 
 // Website Checking
 export class WebsiteMonitor {
@@ -62,10 +61,19 @@ export class WebsiteMonitor {
       // Save the result and update website
       await ResultsManager.saveResult(website.id, result);
       
-      // Process alerts if needed
-      if (website.alertEnabled) {
+      // Get all users who have this website and have alerts enabled
+      const websiteUsers = await prisma.websiteUser.findMany({
+        where: { 
+          websiteId: website.id,
+          alertEnabled: true 
+        }
+      });
+      
+      // Process alerts for each user with their specific settings
+      for (const websiteUser of websiteUsers) {
         await processAlerts(
-          website, 
+          website,
+          websiteUser,
           result.isAvailable, 
           result.responseTime, 
           result.statusCode, 
@@ -75,6 +83,18 @@ export class WebsiteMonitor {
     } catch (error: any) {
       console.error(`Failed to process monitoring for ${website.url}:`, error.message);
     }
+  }
+  
+  /**
+   * Get all active websites that need checking
+   */
+  static async getWebsitesToCheck(): Promise<Website[]> {
+    return prisma.website.findMany({
+      where: { 
+        isActive: true,
+        // Optional: Add time-based filtering here if needed
+      }
+    });
   }
 }
 
@@ -145,7 +165,6 @@ export class ResultsManager {
       include: {
         website: {
           select: {
-            name: true,
             url: true
           }
         }
@@ -174,6 +193,48 @@ export class ResultsManager {
       where: whereClause,
       orderBy: { checkedAt: 'desc' },
       take: limit
+    });
+  }
+  
+  /**
+   * Get monitoring results for a user's websites
+   */
+  static async getResultsForUser(
+    userId: number,
+    options: ResultsQueryOptions = {}
+  ): Promise<MonitoringResult[]> {
+    const { limit = 100, from, to } = options;
+    
+    const whereClause: any = {
+      website: {
+        websiteUsers: {
+          some: {
+            userId
+          }
+        }
+      }
+    };
+    
+    if (from || to) {
+      whereClause.checkedAt = {};
+      if (from) whereClause.checkedAt.gte = from;
+      if (to) whereClause.checkedAt.lte = to;
+    }
+    
+    return prisma.monitoringResult.findMany({
+      where: whereClause,
+      orderBy: { checkedAt: 'desc' },
+      take: limit,
+      include: {
+        website: {
+          include: {
+            websiteUsers: {
+              where: { userId },
+              select: { name: true }
+            }
+          }
+        }
+      }
     });
   }
 }
@@ -259,15 +320,37 @@ export class StatsCalculator {
   /**
    * Get detailed stats for a specific website
    */
-  static async getWebsiteStats(websiteId: number, period = '7d'): Promise<WebsiteStatsData> {
+  static async getWebsiteStats(
+    websiteId: number, 
+    userId?: number, 
+    period = '7d'
+  ): Promise<WebsiteStatsData> {
     const days = this.periodToDays(period);
     
+    // Get the website basic info
     const website = await prisma.website.findUnique({
       where: { id: websiteId }
     });
     
     if (!website) {
       throw new Error(`Website with ID ${websiteId} not found`);
+    }
+    
+    // Get user's custom name if userId is provided
+    let websiteName = website.url;
+    if (userId) {
+      const userWebsite = await prisma.websiteUser.findUnique({
+        where: {
+          userId_websiteId: {
+            userId,
+            websiteId
+          }
+        }
+      });
+      
+      if (userWebsite && userWebsite.name) {
+        websiteName = userWebsite.name;
+      }
     }
     
     const [uptime, averageResponseTime, lastResult, consecutiveFailures] = await Promise.all([
@@ -291,7 +374,7 @@ export class StatsCalculator {
     
     return {
       websiteId,
-      websiteName: website.name,
+      websiteName,
       url: website.url,
       uptime,
       averageResponseTime,
@@ -302,9 +385,12 @@ export class StatsCalculator {
   }
 
   /**
-   * Get overview statistics for all websites
+   * Get overview statistics for all websites or a user's websites
    */
-  static async getOverallStats(period = '7d'): Promise<{
+  static async getOverallStats(
+    userId?: number,
+    period = '7d'
+  ): Promise<{
     totalWebsites: number;
     activeWebsites: number;
     websiteStats: WebsiteStatsData[];
@@ -313,18 +399,45 @@ export class StatsCalculator {
   }> {
     const days = this.periodToDays(period);
     
-    const websites = await prisma.website.findMany({
-      where: { isActive: true }
-    });
+    // Query options for getting websites
+    const whereOptions = { isActive: true };
     
+    // If userId is provided, filter to only user's websites
+    const websites = userId
+      ? await prisma.website.findMany({
+          where: {
+            ...whereOptions,
+            websiteUsers: {
+              some: { userId }
+            }
+          }
+        })
+      : await prisma.website.findMany({
+          where: whereOptions
+        });
+    
+    // Get stats for each website
     const websiteStats = await Promise.all(
-      websites.map(website => this.getWebsiteStats(website.id, period))
+      websites.map(website => this.getWebsiteStats(website.id, userId, period))
     );
     
-    const totalWebsites = await prisma.website.count();
-    const activeWebsites = await prisma.website.count({
-      where: { isActive: true }
-    });
+    // Count metrics
+    const totalWebsites = userId
+      ? await prisma.websiteUser.count({
+          where: { userId }
+        })
+      : await prisma.website.count();
+      
+    const activeWebsites = userId
+      ? await prisma.websiteUser.count({
+          where: {
+            userId,
+            website: { isActive: true }
+          }
+        })
+      : await prisma.website.count({
+          where: { isActive: true }
+        });
     
     // Calculate overall metrics
     const overallUptime = websiteStats.length
@@ -341,6 +454,29 @@ export class StatsCalculator {
       websiteStats,
       overallUptime,
       overallResponseTime
+    };
+  }
+  
+  /**
+   * Get stats for a specific user's dashboard
+   */
+  static async getUserDashboardStats(
+    userId: number,
+    period = '7d'
+  ): Promise<{
+    totalWebsites: number;
+    websiteStats: WebsiteStatsData[];
+    overallUptime: number;
+    overallResponseTime: number;
+  }> {
+    // Use the general method but with userId filter
+    const stats = await this.getOverallStats(userId, period);
+    
+    return {
+      totalWebsites: stats.totalWebsites,
+      websiteStats: stats.websiteStats,
+      overallUptime: stats.overallUptime,
+      overallResponseTime: stats.overallResponseTime
     };
   }
 }
