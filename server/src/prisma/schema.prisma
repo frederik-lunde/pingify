@@ -28,8 +28,8 @@ model Website {
   interval          Int   
   lastChecked       DateTime?  
   isActive          Boolean            @default(true)
-  alertThreshold    Int                @default(2000)
-  alertEnabled      Boolean            @default(true)
+  alertThreshold    Int?               // Changed to nullable
+  alertEnabled      Boolean            @default(false) // Changed default to false to match client logic
   notifyEmail       String?
   alerts            Alert[]
   monitoringResults MonitoringResult[]
