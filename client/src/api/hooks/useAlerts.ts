@@ -1,20 +1,26 @@
 // src/api/hooks/useAlerts.ts
 import { useState, useEffect, useCallback } from 'react';
-import { Alert } from '../../types';
-import { getAlerts, getWebsiteAlerts, resolveAlert } from '../alerts';
+import { Alert, AlertStats } from '../../types';
+import { getUserAlerts, getAlertsByWebsite, getUserAlertStats } from '../alerts';
 import { DEFAULT_POLLING_INTERVAL } from '../config';
 
 /**
- * Hook for polling alerts
+ * Hook for polling user's alerts (only from websites where alertEnabled = true)
  */
-export function useAlerts(limit = 10, active?: boolean, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useUserAlerts(
+  limit = 50, 
+  type?: string, 
+  from?: Date, 
+  to?: Date, 
+  pollingInterval = DEFAULT_POLLING_INTERVAL
+) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const data = await getAlerts(limit, active);
+      const data = await getUserAlerts(limit, type, from, to);
       setAlerts(data);
       setError(null);
     } catch (err) {
@@ -23,7 +29,7 @@ export function useAlerts(limit = 10, active?: boolean, pollingInterval = DEFAUL
     } finally {
       setLoading(false);
     }
-  }, [limit, active]);
+  }, [limit, type, from, to]);
 
   useEffect(() => {
     // Initial fetch
@@ -41,24 +47,40 @@ export function useAlerts(limit = 10, active?: boolean, pollingInterval = DEFAUL
 
 /**
  * Hook for polling alerts for a specific website
+ * Will only return alerts if the user has alertEnabled = true for this website
  */
-export function useWebsiteAlerts(websiteId: number, limit = 10, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useWebsiteAlerts(
+  websiteId: number, 
+  limit = 50, 
+  type?: string,
+  from?: Date, 
+  to?: Date,
+  pollingInterval = DEFAULT_POLLING_INTERVAL
+) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
+  const [noAlertsEnabled, setNoAlertsEnabled] = useState<boolean>(false);
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const data = await getWebsiteAlerts(websiteId, limit);
+      const data = await getAlertsByWebsite(websiteId, limit, type, from, to);
       setAlerts(data);
+      setNoAlertsEnabled(false);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(`Failed to fetch alerts for website ID: ${websiteId}`));
-      console.error(`Error fetching alerts for website ID: ${websiteId}`, err);
+      // If we get a 404, it likely means the user doesn't have access or alerts disabled
+      if (err instanceof Error && err.message.includes('404')) {
+        setNoAlertsEnabled(true);
+        setAlerts([]);
+      } else {
+        setError(err instanceof Error ? err : new Error(`Failed to fetch alerts for website ID: ${websiteId}`));
+        console.error(`Error fetching alerts for website ID: ${websiteId}`, err);
+      }
     } finally {
       setLoading(false);
     }
-  }, [websiteId, limit]);
+  }, [websiteId, limit, type, from, to]);
 
   useEffect(() => {
     // Initial fetch
@@ -71,31 +93,41 @@ export function useWebsiteAlerts(websiteId: number, limit = 10, pollingInterval 
     return () => clearInterval(intervalId);
   }, [fetchAlerts, pollingInterval]);
 
-  return { alerts, loading, error, refetch: fetchAlerts };
+  return { alerts, loading, error, noAlertsEnabled, refetch: fetchAlerts };
 }
 
 /**
- * Hook for resolving an alert
+ * Hook for getting alert statistics for the user
+ * Only includes websites where the user has alertEnabled = true
  */
-export function useResolveAlert() {
-  const [loading, setLoading] = useState<boolean>(false);
+export function useAlertStats(days = 7, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+  const [stats, setStats] = useState<AlertStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const resolve = useCallback(async (alertId: number) => {
-    setLoading(true);
-    setError(null);
-    
+  const fetchStats = useCallback(async () => {
     try {
-      const result = await resolveAlert(alertId);
-      return result;
+      const data = await getUserAlertStats(days);
+      setStats(data);
+      setError(null);
     } catch (err) {
-      const errorObj = err instanceof Error ? err : new Error(`Failed to resolve alert ID: ${alertId}`);
-      setError(errorObj);
-      throw errorObj;
+      setError(err instanceof Error ? err : new Error('Failed to fetch alert statistics'));
+      console.error('Error fetching alert statistics:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [days]);
 
-  return { resolve, loading, error };
+  useEffect(() => {
+    // Initial fetch
+    fetchStats();
+
+    // Set up polling
+    const intervalId = setInterval(fetchStats, pollingInterval);
+
+    // Clean up on unmount
+    return () => clearInterval(intervalId);
+  }, [fetchStats, pollingInterval]);
+
+  return { stats, loading, error, refetch: fetchStats };
 }

@@ -26,6 +26,33 @@ export const getAllResults = async (
 };
 
 /**
+ * Get monitoring results for the current user
+ */
+export const getUserResults = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { limit = '100', from, to } = req.query;
+    
+    const results = await ResultsManager.getResultsForUser(
+      userId,
+      {
+        limit: parseInt(limit as string, 10),
+        from: from ? new Date(from as string) : undefined,
+        to: to ? new Date(to as string) : undefined
+      }
+    );
+    
+    res.json(results);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Get monitoring results for a specific website
  */
 export const getResultsByWebsite = async (
@@ -36,6 +63,16 @@ export const getResultsByWebsite = async (
   try {
     const { websiteId } = req.params;
     const { limit = '100', from, to } = req.query;
+    
+    // Check if the user has access to this website
+    const userId = req.user?.id;
+    if (userId) {
+      const hasAccess = await websiteService.hasUserWebsite(userId, parseInt(websiteId, 10));
+      if (!hasAccess) {
+        res.status(404).json({ message: 'Website not found' });
+        return;
+      }
+    }
     
     const results = await ResultsManager.getFilteredResultsByWebsite(
       parseInt(websiteId, 10),
@@ -62,6 +99,17 @@ export const triggerWebsiteCheck = async (
 ): Promise<void> => {
   try {
     const { websiteId } = req.params;
+    const userId = req.user?.id;
+    
+    // Check if the user has access to this website
+    if (userId) {
+      const hasAccess = await websiteService.hasUserWebsite(userId, parseInt(websiteId, 10));
+      if (!hasAccess) {
+        res.status(404).json({ message: 'Website not found' });
+        return;
+      }
+    }
+    
     const website = await websiteService.getWebsiteById(parseInt(websiteId, 10));
     
     if (!website) {
@@ -77,19 +125,77 @@ export const triggerWebsiteCheck = async (
 };
 
 /**
- * Get monitoring statistics (uptime, avg response time, etc)
+ * Get monitoring statistics for all websites (admin)
  */
-export const getMonitoringStats = async (
+export const getOverallStats = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { websiteId, period = '7d' } = req.query;
+    const { period = '7d' } = req.query;
     
-    const stats = websiteId 
-      ? await StatsCalculator.getWebsiteStats(parseInt(websiteId as string, 10), period as string)
-      : await StatsCalculator.getOverallStats(period as string);
+    const stats = await StatsCalculator.getOverallStats(
+      undefined,
+      period as string
+    );
+    
+    res.json(stats);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get monitoring statistics for current user's websites
+ */
+export const getUserStats = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { period = '7d' } = req.query;
+    
+    const stats = await StatsCalculator.getUserDashboardStats(
+      userId,
+      period as string
+    );
+    
+    res.json(stats);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get monitoring statistics for a specific website
+ */
+export const getWebsiteStats = async (
+  req: Request<{ websiteId: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { websiteId } = req.params;
+    const userId = req.user?.id;
+    const { period = '7d' } = req.query;
+    
+    // Check if the user has access to this website
+    if (userId) {
+      const hasAccess = await websiteService.hasUserWebsite(userId, parseInt(websiteId, 10));
+      if (!hasAccess) {
+        res.status(404).json({ message: 'Website not found' });
+        return;
+      }
+    }
+    
+    const stats = await StatsCalculator.getWebsiteStats(
+      parseInt(websiteId, 10),
+      userId,
+      period as string
+    );
     
     res.json(stats);
   } catch (error) {

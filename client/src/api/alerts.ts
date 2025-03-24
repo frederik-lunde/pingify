@@ -1,31 +1,52 @@
 // src/api/alerts.ts
 import apiClient from './client';
-import { Alert } from '../types';
+import { Alert, AlertStats } from '../types';
 
 /**
- * Get all alerts
+ * Get alerts for the user's websites (only from websites where alertEnabled = true)
  */
-export const getAlerts = async (limit = 10, active?: boolean): Promise<Alert[]> => {
-  let url = `/alerts?limit=${limit}`;
-  if (active !== undefined) {
-    url += `&active=${active}`;
-  }
-  const response = await apiClient.get(url);
+export const getUserAlerts = async (
+  limit = 50, 
+  type?: string, 
+  from?: Date, 
+  to?: Date
+): Promise<Alert[]> => {
+  const params: any = { limit };
+  if (type) params.type = type;
+  if (from) params.from = from.toISOString();
+  if (to) params.to = to.toISOString();
+  
+  const response = await apiClient.get('/alerts/user', { params });
   return response.data;
 };
 
 /**
- * Get alerts for a specific website 
+ * Get alerts for a specific website
+ * Will only return alerts if the user has alertEnabled = true for this website
  */
-export const getWebsiteAlerts = async (websiteId: number, limit = 10): Promise<Alert[]> => {
-  const response = await apiClient.get(`/websites/?websiteId=${websiteId}&limit=${limit}`);
+export const getAlertsByWebsite = async (
+  websiteId: number, 
+  limit = 50, 
+  type?: string, 
+  from?: Date, 
+  to?: Date
+): Promise<Alert[]> => {
+  const params: any = { limit };
+  if (type) params.type = type;
+  if (from) params.from = from.toISOString();
+  if (to) params.to = to.toISOString();
+  
+  const response = await apiClient.get(`/alerts/website/${websiteId}`, { params });
   return response.data;
 };
 
 /**
- * Resolve an alert manually (not implemented)
+ * Get alert statistics for the user
+ * Only includes websites where the user has alertEnabled = true
  */
-export const resolveAlert = async (alertId: number): Promise<Alert> => {
-  const response = await apiClient.post(`/monitoring/alerts/${alertId}/resolve`);
+export const getUserAlertStats = async (days = 7): Promise<AlertStats> => {
+  const response = await apiClient.get('/alerts/user/stats', {
+    params: { days }
+  });
   return response.data;
 };

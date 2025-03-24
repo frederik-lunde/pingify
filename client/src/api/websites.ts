@@ -1,42 +1,74 @@
 // src/api/websites.ts
 import apiClient from './client';
-import { Website } from '../types';
+import { UserWebsite, WebsiteCreateDTO, WebsiteUpdateDTO, Website } from '../types';
 
 /**
- * Get all websites
+ * Get all websites in the user's dashboard
  */
-export const getWebsites = async (): Promise<Website[]> => {
-  const response = await apiClient.get('/websites');
+export const getUserWebsites = async (): Promise<UserWebsite[]> => {
+  const response = await apiClient.get('/websites/user/dashboard');
   return response.data;
 };
 
 /**
- * Get a single website by ID
+ * Get a single website from the user's dashboard by ID
  */
-export const getWebsiteById = async (websiteId: number): Promise<Website> => {
-  const response = await apiClient.get(`/websites/${websiteId}`);
+export const getUserWebsiteById = async (websiteId: number): Promise<UserWebsite> => {
+  const response = await apiClient.get(`/websites/user/dashboard/${websiteId}`);
   return response.data;
 };
 
 /**
- * Create a new website to monitor
+ * Search for websites by URL
+ * If query is empty, returns most recently added websites
  */
-export const createWebsite = async (websiteData: Partial<Website>): Promise<Website> => {
-  const response = await apiClient.post('/websites', websiteData);
+export const searchWebsites = async (query: string, limit = 10): Promise<Website[]> => {
+  try {
+    const response = await apiClient.get('/websites/search', {
+      params: { query, limit }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error searching websites:', error);
+    return []; // Return empty array on error instead of propagating the error
+  }
+};
+
+/**
+ * Add a website to the user's dashboard
+ */
+export const addWebsiteToUser = async (websiteData: WebsiteCreateDTO): Promise<UserWebsite> => {
+  const response = await apiClient.post('/websites/user/dashboard', websiteData);
   return response.data;
 };
 
 /**
- * Update a website
+ * Update a website in the user's dashboard
  */
-export const updateWebsite = async (websiteId: number, websiteData: Partial<Website>): Promise<Website> => {
-  const response = await apiClient.put(`/websites/${websiteId}`, websiteData);
+export const updateUserWebsite = async (
+  websiteId: number, 
+  websiteData: WebsiteUpdateDTO
+): Promise<UserWebsite> => {
+  const response = await apiClient.put(`/websites/user/dashboard/${websiteId}`, websiteData);
   return response.data;
 };
 
 /**
- * Delete a website
+ * Remove a website from the user's dashboard
  */
-export const deleteWebsite = async (websiteId: number): Promise<void> => {
-  await apiClient.delete(`/websites/${websiteId}`);
+export const removeWebsiteFromUser = async (websiteId: number): Promise<void> => {
+  await apiClient.delete(`/websites/user/dashboard/${websiteId}`);
+};
+
+/**
+ * Get monitoring results for a website
+ */
+export const getWebsiteResults = async (
+  websiteId: number, 
+  limit = 100
+): Promise<any[]> => {
+  const response = await apiClient.get(`/websites/${websiteId}/results`, {
+    params: { limit }
+  });
+  return response.data;
 };

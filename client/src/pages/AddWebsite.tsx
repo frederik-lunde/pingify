@@ -1,45 +1,41 @@
 // client/src/pages/AddWebsite.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { 
-  Container, 
-  Paper, 
-  Typography, 
-  TextField, 
-  Button, 
-  Box, 
-  Switch, 
+import {
+  Container,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  Box,
+  Switch,
   FormControlLabel,
   Snackbar,
   Alert,
-  InputAdornment,
   Tooltip,
   IconButton
 } from '@mui/material';
-import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
-import { 
-  Add as AddIcon,
-  HelpOutline as HelpIcon 
-} from '@mui/icons-material';
+import Grid from '@mui/material/Grid2';
+import { Add as AddIcon, HelpOutline as HelpIcon } from '@mui/icons-material';
 import { useWebsiteCrud } from '../api/hooks/useWebsites';
-import { Website } from '../types';
+import { WebsiteCreateDTO, Website } from '../types';
+import WebsiteUrlSearch from '../components/WebsiteUrlSearch';
 
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
-  const { create, loading, error } = useWebsiteCrud();
-  
-  // Initial form state
-  const [formData, setFormData] = useState<Partial<Website>>({
+  const { create, loading, error: apiError } = useWebsiteCrud();
+
+  // Form state
+  const [formData, setFormData] = useState<Partial<WebsiteCreateDTO>>({
     name: '',
     url: '',
-    isActive: true,
     interval: 300, // Default: 5 minutes (in seconds)
     alertEnabled: false,
-    alertThreshold: 60, // Default: 60 seconds
+    alertThreshold: 1000, // Default: 1 second (in milliseconds)
     notifyEmail: '',
   });
 
-  // Form state
+  // UI state
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -48,17 +44,13 @@ const AddWebsite: React.FC = () => {
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    
-    // Handle different input types
     const newValue = type === 'checkbox' ? checked : value;
-    
-    // Update form data
+
     setFormData((prev) => ({
       ...prev,
       [name]: newValue
     }));
-    
-    // Clear validation error when field is edited
+
     if (validationErrors[name]) {
       setValidationErrors((prev) => {
         const newErrors = { ...prev };
@@ -68,52 +60,75 @@ const AddWebsite: React.FC = () => {
     }
   };
 
+  // Handle URL change from the search component
+  const handleUrlChange = (url: string) => {
+    setFormData(prev => ({ ...prev, url }));
+    
+    if (validationErrors.url) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.url;
+        return newErrors;
+      });
+    }
+  };
+
+  // Handle website selection from search
+  const handleWebsiteSelect = (website: Website | null) => {
+    if (!website) return;
+    
+    // Suggest a name based on the URL if user hasn't entered one yet
+    setFormData(prev => ({
+      ...prev,
+      name: prev.name || new URL(website.url).hostname.replace(/^www\./, '')
+    }));
+  };
+
   // Form validation
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    
-    // Required fields
+
     if (!formData.name?.trim()) {
       errors.name = 'Website name is required';
     }
-    
+
     if (!formData.url?.trim()) {
       errors.url = 'URL is required';
     } else {
-      // URL validation
       try {
         new URL(formData.url);
       } catch (e) {
         errors.url = 'Please enter a valid URL (include http:// or https://)';
       }
     }
-    
-    // Validate interval (between 30 seconds and 1 day)
+
     if (formData.interval) {
       const interval = Number(formData.interval);
       if (isNaN(interval) || interval < 30 || interval > 86400) {
         errors.interval = 'Interval must be between 30 seconds and 1 day (86400 seconds)';
       }
     }
-    
-    // Validate alert threshold 
-    if (formData.alertEnabled && formData.alertThreshold) {
-      const threshold = Number(formData.alertThreshold);
-      if (isNaN(threshold) || threshold < 1 || threshold > 60000) {
-        errors.alertThreshold = 'Threshold must be between 1 and 60000 milliseconds';
+
+    if (formData.alertEnabled) {
+      if (formData.alertThreshold) {
+        const threshold = Number(formData.alertThreshold);
+        if (isNaN(threshold) || threshold < 1 || threshold > 60000) {
+          errors.alertThreshold = 'Threshold must be between 1 and 60000 milliseconds';
+        }
+      } else {
+        errors.alertThreshold = 'Response threshold is required when alerts are enabled';
+      }
+
+      if (!formData.notifyEmail) {
+        errors.notifyEmail = 'Email is required when alerts are enabled';
+      } else {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.notifyEmail)) {
+          errors.notifyEmail = 'Please enter a valid email address';
+        }
       }
     }
-    
-    // Validate email if alerts are enabled
-    if (formData.alertEnabled && formData.notifyEmail) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.notifyEmail)) {
-        errors.notifyEmail = 'Please enter a valid email address';
-      }
-    } else if (formData.alertEnabled && !formData.notifyEmail) {
-      errors.notifyEmail = 'Email is required when alerts are enabled';
-    }
-    
+
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -121,42 +136,33 @@ const AddWebsite: React.FC = () => {
   // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate form
     if (!validateForm()) return;
-    
+
     try {
-      // Convert string values to proper types
-      const websiteData: Partial<Website> = {
-        ...formData,
+      // Build the WebsiteCreateDTO object
+      const websiteData: WebsiteCreateDTO = {
+        name: formData.name!.trim(),
+        url: formData.url!.trim(),
         interval: Number(formData.interval),
+        alertEnabled: formData.alertEnabled || false,
         alertThreshold: formData.alertEnabled ? Number(formData.alertThreshold) : null,
-        notifyEmail: formData.alertEnabled ? formData.notifyEmail : null
+        notifyEmail: formData.alertEnabled ? formData.notifyEmail : null,
       };
-      
-      // Submit to API
+
       await create(websiteData);
-      
-      // Show success message
+
       setSnackbarMessage('Website added successfully!');
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
-      
-      // Redirect after short delay
+
       setTimeout(() => {
         navigate('/');
       }, 1500);
     } catch (err) {
-      // Show error message
-      setSnackbarMessage(error?.message || 'Failed to add website. Please try again.');
+      setSnackbarMessage(apiError?.message || 'Failed to add website. Please try again.');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
-  };
-
-  // Handle snackbar close
-  const handleSnackbarClose = () => {
-    setSnackbarOpen(false);
   };
 
   return (
@@ -165,7 +171,6 @@ const AddWebsite: React.FC = () => {
         <Typography variant="h4" component="h1" gutterBottom>
           Add Website to Monitor
         </Typography>
-        
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
           <Grid container spacing={3}>
             {/* Website Name */}
@@ -179,52 +184,20 @@ const AddWebsite: React.FC = () => {
                 required
                 variant="outlined"
                 error={!!validationErrors.name}
-                helperText={validationErrors.name}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title="A name to identify this website in your dashboard">
-                          <IconButton size="small">
-                            <HelpIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </InputAdornment>
-                    )
-                  }
-                }}
+                helperText={validationErrors.name || "A name to identify this website in your dashboard"}
               />
             </Grid>
-            
-            {/* Website URL */}
+
+            {/* Website URL with Search Component */}
             <Grid size={12}>
-              <TextField
-                name="url"
-                label="Website URL"
-                value={formData.url}
-                onChange={handleChange}
-                fullWidth
-                required
-                variant="outlined"
-                placeholder="https://example.com"
-                error={!!validationErrors.url}
-                helperText={validationErrors.url}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title="Full URL including http:// or https://">
-                          <IconButton size="small">
-                            <HelpIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </InputAdornment>
-                    )
-                  }
-                }}
+              <WebsiteUrlSearch
+                value={formData.url || ''}
+                onChange={handleUrlChange}
+                onSelect={handleWebsiteSelect}
+                error={validationErrors.url}
               />
             </Grid>
-            
+
             {/* Check Interval */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
@@ -235,71 +208,38 @@ const AddWebsite: React.FC = () => {
                 onChange={handleChange}
                 fullWidth
                 variant="outlined"
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title="How often the website should be checked (in seconds). Minimum 30s.">
-                          <IconButton size="small">
-                            <HelpIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </InputAdornment>
-                    )
-                  }
-                }}
                 error={!!validationErrors.interval}
-                helperText={validationErrors.interval}
+                helperText={validationErrors.interval || "How often the website should be checked (in seconds). Minimum 30s."}
               />
             </Grid>
-            
-            {/* Active Switch */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Box sx={{ height: '100%', display: 'flex', alignItems: 'center' }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={formData.isActive}
-                      onChange={handleChange}
-                      name="isActive"
-                      color="primary"
-                    />
-                  }
-                  label="Active monitoring"
-                />
-                <Tooltip title="If disabled, the website won't be monitored">
-                  <IconButton size="small">
-                    <HelpIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Grid>
-            
+
             {/* Alert Enable Switch */}
             <Grid size={12}>
               <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 2, mt: 2 }}>
                 <Typography variant="h6" gutterBottom>
                   Alert Settings
                 </Typography>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={formData.alertEnabled}
-                      onChange={handleChange}
-                      name="alertEnabled"
-                      color="primary"
-                    />
-                  }
-                  label="Enable Alerts"
-                />
-                <Tooltip title="Get notified when the website goes down or response time exceeds threshold">
-                  <IconButton size="small">
-                    <HelpIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={formData.alertEnabled}
+                        onChange={handleChange}
+                        name="alertEnabled"
+                        color="primary"
+                      />
+                    }
+                    label="Enable Alerts"
+                  />
+                  <Tooltip title="Get notified when the website goes down or response time exceeds threshold">
+                    <IconButton size="small">
+                      <HelpIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
             </Grid>
-            
+
             {formData.alertEnabled && (
               <>
                 {/* Response Time Threshold */}
@@ -312,24 +252,11 @@ const AddWebsite: React.FC = () => {
                     onChange={handleChange}
                     fullWidth
                     variant="outlined"
-                    slotProps={{
-                      input: {
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <Tooltip title="Send an alert if response time exceeds this value (in milliseconds)">
-                              <IconButton size="small">
-                                <HelpIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </InputAdornment>
-                        )
-                      }
-                    }}
                     error={!!validationErrors.alertThreshold}
-                    helperText={validationErrors.alertThreshold}
+                    helperText={validationErrors.alertThreshold || "Send an alert if response time exceeds this value (in milliseconds)"}
                   />
                 </Grid>
-                
+
                 {/* Notification Email */}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
@@ -340,24 +267,21 @@ const AddWebsite: React.FC = () => {
                     fullWidth
                     variant="outlined"
                     error={!!validationErrors.notifyEmail}
-                    helperText={validationErrors.notifyEmail}
+                    helperText={validationErrors.notifyEmail || "Email address to receive alert notifications"}
                   />
                 </Grid>
               </>
             )}
-            
+
             {/* Buttons */}
             <Grid size={12} sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-              <Button
-                variant="outlined"
-                onClick={() => navigate('/')}
-              >
+              <Button variant="outlined" onClick={() => navigate('/')}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={loading}
+              <Button 
+                type="submit" 
+                variant="contained" 
+                disabled={loading} 
                 startIcon={<AddIcon />}
               >
                 {loading ? 'Adding...' : 'Add Website'}
@@ -366,19 +290,15 @@ const AddWebsite: React.FC = () => {
           </Grid>
         </Box>
       </Paper>
-      
+
       {/* Snackbar for feedback */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}
-        onClose={handleSnackbarClose}
+        onClose={() => setSnackbarOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={handleSnackbarClose} 
-          severity={snackbarSeverity}
-          sx={{ width: '100%' }}
-        >
+        <Alert onClose={() => setSnackbarOpen(false)} severity={snackbarSeverity} sx={{ width: '100%' }}>
           {snackbarMessage}
         </Alert>
       </Snackbar>

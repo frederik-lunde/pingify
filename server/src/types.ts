@@ -1,17 +1,19 @@
 import { Website, MonitoringResult, Alert, User, WebsiteUser } from '@prisma/client';
 
-
-
+// Website-related DTOs
 export interface CreateWebsiteDTO {
-  name: string;
   url: string;
-  interval: number;
-  isActive?: boolean;
-  alertEnabled?: boolean;
-  alertThreshold?: number;
-  notifyEmail?: string;
+  interval?: number; // Optional, used for initial globalInterval
 }
 
+export interface WebsiteUserDTO {
+  url: string;
+  name: string;
+  interval: number;
+  alertThreshold?: number | null;
+  alertEnabled?: boolean;
+  notifyEmail?: string | null;
+}
 
 // Service response types
 export interface MonitoringResponse {

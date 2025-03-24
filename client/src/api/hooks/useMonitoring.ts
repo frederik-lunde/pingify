@@ -1,20 +1,27 @@
 // src/api/hooks/useMonitoring.ts
 import { useState, useEffect, useCallback } from 'react';
-import { MonitoringResult, OverallStats } from '../../types';
-import { getMonitoringResults, getWebsiteResults, getMonitoringStats, triggerWebsiteCheck } from '../monitoring';
+import { MonitoringResult, OverallStats, WebsiteStats } from '../../types';
+import { 
+  getUserResults, 
+  getResultsByWebsite, 
+  getUserStats, 
+  getWebsiteStats,
+  triggerWebsiteCheck
+} from '../monitoring';
+
 import { DEFAULT_POLLING_INTERVAL } from '../config';
 
 /**
- * Hook for polling the latest monitoring results
+ * Hook for polling the latest monitoring results for the user's websites
  */
-export function useMonitoringResults(limit = 20, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useUserMonitoringResults(limit = 20, pollingInterval = DEFAULT_POLLING_INTERVAL) {
   const [results, setResults] = useState<MonitoringResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchResults = useCallback(async () => {
     try {
-      const data = await getMonitoringResults(limit);
+      const data = await getUserResults(limit);
       setResults(data);
       setError(null);
     } catch (err) {
@@ -49,7 +56,7 @@ export function useWebsiteResults(websiteId: number, limit = 20, pollingInterval
 
   const fetchResults = useCallback(async () => {
     try {
-      const data = await getWebsiteResults(websiteId, limit);
+      const data = await getResultsByWebsite(websiteId, limit);
       setResults(data);
       setError(null);
     } catch (err) {
@@ -75,25 +82,60 @@ export function useWebsiteResults(websiteId: number, limit = 20, pollingInterval
 }
 
 /**
- * Hook for polling website statistics
+ * Hook for polling user dashboard statistics
  */
-export function useMonitoringStats(pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useUserStats(period = '7d', pollingInterval = DEFAULT_POLLING_INTERVAL) {
   const [stats, setStats] = useState<OverallStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchStats = useCallback(async () => {
     try {
-      const data = await getMonitoringStats();
+      const data = await getUserStats(period);
       setStats(data);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch monitoring statistics'));
-      console.error('Error fetching monitoring statistics:', err);
+      setError(err instanceof Error ? err : new Error('Failed to fetch user statistics'));
+      console.error('Error fetching user statistics:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [period]);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchStats();
+
+    // Set up polling
+    const intervalId = setInterval(fetchStats, pollingInterval);
+
+    // Clean up on unmount
+    return () => clearInterval(intervalId);
+  }, [fetchStats, pollingInterval]);
+
+  return { stats, loading, error, refetch: fetchStats };
+}
+
+/**
+ * Hook for polling statistics for a specific website
+ */
+export function useWebsiteStats(websiteId: number, period = '7d', pollingInterval = DEFAULT_POLLING_INTERVAL) {
+  const [stats, setStats] = useState<WebsiteStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const data = await getWebsiteStats(websiteId, period);
+      setStats(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(`Failed to fetch stats for website ID: ${websiteId}`));
+      console.error(`Error fetching stats for website ID: ${websiteId}`, err);
+    } finally {
+      setLoading(false);
+    }
+  }, [websiteId, period]);
 
   useEffect(() => {
     // Initial fetch

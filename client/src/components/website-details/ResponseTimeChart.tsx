@@ -20,7 +20,7 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({ results }) => {
         Response Time History
       </Typography>
       <Box sx={{ height: 300 }}>
-        {results.length > 0 ? (
+        {results && results.length > 0 ? (
           <Line 
             data={prepareChartData(results, theme)} 
             options={getChartOptions()} 

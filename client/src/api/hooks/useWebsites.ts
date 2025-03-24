@@ -1,20 +1,27 @@
 // src/api/hooks/useWebsites.ts
 import { useState, useEffect, useCallback } from 'react';
-import { Website } from '../../types';
-import { getWebsites, getWebsiteById, createWebsite, updateWebsite, deleteWebsite } from '../websites';
+import { UserWebsite, WebsiteCreateDTO, WebsiteUpdateDTO, MonitoringResult } from '../../types';
+import { 
+  getUserWebsites, 
+  getUserWebsiteById, 
+  addWebsiteToUser, 
+  updateUserWebsite, 
+  removeWebsiteFromUser,
+  getWebsiteResults
+} from '../websites';
 import { DEFAULT_POLLING_INTERVAL } from '../config';
 
 /**
- * Hook for getting and polling websites list
+ * Hook for getting and polling user's websites list
  */
 export function useWebsites(pollingInterval = DEFAULT_POLLING_INTERVAL) {
-  const [websites, setWebsites] = useState<Website[]>([]);
+  const [websites, setWebsites] = useState<UserWebsite[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchWebsites = useCallback(async () => {
     try {
-      const data = await getWebsites();
+      const data = await getUserWebsites();
       setWebsites(data);
       setError(null);
     } catch (err) {
@@ -40,16 +47,16 @@ export function useWebsites(pollingInterval = DEFAULT_POLLING_INTERVAL) {
 }
 
 /**
- * Hook for getting a single website by ID
+ * Hook for getting a single website from user's dashboard by ID
  */
 export function useWebsite(websiteId: number, pollingInterval = DEFAULT_POLLING_INTERVAL) {
-  const [website, setWebsite] = useState<Website | null>(null);
+  const [website, setWebsite] = useState<UserWebsite | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchWebsite = useCallback(async () => {
     try {
-      const data = await getWebsiteById(websiteId);
+      const data = await getUserWebsiteById(websiteId);
       setWebsite(data);
       setError(null);
     } catch (err) {
@@ -75,18 +82,53 @@ export function useWebsite(websiteId: number, pollingInterval = DEFAULT_POLLING_
 }
 
 /**
+ * Hook for getting monitoring results for a website
+ */
+export function useWebsiteResults(websiteId: number, limit = 100, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+  const [results, setResults] = useState<MonitoringResult[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchResults = useCallback(async () => {
+    try {
+      const data = await getWebsiteResults(websiteId, limit);
+      setResults(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(`Failed to fetch results for website ID: ${websiteId}`));
+      console.error(`Error fetching results for website ID: ${websiteId}`, err);
+    } finally {
+      setLoading(false);
+    }
+  }, [websiteId, limit]);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchResults();
+
+    // Set up polling
+    const intervalId = setInterval(fetchResults, pollingInterval);
+
+    // Clean up on unmount
+    return () => clearInterval(intervalId);
+  }, [fetchResults, pollingInterval]);
+
+  return { results, loading, error, refetch: fetchResults };
+}
+
+/**
  * Hook for website CRUD operations
  */
 export function useWebsiteCrud() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const create = useCallback(async (websiteData: Partial<Website>) => {
+  const create = useCallback(async (websiteData: WebsiteCreateDTO) => {
     setLoading(true);
     setError(null);
     
     try {
-      const result = await createWebsite(websiteData);
+      const result = await addWebsiteToUser(websiteData);
       return result;
     } catch (err) {
       const errorObj = err instanceof Error ? err : new Error('Failed to create website');
@@ -97,12 +139,12 @@ export function useWebsiteCrud() {
     }
   }, []);
 
-  const update = useCallback(async (websiteId: number, websiteData: Partial<Website>) => {
+  const update = useCallback(async (websiteId: number, websiteData: WebsiteUpdateDTO) => {
     setLoading(true);
     setError(null);
     
     try {
-      const result = await updateWebsite(websiteId, websiteData);
+      const result = await updateUserWebsite(websiteId, websiteData);
       return result;
     } catch (err) {
       const errorObj = err instanceof Error ? err : new Error(`Failed to update website ID: ${websiteId}`);
@@ -118,7 +160,7 @@ export function useWebsiteCrud() {
     setError(null);
     
     try {
-      await deleteWebsite(websiteId);
+      await removeWebsiteFromUser(websiteId);
       return true;
     } catch (err) {
       const errorObj = err instanceof Error ? err : new Error(`Failed to delete website ID: ${websiteId}`);
@@ -129,5 +171,19 @@ export function useWebsiteCrud() {
     }
   }, []);
 
-  return { create, update, remove, loading, error };
+  /**
+   * Utility function to toggle the alert enabled status for a website
+   */
+  const toggleAlertEnabled = useCallback(async (websiteId: number, currentStatus: boolean) => {
+    return update(websiteId, { alertEnabled: !currentStatus });
+  }, [update]);
+
+  return { 
+    create, 
+    update, 
+    remove, 
+    toggleAlertEnabled,
+    loading, 
+    error 
+  };
 }

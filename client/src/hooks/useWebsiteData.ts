@@ -1,26 +1,26 @@
 // src/hooks/useWebsiteData.ts
 import { useState, useEffect, useMemo } from 'react';
-import { useMonitoringResults } from '../api/hooks/useMonitoring'; 
-import { getWebsites } from '../api/websites';
-import { Website, MonitoringResult } from '../types';
+import { useUserMonitoringResults } from '../api/hooks/useMonitoring'; 
+import { getUserWebsites } from '../api/websites';
+import { UserWebsite, MonitoringResult } from '../types';
 
 export interface WebsiteWithResult {
-  website: Website;
+  userWebsite: UserWebsite;
   latestResult?: MonitoringResult;
 }
 
 export function useWebsiteData() {
-  const [websites, setWebsites] = useState<Website[]>([]);
+  const [userWebsites, setUserWebsites] = useState<UserWebsite[]>([]);
   const [loading, setLoading] = useState(true);
-  const { results: allMonitoringResults, loading: resultsLoading } = useMonitoringResults(100);
+  const { results: allMonitoringResults, loading: resultsLoading } = useUserMonitoringResults(100);
   
   useEffect(() => {
     const fetchWebsites = async () => {
       try {
-        const data = await getWebsites();
-        setWebsites(data || []);
+        const data = await getUserWebsites();
+        setUserWebsites(data || []);
       } catch (error) {
-        console.error('Error fetching websites:', error);
+        console.error('Error fetching user websites:', error);
       } finally {
         setLoading(false);
       }
@@ -33,22 +33,22 @@ export function useWebsiteData() {
   }, []);
   
   const websitesWithLatestResults = useMemo(() => {
-    if (!websites?.length || !allMonitoringResults?.length) {
+    if (!userWebsites?.length || !allMonitoringResults?.length) {
       return [];
     }
     
-    return websites.map(website => {
+    return userWebsites.map(userWebsite => {
       // Find the latest monitoring result for this website
       const latestResult = allMonitoringResults
-        .filter(result => result.websiteId === website.id)
+        .filter(result => result.websiteId === userWebsite.websiteId)
         .sort((a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime())[0];
       
       return {
-        website,
+        userWebsite,
         latestResult
       };
     });
-  }, [websites, allMonitoringResults]);
+  }, [userWebsites, allMonitoringResults]);
 
   return {
     websitesWithLatestResults,
