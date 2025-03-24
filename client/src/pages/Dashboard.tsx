@@ -1,6 +1,6 @@
 // src/components/Dashboard.tsx
 import React from 'react';
-import { Container, Box, CircularProgress, Button, Typography } from '@mui/material';
+import { Container, Box, CircularProgress, Button } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
 import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router';
