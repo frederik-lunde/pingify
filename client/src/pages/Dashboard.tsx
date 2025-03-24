@@ -1,6 +1,5 @@
-// src/components/Dashboard.tsx
 import React from 'react';
-import { Container, Box, CircularProgress, Button } from '@mui/material';
+import { Container, Box, CircularProgress, Button, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
 import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router';
@@ -12,7 +11,6 @@ import AlertsSection from '../components/dashboard/AlertsSection';
 import WebsiteStatusSection from '../components/dashboard/WebsiteStatusSection';
 import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
 import WebsiteMonitoringCard from '../components/WebsiteMonitoringCard';
-
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -29,22 +27,8 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      
-      <Grid container spacing={3}>
-        {websitesData.map(data => (
-          <Grid key={data.website.websiteId} xs={12} md={4}>
-            <WebsiteMonitoringCard 
-              website={data.website}
-              results={data.results}
-              isOnline={data.isOnline}
-              responseTime={data.responseTime}
-            />
-          </Grid>
-        ))}
-      </Grid>
-
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <h1>Website Monitoring Dashboard</h1>
         <Button
           variant="contained"
@@ -54,6 +38,42 @@ const Dashboard: React.FC = () => {
         >
           Add Website
         </Button>
+      </Box>
+      
+      {/* Website Monitoring Cards - 4 per row */}
+      <Box mb={4}>
+        <Grid container spacing={3}>
+          {websitesData.map(data => (
+            <Grid key={data.website.websiteId} xs={12} sm={6} md={3}>
+              <WebsiteMonitoringCard 
+                website={data.website}
+                results={data.results || []}
+                isOnline={data.isOnline}
+                responseTime={data.responseTime}
+                latestResult={data.latestResult}
+                stats={{
+                  uptime: data.stats?.uptime,
+                  averageResponseTime: data.stats?.averageResponseTime,
+                  consecutiveFailures: data.stats?.consecutiveFailures
+                }}
+              />
+            </Grid>
+          ))}
+        </Grid>
+        
+        {websitesData.length === 0 && (
+          <Box sx={{ 
+            textAlign: 'center', 
+            py: 4, 
+            bgcolor: 'background.paper', 
+            borderRadius: 1,
+            mt: 2
+          }}>
+            <Typography variant="body1" color="text.secondary">
+              No websites found to monitor. Add your first website to get started.
+            </Typography>
+          </Box>
+        )}
       </Box>
       
       {/* Summary Cards */}
@@ -80,10 +100,14 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
-      <WebsiteStatusSection websitesWithLatestResults={websitesData.map(data => ({
-        userWebsite: data.website,
-        latestResult: data.latestResult
-      }))} loading={websitesLoading} />
+      <WebsiteStatusSection 
+        websitesWithLatestResults={websitesData.map(data => ({
+          userWebsite: data.website,
+          latestResult: data.latestResult
+        }))} 
+        loading={websitesLoading} 
+      />
+      
       <AlertsSection />
       
       {stats?.websiteStats && stats.websiteStats.length > 0 && (
