@@ -1,0 +1,168 @@
+// client/src/components/WebsiteUrlSearch.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  TextField,
+  Autocomplete,
+  CircularProgress,
+  InputAdornment,
+  Tooltip,
+  IconButton,
+  Box
+} from '@mui/material';
+import { Search as SearchIcon } from '@mui/icons-material';
+import { Website } from '../types';
+import { searchWebsites } from '../api/websites';
+import { debounce } from 'lodash';
+
+export interface WebsiteUrlSearchProps {
+  value: string;
+  onChange: (url: string) => void;
+  onSelect: (website: Website | null) => void;
+  error?: string;
+  label?: string;
+  placeholder?: string;
+  helperText?: string;
+}
+
+const WebsiteUrlSearch = ({
+  value,
+  onChange,
+  onSelect,
+  error,
+  label = "Website URL",
+  placeholder = "https://example.com",
+  helperText = "Full URL including http:// or https://"
+}: WebsiteUrlSearchProps) => {
+  const [inputValue, setInputValue] = useState('');
+  const [options, setOptions] = useState<Website[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  // Load initial options on mount
+  useEffect(() => {
+    const fetchInitialOptions = async () => {
+      try {
+        setLoading(true);
+        // Load some initial options with an empty search to populate the dropdown
+        const results = await searchWebsites('');
+        setOptions(results);
+      } catch (err) {
+        console.error('Error loading initial website options:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchInitialOptions();
+  }, []);
+
+  // Debounced search function
+  const debouncedSearch = React.useCallback(
+    debounce(async (searchTerm: string) => {
+      try {
+        setLoading(true);
+        const results = await searchWebsites(searchTerm);
+        setOptions(results);
+      } catch (err) {
+        console.error('Error searching websites:', err);
+      } finally {
+        setLoading(false);
+      }
+    }, 300),
+    []
+  );
+
+  // Handle URL input change
+  const handleInputChange = (_event: React.SyntheticEvent, newInputValue: string) => {
+    setInputValue(newInputValue);
+    debouncedSearch(newInputValue);
+  };
+
+  // Handle URL autocomplete selection
+  const handleUrlSelect = (
+    _event: React.SyntheticEvent<Element, Event>,
+    newValue: string | Website | null,
+    _reason: string
+  ) => {
+    if (typeof newValue === 'string') {
+      onChange(newValue);
+      onSelect(null);
+    } else if (newValue === null) {
+      onChange('');
+      onSelect(null);
+    } else {
+      // It's a Website object
+      onChange(newValue.url);
+      onSelect(newValue);
+    }
+  };
+
+  // Get the URL of a website option or return the string value directly
+  const getOptionUrl = (option: string | Website): string => {
+    return typeof option === 'string' ? option : option.url;
+  };
+
+  // Convert the current value to the format expected by Autocomplete
+  const convertValue = () => {
+    if (value) {
+      const matchingWebsite = options.find(opt => opt.url === value);
+      return matchingWebsite || value;
+    }
+    return null;
+  };
+
+  return (
+    <Autocomplete
+      freeSolo
+      options={options}
+      filterOptions={(options, params) => {
+        // Don't filter options based on inputValue - we handle this in our API call
+        return options;
+      }}
+      getOptionLabel={(option) => getOptionUrl(option)}
+      loading={loading}
+      onInputChange={handleInputChange}
+      onChange={handleUrlSelect}
+      inputValue={inputValue}
+      value={convertValue()}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={label}
+          required
+          variant="outlined"
+          placeholder={placeholder}
+          error={!!error}
+          helperText={error || helperText}
+          InputProps={{
+            ...params.InputProps,
+            endAdornment: (
+              <>
+                {loading ? <CircularProgress color="inherit" size={20} /> : null}
+                {params.InputProps.endAdornment}
+                <InputAdornment position="end">
+                  <Tooltip title="Search for existing websites">
+                    <IconButton size="small">
+                      <SearchIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </InputAdornment>
+              </>
+            ),
+          }}
+        />
+      )}
+      renderOption={(props, option) => {
+        
+        return (
+          <li {...props}>
+            <Box component="span">
+              {option.url}
+            </Box>
+          </li>
+        );
+      }}
+    />
+  );
+};
+
+export default WebsiteUrlSearch;

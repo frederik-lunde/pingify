@@ -12,14 +12,14 @@ import {
   FormControlLabel,
   Snackbar,
   Alert,
-  InputAdornment,
   Tooltip,
   IconButton
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { Add as AddIcon, HelpOutline as HelpIcon } from '@mui/icons-material';
 import { useWebsiteCrud } from '../api/hooks/useWebsites';
-import { WebsiteCreateDTO } from '../types';
+import { WebsiteCreateDTO, Website } from '../types';
+import WebsiteUrlSearch from '../components/WebsiteUrlSearch';
 
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
@@ -31,7 +31,7 @@ const AddWebsite: React.FC = () => {
     url: '',
     interval: 300, // Default: 5 minutes (in seconds)
     alertEnabled: false,
-    alertThreshold: 60, // Default: 60 milliseconds (if alerts are enabled)
+    alertThreshold: 1000, // Default: 1000 milliseconds (if alerts are enabled)
     notifyEmail: '',
   });
 
@@ -57,6 +57,47 @@ const AddWebsite: React.FC = () => {
         delete newErrors[name];
         return newErrors;
       });
+    }
+  };
+
+  // Handle URL change from the search component
+  const handleUrlChange = (url: string | string[]) => {
+    if (Array.isArray(url)) {
+      // For multi-select, we'll use the first URL if any
+      setFormData(prev => ({ 
+        ...prev, 
+        url: url.length > 0 ? url[0] : '' 
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, url }));
+    }
+    
+    if (validationErrors.url) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.url;
+        return newErrors;
+      });
+    }
+  };
+
+  // Handle website selection from search
+  const handleWebsiteSelect = (website: Website | Website[] | null) => {
+    if (!website) return;
+    
+    if (Array.isArray(website) && website.length > 0) {
+      // Use the first website for name suggestion if using multi-select
+      const firstSite = website[0];
+      setFormData(prev => ({
+        ...prev,
+        name: prev.name || new URL(firstSite.url).hostname.replace(/^www\./, '')
+      }));
+    } else if (!Array.isArray(website)) {
+      // Single website selection
+      setFormData(prev => ({
+        ...prev,
+        name: prev.name || new URL(website.url).hostname.replace(/^www\./, '')
+      }));
     }
   };
 
@@ -164,49 +205,17 @@ const AddWebsite: React.FC = () => {
                 required
                 variant="outlined"
                 error={!!validationErrors.name}
-                helperText={validationErrors.name}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title="A name to identify this website in your dashboard">
-                          <IconButton size="small">
-                            <HelpIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </InputAdornment>
-                    )
-                  }
-                }}
+                helperText={validationErrors.name || "A name to identify this website in your dashboard"}
               />
             </Grid>
 
-            {/* Website URL */}
+            {/* Website URL with Search Component */}
             <Grid size={12}>
-              <TextField
-                name="url"
-                label="Website URL"
-                value={formData.url}
-                onChange={handleChange}
-                fullWidth
-                required
-                variant="outlined"
-                placeholder="https://example.com"
-                error={!!validationErrors.url}
-                helperText={validationErrors.url}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title="Full URL including http:// or https://">
-                          <IconButton size="small">
-                            <HelpIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </InputAdornment>
-                    )
-                  }
-                }}
+              <WebsiteUrlSearch
+                value={formData.url || ''}
+                onChange={handleUrlChange}
+                onSelect={handleWebsiteSelect}
+                error={validationErrors.url}
               />
             </Grid>
 
@@ -221,20 +230,7 @@ const AddWebsite: React.FC = () => {
                 fullWidth
                 variant="outlined"
                 error={!!validationErrors.interval}
-                helperText={validationErrors.interval}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title="How often the website should be checked (in seconds). Minimum 30s.">
-                          <IconButton size="small">
-                            <HelpIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </InputAdornment>
-                    )
-                  }
-                }}
+                helperText={validationErrors.interval || "How often the website should be checked (in seconds). Minimum 30s."}
               />
             </Grid>
 
@@ -244,22 +240,24 @@ const AddWebsite: React.FC = () => {
                 <Typography variant="h6" gutterBottom>
                   Alert Settings
                 </Typography>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={formData.alertEnabled}
-                      onChange={handleChange}
-                      name="alertEnabled"
-                      color="primary"
-                    />
-                  }
-                  label="Enable Alerts"
-                />
-                <Tooltip title="Get notified when the website goes down or response time exceeds threshold">
-                  <IconButton size="small">
-                    <HelpIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={formData.alertEnabled}
+                        onChange={handleChange}
+                        name="alertEnabled"
+                        color="primary"
+                      />
+                    }
+                    label="Enable Alerts"
+                  />
+                  <Tooltip title="Get notified when the website goes down or response time exceeds threshold">
+                    <IconButton size="small">
+                      <HelpIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
             </Grid>
 
@@ -276,20 +274,7 @@ const AddWebsite: React.FC = () => {
                     fullWidth
                     variant="outlined"
                     error={!!validationErrors.alertThreshold}
-                    helperText={validationErrors.alertThreshold}
-                    slotProps={{
-                      input: {
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <Tooltip title="Send an alert if response time exceeds this value (in milliseconds)">
-                              <IconButton size="small">
-                                <HelpIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </InputAdornment>
-                        )
-                      }
-                    }}
+                    helperText={validationErrors.alertThreshold || "Send an alert if response time exceeds this value (in milliseconds)"}
                   />
                 </Grid>
 
@@ -303,7 +288,7 @@ const AddWebsite: React.FC = () => {
                     fullWidth
                     variant="outlined"
                     error={!!validationErrors.notifyEmail}
-                    helperText={validationErrors.notifyEmail}
+                    helperText={validationErrors.notifyEmail || "Email address to receive alert notifications"}
                   />
                 </Grid>
               </>
@@ -314,7 +299,12 @@ const AddWebsite: React.FC = () => {
               <Button variant="outlined" onClick={() => navigate('/')}>
                 Cancel
               </Button>
-              <Button type="submit" variant="contained" disabled={loading} startIcon={<AddIcon />}>
+              <Button 
+                type="submit" 
+                variant="contained" 
+                disabled={loading} 
+                startIcon={<AddIcon />}
+              >
                 {loading ? 'Adding...' : 'Add Website'}
               </Button>
             </Grid>

@@ -4,7 +4,6 @@ import { Container, Box, CircularProgress, Button } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
 import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router';
-// Updated import to use the new hook name
 import { useUserStats } from '../api/hooks/useMonitoring';
 import { useWebsiteData } from '../hooks/useWebsiteData';
 import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
@@ -15,7 +14,6 @@ import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  // Using the updated hook name
   const { stats, loading: statsLoading } = useUserStats();
   const { websitesWithLatestResults, loading: websitesLoading } = useWebsiteData();
 

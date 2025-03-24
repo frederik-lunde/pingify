@@ -20,12 +20,18 @@ export const getUserWebsiteById = async (websiteId: number): Promise<UserWebsite
 
 /**
  * Search for websites by URL
+ * If query is empty, returns most recently added websites
  */
-export const searchWebsites = async (query: string): Promise<Website[]> => {
-  const response = await apiClient.get('/websites/search', {
-    params: { query }
-  });
-  return response.data;
+export const searchWebsites = async (query: string, limit = 10): Promise<Website[]> => {
+  try {
+    const response = await apiClient.get('/websites/search', {
+      params: { query, limit }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error searching websites:', error);
+    return []; // Return empty array on error instead of propagating the error
+  }
 };
 
 /**
