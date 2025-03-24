@@ -1,57 +1,66 @@
 // src/hooks/useWebsiteData.ts
-import { useState, useEffect, useMemo } from 'react';
-import { useUserMonitoringResults } from '../api/hooks/useMonitoring'; 
-import { getUserWebsites } from '../api/websites';
+import { useState, useEffect } from 'react';
+import { useWebsites } from '../api/hooks/useWebsites';
+import { useUserMonitoringResults } from '../api/hooks/useMonitoring';
 import { UserWebsite, MonitoringResult } from '../types';
 
-export interface WebsiteWithResult {
-  userWebsite: UserWebsite;
-  latestResult?: MonitoringResult;
+interface WebsiteData {
+  website: UserWebsite;
+  results: MonitoringResult[];
+  latestResult: MonitoringResult | null;
+  isOnline: boolean;
+  responseTime: number | null;
 }
 
 export function useWebsiteData() {
-  const [userWebsites, setUserWebsites] = useState<UserWebsite[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { results: allMonitoringResults, loading: resultsLoading } = useUserMonitoringResults(100);
+  const { websites, loading: websitesLoading } = useWebsites();
+  const { results, loading: resultsLoading } = useUserMonitoringResults(100);
+  const [websitesData, setWebsitesData] = useState<WebsiteData[]>([]);
   
+  // Process and organize the data
   useEffect(() => {
-    const fetchWebsites = async () => {
-      try {
-        const data = await getUserWebsites();
-        setUserWebsites(data || []);
-      } catch (error) {
-        console.error('Error fetching user websites:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchWebsites();
-    const intervalId = setInterval(fetchWebsites, 5000);
-    
-    return () => clearInterval(intervalId);
-  }, []);
-  
-  const websitesWithLatestResults = useMemo(() => {
-    if (!userWebsites?.length || !allMonitoringResults?.length) {
-      return [];
-    }
-    
-    return userWebsites.map(userWebsite => {
-      // Find the latest monitoring result for this website
-      const latestResult = allMonitoringResults
-        .filter(result => result.websiteId === userWebsite.websiteId)
-        .sort((a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime())[0];
+    if (!websitesLoading && !resultsLoading && websites.length > 0) {
+      // Group results by website ID
+      const resultsByWebsite: Record<number, MonitoringResult[]> = {};
       
-      return {
-        userWebsite,
-        latestResult
-      };
-    });
-  }, [userWebsites, allMonitoringResults]);
-
+      results.forEach(result => {
+        if (!resultsByWebsite[result.websiteId]) {
+          resultsByWebsite[result.websiteId] = [];
+        }
+        resultsByWebsite[result.websiteId].push(result);
+      });
+      
+      // Sort results by timestamp (newest first) for each website
+      Object.keys(resultsByWebsite).forEach(id => {
+        resultsByWebsite[Number(id)].sort((a, b) => 
+          new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime()
+        );
+      });
+      
+      // Create combined data structure
+      const data = websites.map(website => {
+        const websiteResults = resultsByWebsite[website.websiteId] || [];
+        const latestResult = websiteResults.length > 0 ? websiteResults[0] : null;
+        
+        return {
+          website,
+          results: websiteResults,
+          latestResult,
+          isOnline: latestResult ? latestResult.isAvailable : false,
+          responseTime: latestResult ? latestResult.responseTime : null,
+        };
+      });
+      
+      setWebsitesData(data);
+    }
+  }, [websites, results, websitesLoading, resultsLoading]);
+  
+  const loading = websitesLoading || resultsLoading;
+  
   return {
-    websitesWithLatestResults,
-    loading: loading || resultsLoading
+    websitesData,
+    loading,
   };
 }
+
+export default useWebsiteData;
