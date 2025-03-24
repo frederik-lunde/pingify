@@ -23,19 +23,19 @@ import WebsiteUrlSearch from '../components/WebsiteUrlSearch';
 
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
-  const { create, loading, error } = useWebsiteCrud();
+  const { create, loading, error: apiError } = useWebsiteCrud();
 
-  // Use WebsiteCreateDTO type for the form state
+  // Form state
   const [formData, setFormData] = useState<Partial<WebsiteCreateDTO>>({
     name: '',
     url: '',
     interval: 300, // Default: 5 minutes (in seconds)
     alertEnabled: false,
-    alertThreshold: 1000, // Default: 1000 milliseconds (if alerts are enabled)
+    alertThreshold: 1000, // Default: 1 second (in milliseconds)
     notifyEmail: '',
   });
 
-  // Form state for validation errors and snackbar
+  // UI state
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -61,16 +61,8 @@ const AddWebsite: React.FC = () => {
   };
 
   // Handle URL change from the search component
-  const handleUrlChange = (url: string | string[]) => {
-    if (Array.isArray(url)) {
-      // For multi-select, we'll use the first URL if any
-      setFormData(prev => ({ 
-        ...prev, 
-        url: url.length > 0 ? url[0] : '' 
-      }));
-    } else {
-      setFormData(prev => ({ ...prev, url }));
-    }
+  const handleUrlChange = (url: string) => {
+    setFormData(prev => ({ ...prev, url }));
     
     if (validationErrors.url) {
       setValidationErrors(prev => {
@@ -82,23 +74,14 @@ const AddWebsite: React.FC = () => {
   };
 
   // Handle website selection from search
-  const handleWebsiteSelect = (website: Website | Website[] | null) => {
+  const handleWebsiteSelect = (website: Website | null) => {
     if (!website) return;
     
-    if (Array.isArray(website) && website.length > 0) {
-      // Use the first website for name suggestion if using multi-select
-      const firstSite = website[0];
-      setFormData(prev => ({
-        ...prev,
-        name: prev.name || new URL(firstSite.url).hostname.replace(/^www\./, '')
-      }));
-    } else if (!Array.isArray(website)) {
-      // Single website selection
-      setFormData(prev => ({
-        ...prev,
-        name: prev.name || new URL(website.url).hostname.replace(/^www\./, '')
-      }));
-    }
+    // Suggest a name based on the URL if user hasn't entered one yet
+    setFormData(prev => ({
+      ...prev,
+      name: prev.name || new URL(website.url).hostname.replace(/^www\./, '')
+    }));
   };
 
   // Form validation
@@ -176,14 +159,10 @@ const AddWebsite: React.FC = () => {
         navigate('/');
       }, 1500);
     } catch (err) {
-      setSnackbarMessage(error?.message || 'Failed to add website. Please try again.');
+      setSnackbarMessage(apiError?.message || 'Failed to add website. Please try again.');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
-  };
-
-  const handleSnackbarClose = () => {
-    setSnackbarOpen(false);
   };
 
   return (
@@ -316,10 +295,10 @@ const AddWebsite: React.FC = () => {
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}
-        onClose={handleSnackbarClose}
+        onClose={() => setSnackbarOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+        <Alert onClose={() => setSnackbarOpen(false)} severity={snackbarSeverity} sx={{ width: '100%' }}>
           {snackbarMessage}
         </Alert>
       </Snackbar>

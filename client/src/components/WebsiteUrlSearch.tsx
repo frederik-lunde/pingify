@@ -1,5 +1,5 @@
 // client/src/components/WebsiteUrlSearch.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   TextField,
   Autocomplete,
@@ -37,26 +37,8 @@ const WebsiteUrlSearch = ({
   const [options, setOptions] = useState<Website[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // Load initial options on mount
-  useEffect(() => {
-    const fetchInitialOptions = async () => {
-      try {
-        setLoading(true);
-        // Load some initial options with an empty search to populate the dropdown
-        const results = await searchWebsites('');
-        setOptions(results);
-      } catch (err) {
-        console.error('Error loading initial website options:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchInitialOptions();
-  }, []);
-
   // Debounced search function
-  const debouncedSearch = React.useCallback(
+  const debouncedSearch = useCallback(
     debounce(async (searchTerm: string) => {
       try {
         setLoading(true);
@@ -70,6 +52,15 @@ const WebsiteUrlSearch = ({
     }, 300),
     []
   );
+
+  // Load initial options on mount
+  useEffect(() => {
+    debouncedSearch('');
+    
+    return () => {
+      debouncedSearch.cancel();
+    };
+  }, [debouncedSearch]);
 
   // Handle URL input change
   const handleInputChange = (_event: React.SyntheticEvent, newInputValue: string) => {
@@ -90,18 +81,17 @@ const WebsiteUrlSearch = ({
       onChange('');
       onSelect(null);
     } else {
-      // It's a Website object
       onChange(newValue.url);
       onSelect(newValue);
     }
   };
 
-  // Get the URL of a website option or return the string value directly
+  // Get URL from option (string or Website)
   const getOptionUrl = (option: string | Website): string => {
     return typeof option === 'string' ? option : option.url;
   };
 
-  // Convert the current value to the format expected by Autocomplete
+  // Convert string value to Website object if found in options
   const convertValue = () => {
     if (value) {
       const matchingWebsite = options.find(opt => opt.url === value);
@@ -114,11 +104,8 @@ const WebsiteUrlSearch = ({
     <Autocomplete
       freeSolo
       options={options}
-      filterOptions={(options, params) => {
-        // Don't filter options based on inputValue - we handle this in our API call
-        return options;
-      }}
-      getOptionLabel={(option) => getOptionUrl(option)}
+      filterOptions={(x) => x} // Don't filter - we handle this server-side
+      getOptionLabel={getOptionUrl}
       loading={loading}
       onInputChange={handleInputChange}
       onChange={handleUrlSelect}
@@ -151,12 +138,16 @@ const WebsiteUrlSearch = ({
           }}
         />
       )}
+      
       renderOption={(props, option) => {
+        // We know that in renderOption, option is a Website because it comes from the options array
+        // But TypeScript doesn't know this, so we need to type assertion or type-check
+        const url = typeof option === 'string' ? option : option.url;
         
         return (
           <li {...props}>
             <Box component="span">
-              {option.url}
+              {url}
             </Box>
           </li>
         );

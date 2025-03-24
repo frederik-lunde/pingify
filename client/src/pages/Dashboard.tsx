@@ -14,6 +14,7 @@ import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  // Using the updated hook name
   const { stats, loading: statsLoading } = useUserStats();
   const { websitesWithLatestResults, loading: websitesLoading } = useWebsiteData();
 
@@ -45,7 +46,6 @@ const Dashboard: React.FC = () => {
           <StatsCard 
             title="Total Websites" 
             value={stats?.totalWebsites || 0} 
-            subtitle={`${stats?.activeWebsites || 0} active`} 
           />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
