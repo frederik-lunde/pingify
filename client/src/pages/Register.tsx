@@ -1,6 +1,5 @@
-// client/src/pages/Register.tsx
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, Link } from 'react-router'; // Fixed import for react-router-dom
 import { 
   Container, 
   Paper,
@@ -25,10 +24,16 @@ import {
   Login as LoginIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
+import { 
+  validateRegistrationForm, 
+  prepareRegistrationData, 
+  RegisterFormData,
+  ValidationErrors
+} from '../utils/validation/registerValidation';
 
 const Register: React.FC = () => {
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegisterFormData>({
     email: '',
     name: '',
     password: '',
@@ -39,7 +44,7 @@ const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   
@@ -74,45 +79,25 @@ const Register: React.FC = () => {
     setShowConfirmPassword((prev) => !prev);
   };
 
-  // Form validation
-  const validateForm = (): boolean => {
-    const errors: Record<string, string> = {};
-    
-    // Email validation
-    if (!formData.email?.trim()) {
-      errors.email = 'Email is required';
-    } else {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.email)) {
-        errors.email = 'Please enter a valid email address';
-      }
-    }
-    
-    // Password validation
-    if (!formData.password?.trim()) {
-      errors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
-    }
-    
-    // Confirm password validation
-    if (formData.password !== formData.confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
-    }
-    
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
   // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate form
-    if (!validateForm()) return;
+    const errors = validateRegistrationForm(formData);
+    setValidationErrors(errors);
+    
+    // Stop if there are validation errors
+    if (Object.keys(errors).length > 0) return;
     
     try {
-      await register(formData.email, formData.password, formData.name);
+      // Prepare and submit registration data
+      const registrationData = prepareRegistrationData(formData);
+      await register(
+        registrationData.email, 
+        registrationData.password, 
+        registrationData.name
+      );
       
       // Show success message
       setSnackbarMessage('Registration successful! Redirecting to dashboard...');
@@ -199,6 +184,8 @@ const Register: React.FC = () => {
                 label="Display Name (Optional)"
                 value={formData.name}
                 onChange={handleChange}
+                error={!!validationErrors.name}
+                helperText={validationErrors.name}
                 autoComplete="name"
                 InputProps={{
                   startAdornment: (

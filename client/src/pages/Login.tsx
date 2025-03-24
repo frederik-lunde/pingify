@@ -1,6 +1,5 @@
-// client/src/pages/Login.tsx
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, Link } from 'react-router'; // Fixed import for react-router-dom
 import { 
   Container, 
   Paper,
@@ -24,10 +23,16 @@ import {
   Login as LoginIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
+import { 
+  validateLoginForm, 
+  prepareLoginData, 
+  LoginFormData,
+  ValidationErrors
+} from '../utils/validation/loginValidation';
 
 const Login: React.FC = () => {
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
     rememberMe: false
@@ -36,7 +41,7 @@ const Login: React.FC = () => {
   // UI state
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   
@@ -68,38 +73,22 @@ const Login: React.FC = () => {
     setShowPassword((prev) => !prev);
   };
 
-  // Form validation
-  const validateForm = (): boolean => {
-    const errors: Record<string, string> = {};
-    
-    // Email validation
-    if (!formData.email?.trim()) {
-      errors.email = 'Email is required';
-    } else {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.email)) {
-        errors.email = 'Please enter a valid email address';
-      }
-    }
-    
-    // Password validation
-    if (!formData.password?.trim()) {
-      errors.password = 'Password is required';
-    }
-    
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
   // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate form
-    if (!validateForm()) return;
+    const errors = validateLoginForm(formData);
+    setValidationErrors(errors);
+    
+    // Stop if there are validation errors
+    if (Object.keys(errors).length > 0) return;
     
     try {
-      await login(formData.email, formData.password, formData.rememberMe);      
+      // Prepare and submit login data
+      const loginData = prepareLoginData(formData);
+      await login(loginData.email, loginData.password, loginData.rememberMe);      
+      
       // Show success message
       setSnackbarMessage('Login successful! Redirecting to dashboard...');
       setSnackbarOpen(true);

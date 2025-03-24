@@ -66,13 +66,3 @@ export const triggerWebsiteCheck = async (websiteId: number): Promise<{ message:
   return response.data;
 };
 
-/**
- * Get monitoring results for a specific website (alternative to getResultsByWebsite)
- * Note: This accesses the API through the websites routes
- */
-export const getWebsiteResults = async (websiteId: number, limit = 100): Promise<MonitoringResult[]> => {
-  const response = await apiClient.get(`/websites/${websiteId}/results`, {
-    params: { limit }
-  });
-  return response.data;
-};
