@@ -239,6 +239,7 @@ export async function addWebsiteToUser(userId: number, websiteData: WebsiteUserD
 
 /**
  * Remove a website from a user's dashboard
+ * Not working
  */
 export async function removeWebsiteFromUser(userId: number, websiteId: number): Promise<void> {
   // Start a transaction to ensure data consistency
