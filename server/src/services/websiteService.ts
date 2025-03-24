@@ -5,7 +5,7 @@ import { CreateWebsiteDTO, WebsiteUserDTO } from '../types';
 const prisma = new PrismaClient();
 
 /**
- * Get all websites
+ * Get all websites (admin function)
  */
 export async function getAllWebsites(): Promise<Website[]> {
   return prisma.website.findMany({
@@ -31,7 +31,6 @@ export async function getWebsiteById(id: number): Promise<Website | null> {
     where: { id }
   });
 }
-
 
 /**
  * Get website by URL (exact match)
@@ -140,7 +139,7 @@ export async function updateUserWebsite(
 }
 
 /**
- * Delete a website
+ * Delete a website (admin function)
  */
 export async function deleteWebsite(id: number): Promise<Website> {
   return prisma.website.delete({
@@ -149,7 +148,7 @@ export async function deleteWebsite(id: number): Promise<Website> {
 }
 
 /**
- * Toggle a website's active status
+ * Toggle a website's active status (admin function)
  */
 export async function toggleWebsiteStatus(id: number): Promise<Website> {
   const website = await prisma.website.findUnique({ where: { id } });
@@ -239,7 +238,6 @@ export async function addWebsiteToUser(userId: number, websiteData: WebsiteUserD
 
 /**
  * Remove a website from a user's dashboard
- * Not working
  */
 export async function removeWebsiteFromUser(userId: number, websiteId: number): Promise<void> {
   // Start a transaction to ensure data consistency
@@ -289,27 +287,8 @@ export async function hasUserWebsite(userId: number, websiteId: number): Promise
 }
 
 /**
- * Get alerts for a specific user (filtered by their websites)
+ * Search websites
  */
-export async function getAlertsForUser(userId: number, limit = 50) {
-  return prisma.alert.findMany({
-    where: {
-      website: {
-        websiteUsers: {
-          some: {
-            userId
-          }
-        }
-      }
-    },
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-    include: {
-      website: true
-    }
-  });
-}
-
 export async function searchWebsites(searchTerm: string, limit = 5): Promise<Website[]> {
   return prisma.website.findMany({
     where: {

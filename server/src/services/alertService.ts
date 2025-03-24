@@ -48,7 +48,8 @@ async function handleDowntimeAlert(
   wasUpBefore: boolean
 ): Promise<void> {
   // Only alert if the site was previously up or this is the first check
-  if (!wasUpBefore) return;
+  // AND the user has alerts enabled for this website
+  if (!wasUpBefore || !websiteUser.alertEnabled) return;
   
   // Create the alert in the database (shared across all users)
   const alert = await createAlert(
@@ -79,6 +80,9 @@ async function handleRecoveryAlert(
   responseTime: number | null, 
   statusCode: number | null
 ): Promise<void> {
+  // Only process if alerts are enabled for this user
+  if (!websiteUser.alertEnabled) return;
+  
   // Create the alert in the database (shared across all users)
   const alert = await createAlert(
     website.id, 
@@ -107,6 +111,9 @@ async function handleSlowResponseAlert(
   websiteUser: WebsiteUser, 
   responseTime: number
 ): Promise<void> {
+  // Only process if alerts are enabled and threshold is set
+  if (!websiteUser.alertEnabled || !websiteUser.alertThreshold) return;
+  
   // Create the alert in the database (shared across all users)
   const alert = await createAlert(
     website.id, 
@@ -139,6 +146,9 @@ export async function processAlerts(
   errorMessage: string | null
 ): Promise<void> {
   try {
+    // Skip processing for users who haven't enabled alerts
+    if (!websiteUser.alertEnabled) return;
+    
     // Get the last recorded status to detect state changes
     const lastResult = await prisma.monitoringResult.findFirst({
       where: { 
@@ -234,7 +244,7 @@ export async function getAlertsByWebsite(
 }
 
 /**
- * Get alerts for a specific user (filtered to their websites)
+ * Get alerts for a specific user (filtered to their websites with alertEnabled = true)
  */
 export async function getAlertsForUser(
   userId: number,
@@ -246,7 +256,8 @@ export async function getAlertsForUser(
     website: {
       websiteUsers: {
         some: {
-          userId
+          userId,
+          alertEnabled: true // Only include websites where the user has enabled alerts
         }
       }
     }
@@ -271,7 +282,10 @@ export async function getAlertsForUser(
         select: {
           url: true,
           websiteUsers: {
-            where: { userId },
+            where: { 
+              userId,
+              alertEnabled: true
+            },
             select: { name: true }
           }
         }
@@ -338,7 +352,7 @@ export async function getAlertStats(days = 7): Promise<{
 }
 
 /**
- * Get alert statistics for a specific user
+ * Get alert statistics for a specific user (only for websites with alertEnabled = true)
  */
 export async function getUserAlertStats(userId: number, days = 7): Promise<{
   totalAlerts: number;
@@ -348,9 +362,12 @@ export async function getUserAlertStats(userId: number, days = 7): Promise<{
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
   
-  // Get all the user's websites
+  // Get all the user's websites that have alerts enabled
   const userWebsites = await prisma.websiteUser.findMany({
-    where: { userId },
+    where: { 
+      userId,
+      alertEnabled: true
+    },
     select: { 
       websiteId: true,
       name: true

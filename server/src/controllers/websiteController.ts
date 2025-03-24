@@ -244,24 +244,8 @@ export const removeWebsiteFromUser = async (
 };
 
 /**
- * Get alerts for the authenticated user
+ * Search websites
  */
-export const getUserAlerts = async (
-  req: Request<{}, {}, {}, { limit?: string }>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
-    
-    const alerts = await websiteService.getAlertsForUser(userId, limit);
-    res.json(alerts);
-  } catch (error) {
-    next(error);
-  }
-};
-
 export const searchWebsites = async (
   req: Request,
   res: Response,

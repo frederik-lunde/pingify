@@ -20,6 +20,8 @@ export interface Website {
   isActive: boolean;
   lastChecked: string | null;
   globalInterval: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Website with user-specific settings
@@ -74,17 +76,43 @@ export interface OverallStats {
   overallResponseTime: number;
 }
 
-// Alert type
+// Alert types
 export interface Alert {
   id: number;
   websiteId: number;
-  type: string;
+  type: AlertType;
   message: string;
+  isRead: boolean;
   createdAt: string;
   website?: {
     url: string;
     websiteUsers?: Array<{ name: string }>;
   };
+}
+
+export type AlertType = 'down' | 'slow' | 'recovered';
+
+export interface AlertStats {
+  totalAlerts: number;
+  byType: Record<AlertType, number>;
+  byWebsite: Array<{ 
+    websiteId: number, 
+    websiteName: string, 
+    count: number 
+  }>;
+}
+
+export interface AlertQueryOptions {
+  limit?: number;
+  type?: AlertType;
+  from?: Date;
+  to?: Date;
+}
+
+export interface EmailAlertOptions {
+  to: string;
+  subject: string;
+  body: string;
 }
 
 // User types

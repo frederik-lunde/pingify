@@ -27,7 +27,7 @@ export const getRecentAlerts = async (
 };
 
 /**
- * Get alerts for the current user
+ * Get alerts for the current user (only for websites with alertEnabled = true)
  */
 export const getUserAlerts = async (
   req: Request,
@@ -69,9 +69,16 @@ export const getAlertsByWebsite = async (
     
     // Check if the user has access to this website
     if (userId) {
-      const hasAccess = await WebsiteService.hasUserWebsite(userId, parseInt(websiteId, 10));
-      if (!hasAccess) {
+      const userWebsite = await WebsiteService.getUserWebsiteById(userId, parseInt(websiteId, 10));
+      
+      if (!userWebsite) {
         res.status(404).json({ message: 'Website not found' });
+        return;
+      }
+      
+      // Check if the user has alerts enabled for this website
+      if (!userWebsite.alertEnabled) {
+        res.json([]); // Return empty array if alerts aren't enabled
         return;
       }
     }
@@ -112,7 +119,7 @@ export const getAlertStats = async (
 };
 
 /**
- * Get alert statistics for the current user
+ * Get alert statistics for the current user (only for websites with alertEnabled = true)
  */
 export const getUserAlertStats = async (
   req: Request,

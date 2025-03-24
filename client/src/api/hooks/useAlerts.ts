@@ -1,11 +1,11 @@
 // src/api/hooks/useAlerts.ts
 import { useState, useEffect, useCallback } from 'react';
-import { Alert } from '../../types';
+import { Alert, AlertStats } from '../../types';
 import { getUserAlerts, getAlertsByWebsite, getUserAlertStats } from '../alerts';
 import { DEFAULT_POLLING_INTERVAL } from '../config';
 
 /**
- * Hook for polling user's alerts
+ * Hook for polling user's alerts (only from websites where alertEnabled = true)
  */
 export function useUserAlerts(
   limit = 50, 
@@ -47,6 +47,7 @@ export function useUserAlerts(
 
 /**
  * Hook for polling alerts for a specific website
+ * Will only return alerts if the user has alertEnabled = true for this website
  */
 export function useWebsiteAlerts(
   websiteId: number, 
@@ -59,15 +60,23 @@ export function useWebsiteAlerts(
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
+  const [noAlertsEnabled, setNoAlertsEnabled] = useState<boolean>(false);
 
   const fetchAlerts = useCallback(async () => {
     try {
       const data = await getAlertsByWebsite(websiteId, limit, type, from, to);
       setAlerts(data);
+      setNoAlertsEnabled(false);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(`Failed to fetch alerts for website ID: ${websiteId}`));
-      console.error(`Error fetching alerts for website ID: ${websiteId}`, err);
+      // If we get a 404, it likely means the user doesn't have access or alerts disabled
+      if (err instanceof Error && err.message.includes('404')) {
+        setNoAlertsEnabled(true);
+        setAlerts([]);
+      } else {
+        setError(err instanceof Error ? err : new Error(`Failed to fetch alerts for website ID: ${websiteId}`));
+        console.error(`Error fetching alerts for website ID: ${websiteId}`, err);
+      }
     } finally {
       setLoading(false);
     }
@@ -84,18 +93,15 @@ export function useWebsiteAlerts(
     return () => clearInterval(intervalId);
   }, [fetchAlerts, pollingInterval]);
 
-  return { alerts, loading, error, refetch: fetchAlerts };
+  return { alerts, loading, error, noAlertsEnabled, refetch: fetchAlerts };
 }
 
 /**
  * Hook for getting alert statistics for the user
+ * Only includes websites where the user has alertEnabled = true
  */
 export function useAlertStats(days = 7, pollingInterval = DEFAULT_POLLING_INTERVAL) {
-  const [stats, setStats] = useState<{
-    totalAlerts: number;
-    byType: Record<string, number>;
-    byWebsite: Array<{ websiteId: number, websiteName: string, count: number }>;
-  } | null>(null);
+  const [stats, setStats] = useState<AlertStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 

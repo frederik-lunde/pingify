@@ -1,8 +1,8 @@
-// client/src/App.tsx
 import { BrowserRouter as Router, Routes, Route } from 'react-router';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import WebsiteDetails from './pages/WebsiteDetails';
+import WebsiteSettings from './pages/WebsiteSettings';
 import AddWebsite from './pages/AddWebsite';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -32,6 +32,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <WebsiteDetails />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/website/:id/settings"
+          element={
+            <ProtectedRoute>
+              <WebsiteSettings />
             </ProtectedRoute>
           }
         />

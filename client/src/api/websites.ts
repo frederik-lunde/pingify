@@ -53,3 +53,16 @@ export const updateUserWebsite = async (
 export const removeWebsiteFromUser = async (websiteId: number): Promise<void> => {
   await apiClient.delete(`/websites/user/dashboard/${websiteId}`);
 };
+
+/**
+ * Get monitoring results for a website
+ */
+export const getWebsiteResults = async (
+  websiteId: number, 
+  limit = 100
+): Promise<any[]> => {
+  const response = await apiClient.get(`/websites/${websiteId}/results`, {
+    params: { limit }
+  });
+  return response.data;
+};

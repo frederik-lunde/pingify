@@ -1,8 +1,12 @@
 // server/src/routes/websiteRoutes.ts
 import { Router } from 'express';
 import * as websiteController from '../controllers/websiteController';
+import { authenticate } from '../middleware/authMiddleware';
 
 const router = Router();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // Admin routes for managing all websites
 router.get('/admin/all', websiteController.getAllWebsites);
@@ -22,9 +26,5 @@ router.get('/user/dashboard/:id', websiteController.getUserWebsiteById);
 router.post('/user/dashboard', websiteController.addWebsiteToUser);
 router.put('/user/dashboard/:id', websiteController.updateUserWebsite);
 router.delete('/user/dashboard/:id', websiteController.removeWebsiteFromUser);
-
-// User alerts not used
-router.get('/user/alerts', websiteController.getUserAlerts);
-
 
 export default router;

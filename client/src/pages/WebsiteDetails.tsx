@@ -1,3 +1,4 @@
+//client\src\pages\WebsiteDetails.tsx
 import React from 'react';
 import { useParams } from 'react-router';
 import { Container, Box, CircularProgress, Typography, Button, Paper } from '@mui/material';

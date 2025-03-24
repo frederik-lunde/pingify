@@ -1,12 +1,13 @@
 // src/api/hooks/useWebsites.ts
 import { useState, useEffect, useCallback } from 'react';
-import { UserWebsite, WebsiteCreateDTO, WebsiteUpdateDTO } from '../../types';
+import { UserWebsite, WebsiteCreateDTO, WebsiteUpdateDTO, MonitoringResult } from '../../types';
 import { 
   getUserWebsites, 
   getUserWebsiteById, 
   addWebsiteToUser, 
   updateUserWebsite, 
-  removeWebsiteFromUser 
+  removeWebsiteFromUser,
+  getWebsiteResults
 } from '../websites';
 import { DEFAULT_POLLING_INTERVAL } from '../config';
 
@@ -81,6 +82,41 @@ export function useWebsite(websiteId: number, pollingInterval = DEFAULT_POLLING_
 }
 
 /**
+ * Hook for getting monitoring results for a website
+ */
+export function useWebsiteResults(websiteId: number, limit = 100, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+  const [results, setResults] = useState<MonitoringResult[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchResults = useCallback(async () => {
+    try {
+      const data = await getWebsiteResults(websiteId, limit);
+      setResults(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(`Failed to fetch results for website ID: ${websiteId}`));
+      console.error(`Error fetching results for website ID: ${websiteId}`, err);
+    } finally {
+      setLoading(false);
+    }
+  }, [websiteId, limit]);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchResults();
+
+    // Set up polling
+    const intervalId = setInterval(fetchResults, pollingInterval);
+
+    // Clean up on unmount
+    return () => clearInterval(intervalId);
+  }, [fetchResults, pollingInterval]);
+
+  return { results, loading, error, refetch: fetchResults };
+}
+
+/**
  * Hook for website CRUD operations
  */
 export function useWebsiteCrud() {
@@ -135,5 +171,19 @@ export function useWebsiteCrud() {
     }
   }, []);
 
-  return { create, update, remove, loading, error };
+  /**
+   * Utility function to toggle the alert enabled status for a website
+   */
+  const toggleAlertEnabled = useCallback(async (websiteId: number, currentStatus: boolean) => {
+    return update(websiteId, { alertEnabled: !currentStatus });
+  }, [update]);
+
+  return { 
+    create, 
+    update, 
+    remove, 
+    toggleAlertEnabled,
+    loading, 
+    error 
+  };
 }
