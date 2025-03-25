@@ -17,10 +17,7 @@ import {
   Select,
   MenuItem,
   SelectChangeEvent,
-  Tooltip,
-  IconButton
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import { useUserAlerts } from '../../api/hooks/useAlerts';
 import { useWebsites } from '../../api/hooks/useWebsites';
 import { getAlertTypeColor } from '../../utils/statusUtils';
@@ -30,13 +27,22 @@ const AlertsSection: React.FC = () => {
   const [alertType, setAlertType] = useState<string>('');
   const [limit, setLimit] = useState<number>(5);
   
-  const { alerts, loading, refetch } = useUserAlerts(
+  // Update the hooks to use the new polling pattern
+  const { 
+    data: alerts, 
+    loading, 
+    error, 
+  } = useUserAlerts(
     limit, 
     alertType as AlertType | undefined
   );
   
-  const { websites } = useWebsites();
-  const websitesWithAlertsEnabled = websites.filter(w => w.alertEnabled);
+  const { data: websites } = useWebsites();
+  
+  // Ensure websites and alerts are never null for TypeScript
+  const safeWebsites = websites || [];
+  const safeAlerts = alerts || [];
+  const websitesWithAlertsEnabled = safeWebsites.filter(w => w.alertEnabled);
   
   const handleTypeChange = (event: SelectChangeEvent) => {
     setAlertType(event.target.value);
@@ -45,10 +51,11 @@ const AlertsSection: React.FC = () => {
   const handleLimitChange = (event: SelectChangeEvent) => {
     setLimit(Number(event.target.value));
   };
+
   
   // Function to get website name by ID
   const getWebsiteName = (websiteId: number): string => {
-    const website = websites.find(w => w.websiteId === websiteId);
+    const website = safeWebsites.find(w => w.websiteId === websiteId);
     return website?.name || `Website #${websiteId}`;
   };
   
@@ -87,59 +94,64 @@ const AlertsSection: React.FC = () => {
               <MenuItem value={50}>50 Alerts</MenuItem>
             </Select>
           </FormControl>
-          
-          <Tooltip title="Refresh alerts">
-            <IconButton onClick={() => refetch()} size="small" color="primary">
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
         </Box>
       </Box>
       
       <Paper sx={{ p: 2, mb: 4 }}>
+        {error && (
+          <Alert 
+            severity="error" 
+            sx={{ mb: 2 }}
+          >
+            Error loading alerts: {error.message}
+          </Alert>
+        )}
+
         {websitesWithAlertsEnabled.length === 0 ? (
           <Alert 
             severity="info" 
           >
             No websites with alerts enabled. Enable alerts for a website to start receiving notifications.
           </Alert>
-        ) : loading ? (
+        ) : loading && !safeAlerts.length ? (
           <Box display="flex" justifyContent="center" py={2}>
             <CircularProgress size={24} />
           </Box>
-        ) : !alerts || alerts.length === 0 ? (
+        ) : safeAlerts.length === 0 ? (
           <Typography variant="body1" color="textSecondary" align="center" py={2}>
             No recent alerts {alertType && `of type "${alertType}"`}
           </Typography>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Type</TableCell>
-                <TableCell>Website</TableCell>
-                <TableCell>Message</TableCell>
-                <TableCell>Time</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {alerts.map((alert) => (
-                <TableRow key={alert.id}>
-                  <TableCell>
-                    <Chip 
-                      label={alert.type} 
-                      color={getAlertTypeColor(alert.type)} 
-                      size="small" 
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {getWebsiteName(alert.websiteId)}
-                  </TableCell>
-                  <TableCell>{alert.message}</TableCell>
-                  <TableCell>{new Date(alert.createdAt).toLocaleString()}</TableCell>
+          <>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Website</TableCell>
+                  <TableCell>Message</TableCell>
+                  <TableCell>Time</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {safeAlerts.map((alert) => (
+                  <TableRow key={alert.id}>
+                    <TableCell>
+                      <Chip 
+                        label={alert.type} 
+                        color={getAlertTypeColor(alert.type)} 
+                        size="small" 
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {getWebsiteName(alert.websiteId)}
+                    </TableCell>
+                    <TableCell>{alert.message}</TableCell>
+                    <TableCell>{new Date(alert.createdAt).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
         )}
       </Paper>  
     </>

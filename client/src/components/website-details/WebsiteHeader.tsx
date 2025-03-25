@@ -14,7 +14,7 @@ import {
   CheckCircleOutline as CheckIcon, 
   ErrorOutline as ErrorIcon, 
   Refresh as RefreshIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { UserWebsite } from '../../types';
 import { useNavigate } from 'react-router';
@@ -25,6 +25,7 @@ interface WebsiteHeaderProps {
   statusColor: 'success' | 'error' | 'info';
   isChecking: boolean;
   onCheckNow: () => Promise<void>;
+  isRefreshing?: boolean;
 }
 
 const WebsiteHeader: React.FC<WebsiteHeaderProps> = ({
@@ -32,7 +33,7 @@ const WebsiteHeader: React.FC<WebsiteHeaderProps> = ({
   currentStatus,
   statusColor,
   isChecking,
-  onCheckNow
+  onCheckNow,
 }) => {
   const navigate = useNavigate();
 
@@ -73,21 +74,23 @@ const WebsiteHeader: React.FC<WebsiteHeaderProps> = ({
             {userWebsite.website.url}
           </Typography>
         </Grid>
-        <Grid size={{ xs: 12, md: 5 }} sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' } }}>
+        <Grid size={{ xs: 12, md: 5 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: { xs: 'flex-start', md: 'flex-end' }, gap: 1, flexWrap: 'wrap' }}>
           <Chip 
             icon={statusColor === 'success' ? <CheckIcon /> : <ErrorIcon />}
             label={currentStatus}
             color={statusColor}
-            sx={{ mr: 1 }}
           />
+          
           <Button
             variant="contained"
             onClick={onCheckNow}
             disabled={isChecking}
             startIcon={isChecking ? <CircularProgress size={20} /> : <RefreshIcon />}
+            size="medium"
           >
             {isChecking ? 'Checking...' : 'Check Now'}
           </Button>
+  
         </Grid>
       </Grid>
     </Paper>
