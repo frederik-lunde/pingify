@@ -1,5 +1,5 @@
 // src/api/hooks/useMonitoring.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { MonitoringResult, OverallStats, WebsiteStats } from '../../types';
 import { 
   getUserResults, 
@@ -11,17 +11,26 @@ import {
 
 import { DEFAULT_POLLING_INTERVAL } from '../config';
 
+export type TimeRange = '1h' | '12h' | '24h' | '7d' | '30d' | '90d';
+
 /**
  * Hook for polling the latest monitoring results for the user's websites
  */
-export function useUserMonitoringResults(limit = 20, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useUserMonitoringResults(
+  options: {
+    limit?: number;
+    range?: TimeRange | { from?: Date; to?: Date };
+    pollingInterval?: number;
+  } = {}
+) {
+  const { limit = 20, range, pollingInterval = DEFAULT_POLLING_INTERVAL } = options;
   const [results, setResults] = useState<MonitoringResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchResults = useCallback(async () => {
     try {
-      const data = await getUserResults(limit);
+      const data = await getUserResults(limit, range);
       setResults(data);
       setError(null);
     } catch (err) {
@@ -30,33 +39,54 @@ export function useUserMonitoringResults(limit = 20, pollingInterval = DEFAULT_P
     } finally {
       setLoading(false);
     }
-  }, [limit]);
+  }, [limit, range]);
 
   useEffect(() => {
     // Initial fetch
     fetchResults();
 
-    // Set up polling
-    const intervalId = setInterval(fetchResults, pollingInterval);
-
-    // Clean up on unmount
-    return () => clearInterval(intervalId);
+    // Set up polling if interval > 0
+    if (pollingInterval > 0) {
+      const intervalId = setInterval(fetchResults, pollingInterval);
+      return () => clearInterval(intervalId);
+    }
   }, [fetchResults, pollingInterval]);
 
-  return { results, loading, error, refetch: fetchResults };
+  // Calculate uptime based on actual results
+  const uptime = useMemo(() => {
+    if (!results || results.length === 0) return 1;
+    const successful = results.filter(r => r.isAvailable).length;
+    return successful / results.length;
+  }, [results]);
+
+  return { 
+    results, 
+    loading, 
+    error, 
+    uptime,
+    refetch: fetchResults 
+  };
 }
 
 /**
- * Hook for polling results for a specific website
+ * Hook for polling results for a specific website with time range support
  */
-export function useWebsiteResults(websiteId: number, limit = 20, pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useWebsiteResults(
+  websiteId: number, 
+  options: {
+    limit?: number;
+    range?: TimeRange | { from?: Date; to?: Date };
+    pollingInterval?: number;
+  } = {}
+) {
+  const { limit = 20, range, pollingInterval = DEFAULT_POLLING_INTERVAL } = options;
   const [results, setResults] = useState<MonitoringResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchResults = useCallback(async () => {
     try {
-      const data = await getResultsByWebsite(websiteId, limit);
+      const data = await getResultsByWebsite(websiteId, limit, range);
       setResults(data);
       setError(null);
     } catch (err) {
@@ -65,26 +95,45 @@ export function useWebsiteResults(websiteId: number, limit = 20, pollingInterval
     } finally {
       setLoading(false);
     }
-  }, [websiteId, limit]);
+  }, [websiteId, limit, range]);
 
   useEffect(() => {
     // Initial fetch
     fetchResults();
 
-    // Set up polling
-    const intervalId = setInterval(fetchResults, pollingInterval);
-
-    // Clean up on unmount
-    return () => clearInterval(intervalId);
+    // Set up polling if interval > 0
+    if (pollingInterval > 0) {
+      const intervalId = setInterval(fetchResults, pollingInterval);
+      return () => clearInterval(intervalId);
+    }
   }, [fetchResults, pollingInterval]);
 
-  return { results, loading, error, refetch: fetchResults };
+  // Calculate uptime based on actual results
+  const uptime = useMemo(() => {
+    if (!results || results.length === 0) return 1;
+    const successful = results.filter(r => r.isAvailable).length;
+    return successful / results.length;
+  }, [results]);
+
+  return { 
+    results, 
+    loading, 
+    error, 
+    uptime,
+    refetch: fetchResults 
+  };
 }
 
 /**
  * Hook for polling user dashboard statistics
  */
-export function useUserStats(period = '7d', pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useUserStats(
+  options: {
+    period?: TimeRange;
+    pollingInterval?: number;
+  } = {}
+) {
+  const { period = '7d', pollingInterval = DEFAULT_POLLING_INTERVAL } = options;
   const [stats, setStats] = useState<OverallStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
@@ -113,13 +162,25 @@ export function useUserStats(period = '7d', pollingInterval = DEFAULT_POLLING_IN
     return () => clearInterval(intervalId);
   }, [fetchStats, pollingInterval]);
 
-  return { stats, loading, error, refetch: fetchStats };
+  return { 
+    stats, 
+    loading, 
+    error, 
+    refetch: fetchStats 
+  };
 }
 
 /**
  * Hook for polling statistics for a specific website
  */
-export function useWebsiteStats(websiteId: number, period = '7d', pollingInterval = DEFAULT_POLLING_INTERVAL) {
+export function useWebsiteStats(
+  websiteId: number,
+  options: {
+    period?: TimeRange;
+    pollingInterval?: number;
+  } = {}
+) {
+  const { period = '7d', pollingInterval = DEFAULT_POLLING_INTERVAL } = options;
   const [stats, setStats] = useState<WebsiteStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
@@ -148,7 +209,12 @@ export function useWebsiteStats(websiteId: number, period = '7d', pollingInterva
     return () => clearInterval(intervalId);
   }, [fetchStats, pollingInterval]);
 
-  return { stats, loading, error, refetch: fetchStats };
+  return { 
+    stats, 
+    loading, 
+    error, 
+    refetch: fetchStats 
+  };
 }
 
 /**
@@ -157,7 +223,7 @@ export function useWebsiteStats(websiteId: number, period = '7d', pollingInterva
 export function useWebsiteCheck() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<MonitoringResult | null>(null);
 
   const checkWebsite = useCallback(async (websiteId: number) => {
     setLoading(true);
@@ -165,7 +231,32 @@ export function useWebsiteCheck() {
     
     try {
       const data = await triggerWebsiteCheck(websiteId);
-      setResult(data);
+      if ('isAvailable' in data) { // Ensure data matches MonitoringResult structure
+        if (
+          data &&
+          typeof data === 'object' &&
+          'id' in data &&
+          'websiteId' in data &&
+          'checkedAt' in data &&
+          'responseTime' in data &&
+          'isAvailable' in data &&
+          typeof data.id === 'number' &&
+          typeof data.websiteId === 'number' &&
+          typeof data.checkedAt === 'string' &&
+          typeof data.responseTime === 'number' &&
+          typeof data.isAvailable === 'boolean'
+        ) {
+          setResult({
+            ...data,
+            statusCode: ('statusCode' in data ? data.statusCode : 200), // Provide default or actual value
+            errorMessage: ('errorMessage' in data ? (data as { errorMessage?: string }).errorMessage : null) // Provide default or actual value
+          } as MonitoringResult);
+        } else {
+          throw new Error('Invalid response format from triggerWebsiteCheck');
+        }
+      } else {
+        throw new Error('Invalid response format from triggerWebsiteCheck');
+      }
       return data;
     } catch (err) {
       const errorObj = err instanceof Error ? err : new Error(`Failed to check website ID: ${websiteId}`);
@@ -176,5 +267,10 @@ export function useWebsiteCheck() {
     }
   }, []);
 
-  return { checkWebsite, loading, error, result };
+  return { 
+    checkWebsite, 
+    loading, 
+    error, 
+    result 
+  };
 }

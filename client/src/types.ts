@@ -13,6 +13,10 @@ export interface MonitoringResult {
   };
 }
 
+export interface TimeRange {
+  from: Date;
+  to: Date;
+}
 // Core Website entity (without user-specific settings)
 export interface Website {
   id: number;

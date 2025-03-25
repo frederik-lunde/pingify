@@ -2,17 +2,47 @@
 import apiClient from './client';
 import { MonitoringResult, WebsiteStats, OverallStats } from '../types';
 
+export type TimeRange = '1h' | '12h' | '24h' | '7d' | '30d' | '90d';
+
+/**
+ * Convert TimeRange to Date objects
+ */
+const getRangeDates = (range: TimeRange): { from: Date; to: Date } => {
+  const to = new Date();
+  const from = new Date(to);
+  
+  switch (range) {
+    case '1h': from.setHours(to.getHours() - 1); break;
+    case '12h': from.setHours(to.getHours() - 12); break;
+    case '24h': from.setDate(to.getDate() - 1); break;
+    case '7d': from.setDate(to.getDate() - 7); break;
+    case '30d': from.setDate(to.getDate() - 30); break;
+    case '90d': from.setDate(to.getDate() - 90); break;
+    default: from.setDate(to.getDate() - 7); // Default to 7 days
+  }
+  
+  return { from, to };
+};
+
 /**
  * Get monitoring results for all user's websites
  */
 export const getUserResults = async (
-  limit = 100, 
-  from?: Date, 
-  to?: Date
+  limit = 100,
+  range?: TimeRange | { from?: Date; to?: Date }
 ): Promise<MonitoringResult[]> => {
-  const params: any = { limit };
-  if (from) params.from = from.toISOString();
-  if (to) params.to = to.toISOString();
+  const params: { limit: number; from?: string; to?: string } = { limit };
+  
+  if (range) {
+    if (typeof range === 'string') {
+      const { from, to } = getRangeDates(range);
+      params.from = from.toISOString();
+      params.to = to.toISOString();
+    } else {
+      if (range.from) params.from = range.from.toISOString();
+      if (range.to) params.to = range.to.toISOString();
+    }
+  }
   
   const response = await apiClient.get('/monitoring/user/results', { params });
   return response.data;
@@ -22,14 +52,22 @@ export const getUserResults = async (
  * Get monitoring results for a specific website
  */
 export const getResultsByWebsite = async (
-  websiteId: number, 
-  limit = 100, 
-  from?: Date, 
-  to?: Date
+  websiteId: number,
+  limit = 100,
+  range?: TimeRange | { from?: Date; to?: Date }
 ): Promise<MonitoringResult[]> => {
-  const params: any = { limit };
-  if (from) params.from = from.toISOString();
-  if (to) params.to = to.toISOString();
+  const params: { limit: number; from?: string; to?: string } = { limit };
+  
+  if (range) {
+    if (typeof range === 'string') {
+      const { from, to } = getRangeDates(range);
+      params.from = from.toISOString();
+      params.to = to.toISOString();
+    } else {
+      if (range.from) params.from = range.from.toISOString();
+      if (range.to) params.to = range.to.toISOString();
+    }
+  }
   
   const response = await apiClient.get(`/monitoring/website/${websiteId}/results`, { params });
   return response.data;

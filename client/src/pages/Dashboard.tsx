@@ -1,22 +1,30 @@
 import React from 'react';
-import { Container, Box, CircularProgress, Button, Typography } from '@mui/material';
-import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
+import { Container, Box, CircularProgress, Button, Typography, Grid } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router';
 import { useUserStats } from '../api/hooks/useMonitoring';
-import { useWebsiteData } from '../hooks/useWebsiteData';
 import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
 import StatsCard from '../components/StatsCard';
 import AlertsSection from '../components/dashboard/AlertsSection';
-import WebsiteStatusSection from '../components/dashboard/WebsiteStatusSection';
 import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
 import WebsiteMonitoringCard from '../components/WebsiteMonitoringCard';
+import { useWebsites } from '../api/hooks/useWebsites';
+
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  // Using the updated hook name
   const { stats, loading: statsLoading } = useUserStats();
-  const { websitesData, loading: websitesLoading } = useWebsiteData();
+  const { websites, loading: websitesLoading, error: websitesError } = useWebsites();
+
+  if (websitesError) {
+    return (
+      <Container maxWidth="xl" sx={{ mt: 4, textAlign: 'center' }}>
+        <Typography color="error" variant="h6">
+          Error loading websites: {websitesError.message}
+        </Typography>
+      </Container>
+    );
+  }
 
   if (statsLoading || websitesLoading) {
     return (
@@ -29,7 +37,9 @@ const Dashboard: React.FC = () => {
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <h1>Website Monitoring Dashboard</h1>
+        <Typography variant="h4" component="h1">
+          Website Monitoring Dashboard
+        </Typography>
         <Button
           variant="contained"
           color="primary"
@@ -39,29 +49,18 @@ const Dashboard: React.FC = () => {
           Add Website
         </Button>
       </Box>
-      
-      {/* Website Monitoring Cards - 4 per row */}
+
+      {/* Website Monitoring Cards Grid */}
       <Box mb={4}>
         <Grid container spacing={3}>
-          {websitesData.map(data => (
-            <Grid key={data.website.websiteId} xs={12} sm={6} md={3}>
-              <WebsiteMonitoringCard 
-                website={data.website}
-                results={data.results || []}
-                isOnline={data.isOnline}
-                responseTime={data.responseTime}
-                latestResult={data.latestResult}
-                stats={{
-                  uptime: data.stats?.uptime,
-                  averageResponseTime: data.stats?.averageResponseTime,
-                  consecutiveFailures: data.stats?.consecutiveFailures
-                }}
-              />
+          {websites.map(website => (
+            <Grid item key={website.websiteId} xs={12} sm={6} md={4} lg={3}>
+              <WebsiteMonitoringCard website={website} />
             </Grid>
           ))}
         </Grid>
-        
-        {websitesData.length === 0 && (
+
+        {websites.length === 0 && (
           <Box sx={{ 
             textAlign: 'center', 
             py: 4, 
@@ -70,28 +69,28 @@ const Dashboard: React.FC = () => {
             mt: 2
           }}>
             <Typography variant="body1" color="text.secondary">
-              No websites found to monitor. Add your first website to get started.
+              No websites found. Add your first website to start monitoring.
             </Typography>
           </Box>
         )}
       </Box>
-      
-      {/* Summary Cards */}
+
+      {/* Summary Statistics Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid item xs={12} md={4}>
           <StatsCard 
             title="Total Websites" 
             value={stats?.totalWebsites || 0} 
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid item xs={12} md={4}>
           <StatsCard 
             title="Overall Uptime" 
             value={`${stats?.overallUptime?.toFixed(2) || 0}%`} 
             color={stats?.overallUptime ? getStatusColor(stats.overallUptime) : 'default'} 
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid item xs={12} md={4}>
           <StatsCard 
             title="Avg. Response Time" 
             value={`${stats?.overallResponseTime?.toFixed(0) || 0}ms`} 
@@ -100,13 +99,7 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
-      <WebsiteStatusSection 
-        websitesWithLatestResults={websitesData.map(data => ({
-          userWebsite: data.website,
-          latestResult: data.latestResult
-        }))} 
-        loading={websitesLoading} 
-      />
+      {/* Status and Alert Sections */}
       
       <AlertsSection />
       
