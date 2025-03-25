@@ -15,22 +15,28 @@ import {
   IconButton,
   Tooltip,
   Card,
-  CardContent
+  CardContent,
+  Snackbar
 } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
 import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
-import { useWebsite, useWebsiteCrud } from '../api/hooks/useWebsites';
+import { getUserWebsiteById } from '../api/websites';
+import { useWebsiteCrud } from '../api/hooks/useWebsites';
 
 const WebsiteSettings: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const websiteId = parseInt(id || '0', 10);
   const navigate = useNavigate();
   
-  const { website, loading: websiteLoading, error: websiteError } = useWebsite(websiteId);
+  // State for manual data fetching
+  const [website, setWebsite] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<Error | null>(null);
+  
   const { update, remove, loading: actionLoading } = useWebsiteCrud();
   
   const [formData, setFormData] = useState({
@@ -44,6 +50,27 @@ const WebsiteSettings: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  // Fetch website data manually instead of using the polling hook
+  const fetchWebsiteData = async () => {
+    try {
+      setLoading(true);
+      const data = await getUserWebsiteById(websiteId);
+      setWebsite(data);
+      setFetchError(null);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err : new Error('Failed to load website data'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchWebsiteData();
+  }, [websiteId]);
 
   // Initialize form when website data is loaded
   useEffect(() => {
@@ -82,21 +109,34 @@ const WebsiteSettings: React.FC = () => {
       });
       
       setSuccess('Website settings updated successfully');
+      showSnackbar('Settings saved successfully');   
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update website settings');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update website settings';
+      setError(errorMessage);
+      showSnackbar('Error: ' + errorMessage, 'error');
     }
+    setTimeout(() => navigate(`/website/${websiteId}`), 1000);
   };
 
   const handleDelete = async () => {
     try {
       await remove(websiteId);
-      navigate('/');
+      showSnackbar('Website removed successfully');
+      setTimeout(() => navigate('/'), 1000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete website');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete website';
+      setError(errorMessage);
+      showSnackbar('Error: ' + errorMessage, 'error');
     }
   };
 
-  if (websiteLoading) {
+  const showSnackbar = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {
+    setSnackbarMessage(message);
+    setSnackbarOpen(true);
+  };
+
+  if (loading && !website) {
     return (
       <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
         <Box display="flex" justifyContent="center" my={4}>
@@ -106,11 +146,11 @@ const WebsiteSettings: React.FC = () => {
     );
   }
 
-  if (websiteError || !website) {
+  if (fetchError || !website) {
     return (
       <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
         <Alert severity="error" sx={{ mb: 2 }}>
-          {websiteError instanceof Error ? websiteError.message : 'Website not found or you do not have access to it.'}
+          {fetchError?.message || 'Website not found or you do not have access to it.'}
         </Alert>
         <Button
           startIcon={<ArrowBackIcon />}
@@ -124,15 +164,17 @@ const WebsiteSettings: React.FC = () => {
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
-        <Tooltip title="Back to Website Details">
-          <IconButton onClick={() => navigate(`/website/${websiteId}`)} sx={{ mr: 2 }}>
-            <ArrowBackIcon />
-          </IconButton>
-        </Tooltip>
-        <Typography variant="h4" component="h1">
-          Website Settings
-        </Typography>
+      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Tooltip title="Back to Website Details">
+            <IconButton onClick={() => navigate(`/website/${websiteId}`)} sx={{ mr: 2 }}>
+              <ArrowBackIcon />
+            </IconButton>
+          </Tooltip>
+          <Typography variant="h4" component="h1">
+            Website Settings
+          </Typography>
+        </Box>
       </Box>
 
       {success && (
@@ -279,6 +321,22 @@ const WebsiteSettings: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Feedback Snackbar */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbarOpen(false)} 
+          severity="success"
+          sx={{ width: '100%' }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

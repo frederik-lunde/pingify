@@ -1,4 +1,3 @@
-// client/src/pages/AddWebsite.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -18,8 +17,9 @@ import {
 import Grid from '@mui/material/Grid2';
 import { Add as AddIcon, HelpOutline as HelpIcon } from '@mui/icons-material';
 import { useWebsiteCrud } from '../api/hooks/useWebsites';
-import { WebsiteCreateDTO, Website } from '../types';
+import { WebsiteCreateDTO, Website} from '../types';
 import WebsiteUrlSearch from '../components/WebsiteUrlSearch';
+import { validateWebsiteForm, prepareWebsiteData, ValidationErrors } from '../utils/validation/addWebsiteValidation';
 
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ const AddWebsite: React.FC = () => {
   });
 
   // UI state
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
@@ -84,71 +84,20 @@ const AddWebsite: React.FC = () => {
     }));
   };
 
-  // Form validation
-  const validateForm = (): boolean => {
-    const errors: Record<string, string> = {};
-
-    if (!formData.name?.trim()) {
-      errors.name = 'Website name is required';
-    }
-
-    if (!formData.url?.trim()) {
-      errors.url = 'URL is required';
-    } else {
-      try {
-        new URL(formData.url);
-      } catch (e) {
-        errors.url = 'Please enter a valid URL (include http:// or https://)';
-      }
-    }
-
-    if (formData.interval) {
-      const interval = Number(formData.interval);
-      if (isNaN(interval) || interval < 30 || interval > 86400) {
-        errors.interval = 'Interval must be between 30 seconds and 1 day (86400 seconds)';
-      }
-    }
-
-    if (formData.alertEnabled) {
-      if (formData.alertThreshold) {
-        const threshold = Number(formData.alertThreshold);
-        if (isNaN(threshold) || threshold < 1 || threshold > 60000) {
-          errors.alertThreshold = 'Threshold must be between 1 and 60000 milliseconds';
-        }
-      } else {
-        errors.alertThreshold = 'Response threshold is required when alerts are enabled';
-      }
-
-      if (!formData.notifyEmail) {
-        errors.notifyEmail = 'Email is required when alerts are enabled';
-      } else {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.notifyEmail)) {
-          errors.notifyEmail = 'Please enter a valid email address';
-        }
-      }
-    }
-
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
   // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    
+    // Validate form
+    const errors = validateWebsiteForm(formData);
+    setValidationErrors(errors);
+    
+    // Stop if there are validation errors
+    if (Object.keys(errors).length > 0) return;
 
     try {
-      // Build the WebsiteCreateDTO object
-      const websiteData: WebsiteCreateDTO = {
-        name: formData.name!.trim(),
-        url: formData.url!.trim(),
-        interval: Number(formData.interval),
-        alertEnabled: formData.alertEnabled || false,
-        alertThreshold: formData.alertEnabled ? Number(formData.alertThreshold) : null,
-        notifyEmail: formData.alertEnabled ? formData.notifyEmail : null,
-      };
-
+      // Prepare and submit website data
+      const websiteData = prepareWebsiteData(formData);
       await create(websiteData);
 
       setSnackbarMessage('Website added successfully!');

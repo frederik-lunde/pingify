@@ -1,5 +1,5 @@
 // src/hooks/useWebsiteData.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useWebsites } from '../api/hooks/useWebsites';
 import { useUserMonitoringResults } from '../api/hooks/useMonitoring';
 import { UserWebsite, MonitoringResult } from '../types';
@@ -13,15 +13,20 @@ interface WebsiteData {
 }
 
 export function useWebsiteData() {
-  const { websites, loading: websitesLoading } = useWebsites();
-  const { results, loading: resultsLoading } = useUserMonitoringResults(100);
-  const [websitesData, setWebsitesData] = useState<WebsiteData[]>([]);
+
+  const { data: userWebsites = [], loading: websitesLoading } = useWebsites();
+  const { data: allMonitoringResults = [], loading: resultsLoading } = useUserMonitoringResults(100);
   
-  // Process and organize the data
-  useEffect(() => {
-    if (!websitesLoading && !resultsLoading && websites.length > 0) {
-      // Group results by website ID
-      const resultsByWebsite: Record<number, MonitoringResult[]> = {};
+  const websitesWithLatestResults = useMemo(() => {
+    if (!userWebsites?.length || !allMonitoringResults?.length) {
+      return [];
+    }
+    
+    return userWebsites.map(userWebsite => {
+      // Find the latest monitoring result for this website
+      const latestResult = allMonitoringResults
+        .filter(result => result.websiteId === userWebsite.websiteId)
+        .sort((a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime())[0];
       
       results.forEach(result => {
         if (!resultsByWebsite[result.websiteId]) {
@@ -58,8 +63,9 @@ export function useWebsiteData() {
   const loading = websitesLoading || resultsLoading;
   
   return {
-    websitesData,
-    loading,
+
+    websitesWithLatestResults,
+    loading: websitesLoading || resultsLoading
   };
 }
 

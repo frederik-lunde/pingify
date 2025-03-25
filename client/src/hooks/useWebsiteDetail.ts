@@ -6,19 +6,24 @@ import { useWebsite } from '../api/hooks/useWebsites';
 
 export function useWebsiteDetail(websiteId: number) {
   const [isChecking, setIsChecking] = useState(false);
+  
   const { 
-    results, 
+    data: results = [], 
     loading: resultsLoading, 
     error: resultsError, 
-    refetch: refetchResults 
+    refetch: refetchResults,
+    stopPolling: stopResultsPolling,
+    startPolling: startResultsPolling
   } = useWebsiteResults(websiteId, 50);
   
   // Also fetch the user-specific website details
   const {
-    website: userWebsite,
+    data: userWebsite,
     loading: websiteLoading,
     error: websiteError,
-    refetch: refetchWebsite
+    refetch: refetchWebsite,
+    stopPolling: stopWebsitePolling,
+    startPolling: startWebsitePolling
   } = useWebsite(websiteId);
 
   // Handle manual check button click
@@ -40,6 +45,18 @@ export function useWebsiteDetail(websiteId: number) {
     await Promise.all([refetchResults(), refetchWebsite()]);
   }, [refetchResults, refetchWebsite]);
 
+  // Stop all polling
+  const stopPolling = useCallback(() => {
+    stopResultsPolling();
+    stopWebsitePolling();
+  }, [stopResultsPolling, stopWebsitePolling]);
+
+  // Start all polling
+  const startPolling = useCallback(() => {
+    startResultsPolling();
+    startWebsitePolling();
+  }, [startResultsPolling, startWebsitePolling]);
+
   // Get current status from most recent result
   const latestResult = results && results.length > 0 ? results[0] : null;
   const currentStatus = latestResult?.isAvailable ? 'Online' : 'Offline';
@@ -55,6 +72,8 @@ export function useWebsiteDetail(websiteId: number) {
     currentStatus,
     statusColor,
     refetch: refetchAll,
-    userWebsite 
+    userWebsite,
+    stopPolling,
+    startPolling
   };
 }

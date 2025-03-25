@@ -1,8 +1,20 @@
 //client\src\pages\WebsiteDetails.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router';
-import { Container, Box, CircularProgress, Typography, Button, Paper } from '@mui/material';
-import { ErrorOutline as ErrorIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { 
+  Container, 
+  Box, 
+  CircularProgress, 
+  Typography, 
+  Button, 
+  Paper,
+  Snackbar,
+  Alert
+} from '@mui/material';
+import { 
+  ErrorOutline as ErrorIcon, 
+  Refresh as RefreshIcon
+} from '@mui/icons-material';
 
 // Chart.js registration
 import {
@@ -12,7 +24,7 @@ import {
   PointElement,
   LineElement,
   Title,
-  Tooltip,
+  Tooltip as ChartTooltip,
   Legend
 } from 'chart.js';
 
@@ -32,7 +44,7 @@ ChartJS.register(
   PointElement,
   LineElement,
   Title,
-  Tooltip,
+  ChartTooltip,
   Legend
 );
 
@@ -40,6 +52,10 @@ const WebsiteDetails: React.FC = () => {
   const params = useParams<Record<string, string>>();
   const id = params.id;
   const websiteId = parseInt(id || '0', 10);
+  
+  // UI State
+  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   
   // Use our custom hook to manage the website details
   const { 
@@ -52,11 +68,21 @@ const WebsiteDetails: React.FC = () => {
     currentStatus, 
     statusColor,
     refetch,
-    userWebsite  // Added userWebsite from updated hook
+    userWebsite,
+
   } = useWebsiteDetail(websiteId);
 
+  // Safe versions of the data for TypeScript
+  const safeResults = results || [];
+  
+  // Handle snackbar close
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
+  };
+
+
   // Loading state
-  if (loading && !results.length) {
+  if (loading && !safeResults.length) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
@@ -108,7 +134,6 @@ const WebsiteDetails: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* Header with status and check button - updated to use userWebsite */}
       <WebsiteHeader 
         userWebsite={userWebsite}
         currentStatus={currentStatus}
@@ -121,10 +146,22 @@ const WebsiteDetails: React.FC = () => {
       <WebsiteStatsCards latestResult={latestResult} />
 
       {/* Response Time Chart */}
-      <ResponseTimeChart results={results} />
+      <ResponseTimeChart results={safeResults} />
 
       {/* Recent Checks Table */}
-      <ResultsTable results={results} />
+      <ResultsTable results={safeResults} />
+
+      {/* Feedback Snackbar */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleSnackbarClose} severity="info">
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

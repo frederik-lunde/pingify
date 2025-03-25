@@ -1,6 +1,7 @@
 import React from 'react';
-import { Container, Box, CircularProgress, Button, Typography, Grid } from '@mui/material';
+import { Container, Box, CircularProgress, Button, Typography } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
+import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
 import { useNavigate } from 'react-router';
 import { useUserStats } from '../api/hooks/useMonitoring';
 import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
@@ -13,20 +14,21 @@ import { useWebsites } from '../api/hooks/useWebsites';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { stats, loading: statsLoading } = useUserStats();
-  const { websites, loading: websitesLoading, error: websitesError } = useWebsites();
+  
+  // Using the updated hook names
+  const { data: stats, loading: statsLoading } = useUserStats();
+  const { websitesWithLatestResults, loading: websitesLoading } = useWebsiteData();
 
-  if (websitesError) {
-    return (
-      <Container maxWidth="xl" sx={{ mt: 4, textAlign: 'center' }}>
-        <Typography color="error" variant="h6">
-          Error loading websites: {websitesError.message}
-        </Typography>
-      </Container>
-    );
-  }
+  // Safety checks for TypeScript
+  const safeStats = stats || { 
+    totalWebsites: 0, 
+    overallUptime: 0, 
+    overallResponseTime: 0,
+    websiteStats: [] 
+  };
 
-  if (statsLoading || websitesLoading) {
+
+  if (websitesLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
@@ -34,12 +36,20 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Website Monitoring Dashboard
-        </Typography>
+  if (statsLoading && !stats) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Box display="flex" alignItems="center">
+          <h1>Website Monitoring Dashboard</h1>
+        </Box>
         <Button
           variant="contained"
           color="primary"
@@ -80,21 +90,21 @@ const Dashboard: React.FC = () => {
         <Grid item xs={12} md={4}>
           <StatsCard 
             title="Total Websites" 
-            value={stats?.totalWebsites || 0} 
+            value={safeStats.totalWebsites} 
           />
         </Grid>
         <Grid item xs={12} md={4}>
           <StatsCard 
             title="Overall Uptime" 
-            value={`${stats?.overallUptime?.toFixed(2) || 0}%`} 
-            color={stats?.overallUptime ? getStatusColor(stats.overallUptime) : 'default'} 
+            value={`${safeStats.overallUptime.toFixed(2)}%`} 
+            color={getStatusColor(safeStats.overallUptime)} 
           />
         </Grid>
         <Grid item xs={12} md={4}>
           <StatsCard 
             title="Avg. Response Time" 
-            value={`${stats?.overallResponseTime?.toFixed(0) || 0}ms`} 
-            color={stats?.overallResponseTime ? getResponseTimeColor(stats.overallResponseTime) : 'default'} 
+            value={`${safeStats.overallResponseTime.toFixed(0)}ms`} 
+            color={getResponseTimeColor(safeStats.overallResponseTime)} 
           />
         </Grid>
       </Grid>
@@ -103,8 +113,8 @@ const Dashboard: React.FC = () => {
       
       <AlertsSection />
       
-      {stats?.websiteStats && stats.websiteStats.length > 0 && (
-        <WebsiteStatsSection websiteStats={stats.websiteStats} />
+      {safeStats.websiteStats && safeStats.websiteStats.length > 0 && (
+        <WebsiteStatsSection websiteStats={safeStats.websiteStats} />
       )}
     </Container>
   );
