@@ -33,9 +33,18 @@ const WebsiteUrlSearch = ({
   placeholder = "https://example.com",
   helperText = "Full URL including http:// or https://"
 }: WebsiteUrlSearchProps) => {
-  const [inputValue, setInputValue] = useState('');
   const [options, setOptions] = useState<Website[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Sync input value with parent value prop
+  const [inputValue, setInputValue] = useState(value || '');
+  
+  // Update inputValue when value prop changes
+  useEffect(() => {
+    if (value !== inputValue) {
+      setInputValue(value || '');
+    }
+  }, [value]);
   
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -62,9 +71,10 @@ const WebsiteUrlSearch = ({
     };
   }, [debouncedSearch]);
 
-  // Handle URL input change
+  // Handle URL input change - Update parent state while typing
   const handleInputChange = (_event: React.SyntheticEvent, newInputValue: string) => {
     setInputValue(newInputValue);
+    onChange(newInputValue); // Update parent state as the user types
     debouncedSearch(newInputValue);
   };
 
@@ -87,7 +97,7 @@ const WebsiteUrlSearch = ({
   };
 
   // Get URL from option (string or Website)
-  const getOptionUrl = (option: string | Website): string => {
+  const getOptionLabel = (option: string | Website): string => {
     return typeof option === 'string' ? option : option.url;
   };
 
@@ -100,12 +110,22 @@ const WebsiteUrlSearch = ({
     return null;
   };
 
+  // Helper to automatically add protocol if missing
+  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    const url = event.target.value.trim();
+    if (url && !url.match(/^https?:\/\//i)) {
+      const newUrl = `https://${url}`;
+      setInputValue(newUrl);
+      onChange(newUrl);
+    }
+  };
+
   return (
     <Autocomplete
       freeSolo
       options={options}
       filterOptions={(x) => x} // Don't filter - we handle this server-side
-      getOptionLabel={getOptionUrl}
+      getOptionLabel={getOptionLabel}
       loading={loading}
       onInputChange={handleInputChange}
       onChange={handleUrlSelect}
@@ -120,6 +140,7 @@ const WebsiteUrlSearch = ({
           placeholder={placeholder}
           error={!!error}
           helperText={error || helperText}
+          onBlur={handleBlur} // Add protocol on blur if missing
           InputProps={{
             ...params.InputProps,
             endAdornment: (
@@ -140,8 +161,6 @@ const WebsiteUrlSearch = ({
       )}
       
       renderOption={(props, option) => {
-        // We know that in renderOption, option is a Website because it comes from the options array
-        // But TypeScript doesn't know this, so we need to type assertion or type-check
         const url = typeof option === 'string' ? option : option.url;
         
         return (

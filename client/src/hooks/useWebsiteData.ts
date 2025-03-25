@@ -1,7 +1,7 @@
 // src/hooks/useWebsiteData.ts
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useUserMonitoringResults } from '../api/hooks/useMonitoring'; 
-import { getUserWebsites } from '../api/websites';
+import { useWebsites } from '../api/hooks/useWebsites';
 import { UserWebsite, MonitoringResult } from '../types';
 
 export interface WebsiteWithResult {
@@ -10,27 +10,8 @@ export interface WebsiteWithResult {
 }
 
 export function useWebsiteData() {
-  const [userWebsites, setUserWebsites] = useState<UserWebsite[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { results: allMonitoringResults, loading: resultsLoading } = useUserMonitoringResults(100);
-  
-  useEffect(() => {
-    const fetchWebsites = async () => {
-      try {
-        const data = await getUserWebsites();
-        setUserWebsites(data || []);
-      } catch (error) {
-        console.error('Error fetching user websites:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchWebsites();
-    const intervalId = setInterval(fetchWebsites, 5000);
-    
-    return () => clearInterval(intervalId);
-  }, []);
+  const { data: userWebsites = [], loading: websitesLoading } = useWebsites();
+  const { data: allMonitoringResults = [], loading: resultsLoading } = useUserMonitoringResults(100);
   
   const websitesWithLatestResults = useMemo(() => {
     if (!userWebsites?.length || !allMonitoringResults?.length) {
@@ -52,6 +33,6 @@ export function useWebsiteData() {
 
   return {
     websitesWithLatestResults,
-    loading: loading || resultsLoading
+    loading: websitesLoading || resultsLoading
   };
 }
