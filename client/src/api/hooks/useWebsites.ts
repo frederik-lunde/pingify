@@ -1,6 +1,6 @@
 // src/api/hooks/useWebsites.ts
 import { useState, useCallback } from 'react';
-import { UserWebsite, WebsiteCreateDTO, WebsiteUpdateDTO, MonitoringResult } from '../../types';
+import { UserWebsite, WebsiteCreateDTO, WebsiteUpdateDTO } from '../../types';
 import { 
   getUserWebsites, 
   getUserWebsiteById, 
@@ -8,7 +8,6 @@ import {
   updateUserWebsite, 
   removeWebsiteFromUser,
 } from '../websites';
-import { getResultsByWebsite } from '../monitoring';
 import { DEFAULT_POLLING_INTERVAL } from '../config';
 import { usePolling, PollingOptions } from '../../hooks/common';
 
@@ -47,24 +46,6 @@ export function useWebsite(
   });
 }
 
-/**
- * Hook for getting monitoring results for a website
- */
-export function useWebsiteResults(
-  websiteId: number, 
-  limit = 100, 
-  pollingInterval = DEFAULT_POLLING_INTERVAL,
-  options?: Partial<PollingOptions<MonitoringResult[]>>
-) {
-  const fetchResults = useCallback(async () => {
-    return await getResultsByWebsite(websiteId, limit);
-  }, [websiteId, limit]);
-
-  return usePolling<MonitoringResult[]>(fetchResults, { 
-    pollingInterval,
-    ...options 
-  });
-}
 
 /**
  * Hook for website CRUD operations
