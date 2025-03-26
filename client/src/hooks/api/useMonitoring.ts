@@ -1,7 +1,7 @@
 // src/hooks/api/useMonitoring.ts
 import { useState, useCallback } from 'react';
 import { MonitoringResult, OverallStats, WebsiteStats } from '../../types';
-import apiClient from '../../api/enhancedClient';
+import apiClient from '../../api/client';
 import { usePolling } from '../common/usePolling';
 
 /**

@@ -1,7 +1,7 @@
 // src/hooks/api/useAlerts.ts
 import { useCallback } from 'react';
 import { Alert, AlertStats, AlertQueryOptions, AlertUser } from '../../types';
-import apiClient from '../../api/enhancedClient';
+import apiClient from '../../api/client';
 import { DEFAULT_POLLING_INTERVAL } from '../../api/config';
 import { usePolling } from '../common/usePolling';
 

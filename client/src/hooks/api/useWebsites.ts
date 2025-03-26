@@ -1,7 +1,7 @@
 // src/hooks/api/useWebsites.ts
 import { useState, useCallback } from 'react';
 import { UserWebsite, WebsiteCreateDTO, WebsiteUpdateDTO, Website } from '../../types';
-import apiClient from '../../api/enhancedClient';
+import apiClient from '../../api/client';
 import { usePolling, PollingOptions } from '../common/usePolling';
 
 /**

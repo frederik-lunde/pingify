@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { getAuthToken, storeAuthToken, removeAuthToken } from '../../utils/authTokenUtils';
 import { User, AuthContextType } from '../../types';
-import apiClient from '../../api/enhancedClient';
+import apiClient from '../../api/client';
 
 /**
  * Interface for login credentials
