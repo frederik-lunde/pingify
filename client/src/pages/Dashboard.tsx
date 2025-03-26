@@ -1,23 +1,27 @@
 // src/components/Dashboard.tsx
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Container, Box, CircularProgress, Button } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
-import {Add as AddIcon} from '@mui/icons-material';
+import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router';
 import { useUserStats } from '../api/hooks/useMonitoring';
 import { useWebsiteData } from '../hooks/useWebsiteData';
 import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
 import StatsCard from '../components/StatsCard';
 import AlertsSection from '../components/dashboard/AlertsSection';
-import WebsiteStatusSection from '../components/dashboard/WebsiteStatusSection';
 import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
+import DirectWebsiteGrid from '../components/dashboard/WebsiteGrid';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   
-  // Using the updated hook names
-  const { data: stats, loading: statsLoading } = useUserStats();
-  const { websitesWithLatestResults, loading: websitesLoading } = useWebsiteData();
+  // Get stats and websites data
+  const { data: stats, loading: statsLoading, refetch: refetchStats } = useUserStats();
+  const { 
+    websitesWithLatestResults, 
+    loading: websitesLoading, 
+    refetch: refetchWebsites 
+  } = useWebsiteData();
 
   // Safety checks for TypeScript
   const safeStats = stats || { 
@@ -27,8 +31,22 @@ const Dashboard: React.FC = () => {
     websiteStats: [] 
   };
 
+  // Handle refresh after website deletion
+  const handleWebsiteDeleted = useCallback(() => {
+    refetchWebsites();
+    refetchStats();
+  }, [refetchWebsites, refetchStats]);
 
-  if (websitesLoading) {
+  // Handle add website button click
+  const handleAddWebsite = useCallback(() => {
+    navigate('/add-website');
+  }, [navigate]);
+
+  // Debug output 
+  console.log('Dashboard render with', websitesWithLatestResults.length, 'websites');
+
+  // Loading states
+  if (websitesLoading && !websitesWithLatestResults.length) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
@@ -54,7 +72,7 @@ const Dashboard: React.FC = () => {
           variant="contained"
           color="primary"
           startIcon={<AddIcon />}
-          onClick={() => navigate('/add-website')}
+          onClick={handleAddWebsite}
         >
           Add Website
         </Button>
@@ -84,10 +102,17 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
-      <WebsiteStatusSection websitesWithLatestResults={websitesWithLatestResults} />
+      {/* Direct Website Grid */}
+      <DirectWebsiteGrid 
+        websitesWithLatestResults={websitesWithLatestResults} 
+        loading={websitesLoading}
+        onDeleted={handleWebsiteDeleted}
+      />
 
+      {/* Alerts Section */}
       <AlertsSection />
       
+      {/* Keep the WebsiteStatsSection for detailed stats */}
       {safeStats.websiteStats && safeStats.websiteStats.length > 0 && (
         <WebsiteStatsSection websiteStats={safeStats.websiteStats} />
       )}
