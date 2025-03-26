@@ -1,24 +1,20 @@
 // src/components/Dashboard.tsx
-import React, { useCallback } from 'react';
+import React from 'react';
 import { Container, Box, CircularProgress } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
-//import { Add as AddIcon } from '@mui/icons-material';
 import { useUserStats } from '../api/hooks/useMonitoring';
 import { useWebsiteData } from '../hooks/useWebsiteData';
 import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
 import StatsCard from '../components/StatsCard';
-//import AlertsSection from '../components/dashboard/AlertsSection';
-//import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
-import DirectWebsiteGrid from '../components/dashboard/WebsiteGrid';
+import WebsiteGrid from '../components/dashboard/WebsiteGrid';
 
 const Dashboard: React.FC = () => {
   
   // Get stats and websites data
-  const { data: stats, loading: statsLoading, refetch: refetchStats } = useUserStats();
+  const { data: stats, loading: statsLoading} = useUserStats();
   const { 
     websitesWithLatestResults, 
     loading: websitesLoading, 
-    refetch: refetchWebsites 
   } = useWebsiteData();
 
   // Safety checks for TypeScript
@@ -28,13 +24,6 @@ const Dashboard: React.FC = () => {
     overallResponseTime: 0,
     websiteStats: [] 
   };
-
-  // Handle refresh after website deletion
-  const handleWebsiteDeleted = useCallback(() => {
-    refetchWebsites();
-    refetchStats();
-  }, [refetchWebsites, refetchStats]);
-
 
   // Debug output 
   console.log('Dashboard render with', websitesWithLatestResults.length, 'websites');
@@ -90,17 +79,10 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
-      {/* Direct Website Grid */}
-      <DirectWebsiteGrid 
+      <WebsiteGrid 
         websitesWithLatestResults={websitesWithLatestResults} 
         loading={websitesLoading}
-        onDeleted={handleWebsiteDeleted}
       />
-      
-      {/* Keep the WebsiteStatsSection for detailed stats */}
-      {/* {safeStats.websiteStats && safeStats.websiteStats.length > 0 && (
-        <WebsiteStatsSection websiteStats={safeStats.websiteStats} />
-      )} */}
     </Container>
   );
 };
