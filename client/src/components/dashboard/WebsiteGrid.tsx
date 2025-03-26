@@ -1,5 +1,5 @@
-// client/src/components/dashboard/WebsiteCardsGrid.tsx
-import React, { useState } from 'react';
+// client/src/components/dashboard/DirectWebsiteGrid.tsx
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Typography,
   Box,
@@ -12,17 +12,21 @@ import {
   Button
 } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 as in your project
-import WebsiteCard from './WebsiteCard';
+import SimpleWebsiteCard from './WebsiteCard';
 import { WebsiteWithResult } from '../../hooks/useWebsiteData';
 import { useWebsiteCrud } from '../../api/hooks/useWebsites';
 
-interface WebsiteCardsGridProps {
+interface DirectWebsiteGridProps {
   websitesWithLatestResults: WebsiteWithResult[];
   loading?: boolean;
   onDeleted?: () => void;
 }
 
-const WebsiteCardsGrid: React.FC<WebsiteCardsGridProps> = ({
+/**
+ * A simplified grid that directly uses the existing websitesWithLatestResults data
+ * and passes it to a pure SimpleWebsiteCard component
+ */
+const DirectWebsiteGrid: React.FC<DirectWebsiteGridProps> = React.memo(({
   websitesWithLatestResults,
   loading = false,
   onDeleted
@@ -32,37 +36,47 @@ const WebsiteCardsGrid: React.FC<WebsiteCardsGridProps> = ({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Find the website being deleted to show its name in the confirmation dialog
-  const websiteToDelete = websitesWithLatestResults.find(
-    item => item.userWebsite.websiteId === deleteConfirm
-  )?.userWebsite;
+  const websiteToDelete = useMemo(() => {
+    if (deleteConfirm === null) return null;
+    return websitesWithLatestResults.find(
+      item => item.userWebsite.websiteId === deleteConfirm
+    )?.userWebsite || null;
+  }, [deleteConfirm, websitesWithLatestResults]);
 
-  const handleDeleteConfirm = (websiteId: number) => {
+  // Debug output with useEffect for cleaner console
+  useEffect(() => {
+    if (websitesWithLatestResults.length > 0) {
+      console.log('Grid has', websitesWithLatestResults.length, 'websites with data');
+    }
+  }, [websitesWithLatestResults.length]);
+
+  const handleDeleteConfirm = useCallback((websiteId: number) => {
     setDeleteConfirm(websiteId);
-  };
+    setDeleteError(null);
+  }, []);
 
-  const handleCancelDelete = () => {
+  const handleCancelDelete = useCallback(() => {
     setDeleteConfirm(null);
     setDeleteError(null);
-  };
+  }, []);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (deleteConfirm === null) return;
     
     try {
       await remove(deleteConfirm);
       setDeleteConfirm(null);
-      setDeleteError(null);
       
-      // Call the onDeleted callback to refresh the website list
+      // Call the onDeleted callback to refresh the websites list
       if (onDeleted) {
         onDeleted();
       }
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete website');
     }
-  };
+  }, [deleteConfirm, remove, onDeleted]);
 
-  if (loading) {
+  if (loading && !websitesWithLatestResults.length) {
     return (
       <Box display="flex" justifyContent="center" py={3}>
         <CircularProgress />
@@ -70,7 +84,7 @@ const WebsiteCardsGrid: React.FC<WebsiteCardsGridProps> = ({
     );
   }
 
-  if (!websitesWithLatestResults || websitesWithLatestResults.length === 0) {
+  if (!websitesWithLatestResults.length) {
     return (
       <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
         No websites found. Add your first website to start monitoring.
@@ -86,11 +100,12 @@ const WebsiteCardsGrid: React.FC<WebsiteCardsGridProps> = ({
       
       <Grid container spacing={3}>
         {websitesWithLatestResults.map((item) => (
-          <Grid key={item.userWebsite.websiteId} size={{ xs: 12, sm: 6, md: 4 }}>
-            <WebsiteCard
+          <Grid key={`website-${item.userWebsite.websiteId}`} size={{ xs: 12, sm: 6, md: 4 }}>
+            <SimpleWebsiteCard
               userWebsite={item.userWebsite}
               latestResult={item.latestResult}
               results={item.results || []}
+              loading={loading}
               onDelete={handleDeleteConfirm}
             />
           </Grid>
@@ -135,6 +150,6 @@ const WebsiteCardsGrid: React.FC<WebsiteCardsGridProps> = ({
       </Dialog>
     </>
   );
-};
+});
 
-export default WebsiteCardsGrid;
+export default DirectWebsiteGrid;

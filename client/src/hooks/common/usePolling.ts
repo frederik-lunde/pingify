@@ -1,6 +1,7 @@
 // src/hooks/common/usePolling.ts
-import { useState, useEffect, useCallback, useRef } from 'react';
+import {useEffect, useCallback, useRef, useReducer } from 'react';
 import { DEFAULT_POLLING_INTERVAL } from '../../api/config';
+import isEqual from 'lodash/isEqual';
 
 /**
  * Options for the usePolling hook
@@ -48,8 +49,54 @@ export interface PollingResult<T> {
   startPolling: () => void;
 }
 
+// Reducer to handle data updates with minimal rerenders
+type PollingState<T> = {
+  data: T | null;
+  loading: boolean;
+  error: Error | null;
+  pollCount: number; // Used to track polling cycles (useful for debugging)
+};
+
+type PollingAction<T> = 
+  | { type: 'FETCH_START' }
+  | { type: 'FETCH_SUCCESS'; payload: T }
+  | { type: 'FETCH_ERROR'; payload: Error }
+  | { type: 'RESET_ERROR' };
+
+function createPollingReducer<T>() {
+  return function reducer(state: PollingState<T>, action: PollingAction<T>): PollingState<T> {
+    switch (action.type) {
+      case 'FETCH_START':
+        return { ...state, loading: true };
+      case 'FETCH_SUCCESS':
+        // Only update if data has actually changed (using deep comparison)
+        const dataChanged = !isEqual(state.data, action.payload);
+        return dataChanged 
+          ? { 
+              ...state, 
+              data: action.payload, 
+              loading: false, 
+              error: null,
+              pollCount: state.pollCount + 1
+            }
+          : { 
+              ...state, 
+              loading: false, 
+              error: null 
+            };
+      case 'FETCH_ERROR':
+        return { ...state, loading: false, error: action.payload };
+      case 'RESET_ERROR':
+        return { ...state, error: null };
+      default:
+        return state;
+    }
+  };
+}
+
 /**
- * A hook that handles polling an API endpoint at regular intervals
+ * A hook that handles polling an API endpoint at regular intervals,
+ * with optimizations to prevent unnecessary re-renders
  * 
  * @param fetchFunction The function to call for fetching data
  * @param options Configuration options for polling
@@ -69,43 +116,58 @@ export function usePolling<T>(
     onError
   } = options;
 
-  // State
-  const [data, setData] = useState<T | null>(initialData);
-  const [loading, setLoading] = useState<boolean>(fetchOnMount);
-  const [error, setError] = useState<Error | null>(null);
+  // Create a stable reference to the fetch function
+  const fetchFunctionRef = useRef(fetchFunction);
+  useEffect(() => {
+    fetchFunctionRef.current = fetchFunction;
+  }, [fetchFunction]);
+
+  // Create a reducer for this hook instance
+  const reducer = useRef(createPollingReducer<T>()).current;
+  
+  // State using reducer for more efficient updates
+  const [state, dispatch] = useReducer(reducer, {
+    data: initialData,
+    loading: fetchOnMount,
+    error: null,
+    pollCount: 0
+  });
   
   // Use refs to track polling state
   const isPollingEnabled = useRef<boolean>(enabled);
   const intervalId = useRef<number | null>(null);
   const isMounted = useRef<boolean>(false);
+  const initialDataApplied = useRef<boolean>(false);
+
+  // Apply initial data only once
+  useEffect(() => {
+    if (initialData !== null && !initialDataApplied.current) {
+      initialDataApplied.current = true;
+    }
+  }, [initialData]);
 
   // Function to fetch data
   const fetchData = useCallback(async (): Promise<void> => {
+    dispatch({ type: 'FETCH_START' });
+    
     try {
-      setLoading(true);
-      const result = await fetchFunction();
+      const result = await fetchFunctionRef.current();
       
       // Only update state if component is still mounted
       if (isMounted.current) {
-        setData(result);
-        setError(null);
+        dispatch({ type: 'FETCH_SUCCESS', payload: result });
         if (onSuccess) onSuccess(result);
       }
     } catch (err) {
       // Only update state if component is still mounted
       if (isMounted.current) {
         const errorObject = err instanceof Error ? err : new Error('Failed to fetch data');
-        setError(errorObject);
+        dispatch({ type: 'FETCH_ERROR', payload: errorObject });
         if (onError) onError(errorObject);
         console.error('Error in polling fetch:', errorObject);
       }
-    } finally {
-      // Only update state if component is still mounted
-      if (isMounted.current) {
-        setLoading(false);
-      }
     }
-  }, [fetchFunction, onSuccess, onError]);
+  }, [onSuccess, onError]);
 
   // Start polling
   const startPolling = useCallback(() => {
@@ -179,9 +241,9 @@ export function usePolling<T>(
   }, [enabled, pollingInterval, fetchData, startPolling, stopPolling]);
 
   return {
-    data,
-    loading,
-    error,
+    data: state.data,
+    loading: state.loading,
+    error: state.error,
     refetch: fetchData,
     stopPolling,
     startPolling
