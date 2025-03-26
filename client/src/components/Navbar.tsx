@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useCallback } from 'react';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
@@ -57,12 +58,12 @@ function Navbar() {
     setAnchorElUser(null);
   };
 
-  const handlePageClick = (path: string) => {
+  const handlePageClick = useCallback((path: string) => {
     handleCloseNavMenu();
     navigate(path);
-  };
+  }, [navigate, handleCloseNavMenu]);
 
-  const handleSettingClick = async (setting: string) => {
+  const handleSettingClick = useCallback(async (setting: string) => {
     handleCloseUserMenu();
     if (setting === 'Logout') {
       try {
@@ -71,20 +72,33 @@ function Navbar() {
       } catch (error) {
         console.error('Failed to logout:', error);
       }
+    } else if (setting === 'Profile') {
+      // Future implementation for profile page
+      console.log('Profile clicked - not implemented yet');
     }
-  };
+  }, [logout, navigate, handleCloseUserMenu]);
 
   return (
     <AppBar position="static">
       <Container maxWidth="xl">
         <Toolbar disableGutters>
           {/* Left side - Logo/Brand */}
-          <AdbIcon sx={{ display: { xs: 'none', md: 'flex' }, mr: 1 }} />
+          <Box 
+            component="div" 
+            onClick={() => navigate('/')} 
+            sx={{ 
+              display: { xs: 'none', md: 'flex' }, 
+              alignItems: 'center',
+              cursor: 'pointer'
+            }}
+          >
+            <AdbIcon sx={{ mr: 1 }} />
+          </Box>
           <Typography
             variant="h6"
             noWrap
-            component="a"
-            href="/"
+            component="div"
+            onClick={() => navigate('/')}
             sx={{
               mr: 2,
               display: { xs: 'none', md: 'flex' },
@@ -93,6 +107,7 @@ function Navbar() {
               letterSpacing: '.3rem',
               color: 'inherit',
               textDecoration: 'none',
+              cursor: 'pointer'
             }}
           >
             PINGIFY
@@ -138,12 +153,22 @@ function Navbar() {
           </Box>
 
           {/* Mobile Logo */}
-          <AdbIcon sx={{ display: { xs: 'flex', md: 'none' }, mr: 1 }} />
+          <Box 
+            component="div" 
+            onClick={() => navigate('/')} 
+            sx={{ 
+              display: { xs: 'flex', md: 'none' }, 
+              alignItems: 'center',
+              cursor: 'pointer'
+            }}
+          >
+            <AdbIcon sx={{ mr: 1 }} />
+          </Box>
           <Typography
             variant="h5"
             noWrap
-            component="a"
-            href="/"
+            component="div"
+            onClick={() => navigate('/')}
             sx={{
               mr: 2,
               display: { xs: 'flex', md: 'none' },
@@ -153,6 +178,7 @@ function Navbar() {
               letterSpacing: '.3rem',
               color: 'inherit',
               textDecoration: 'none',
+              cursor: 'pointer'
             }}
           >
             PINGIFY
@@ -208,7 +234,7 @@ function Navbar() {
                     fontSize: '1.2rem'
                   }}
                 >
-                  {user?.name?.charAt(0)?.toUpperCase()}
+                  {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'}
                 </Avatar>
               </IconButton>
             </Tooltip>

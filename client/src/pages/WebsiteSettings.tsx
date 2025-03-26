@@ -24,21 +24,24 @@ import {
   Save as SaveIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
-import { getUserWebsiteById } from '../api/websites';
-import { useWebsiteCrud } from '../api/hooks/useWebsites';
+import { useWebsite, useWebsiteCrud } from '../hooks'; // Import from the new hooks directory
 
 const WebsiteSettings: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const websiteId = parseInt(id || '0', 10);
   const navigate = useNavigate();
   
-  // State for manual data fetching
-  const [website, setWebsite] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [fetchError, setFetchError] = useState<Error | null>(null);
+  // Use our new hooks for data fetching with polling disabled for this settings page
+  const { 
+    data: website,
+    loading: websiteLoading,
+    error: websiteError,
+  } = useWebsite(websiteId, 0, { enabled: false, fetchOnMount: true });
   
+  // Use our website CRUD hook
   const { update, remove, loading: actionLoading } = useWebsiteCrud();
   
+  // Form state
   const [formData, setFormData] = useState({
     name: '',
     interval: 300,
@@ -47,30 +50,13 @@ const WebsiteSettings: React.FC = () => {
     notifyEmail: ''
   });
   
+  // UI state
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-
-  // Fetch website data manually instead of using the polling hook
-  const fetchWebsiteData = async () => {
-    try {
-      setLoading(true);
-      const data = await getUserWebsiteById(websiteId);
-      setWebsite(data);
-      setFetchError(null);
-    } catch (err) {
-      setFetchError(err instanceof Error ? err : new Error('Failed to load website data'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch data on mount
-  useEffect(() => {
-    fetchWebsiteData();
-  }, [websiteId]);
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info'>('success');
 
   // Initialize form when website data is loaded
   useEffect(() => {
@@ -85,6 +71,7 @@ const WebsiteSettings: React.FC = () => {
     }
   }, [website]);
 
+  // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     
@@ -94,6 +81,7 @@ const WebsiteSettings: React.FC = () => {
     }));
   };
 
+  // Submit form and update website
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccess('');
@@ -108,17 +96,18 @@ const WebsiteSettings: React.FC = () => {
         notifyEmail: formData.notifyEmail || null
       });
       
-      setSuccess('Website settings updated successfully');
       showSnackbar('Settings saved successfully');   
-
+      
+      // Short delay then navigate back to website details
+      setTimeout(() => navigate(`/website/${websiteId}`), 1000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update website settings';
       setError(errorMessage);
       showSnackbar('Error: ' + errorMessage, 'error');
     }
-    setTimeout(() => navigate(`/website/${websiteId}`), 1000);
   };
 
+  // Delete website
   const handleDelete = async () => {
     try {
       await remove(websiteId);
@@ -131,12 +120,15 @@ const WebsiteSettings: React.FC = () => {
     }
   };
 
+  // Show snackbar helper
   const showSnackbar = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
     setSnackbarOpen(true);
   };
 
-  if (loading && !website) {
+  // Loading state
+  if (websiteLoading && !website) {
     return (
       <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
         <Box display="flex" justifyContent="center" my={4}>
@@ -146,11 +138,13 @@ const WebsiteSettings: React.FC = () => {
     );
   }
 
-  if (fetchError || !website) {
+  // Error state
+  if (websiteError || !website) {
+    const errorMessage = websiteError?.message || 'Website not found or you do not have access to it.';
     return (
       <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
         <Alert severity="error" sx={{ mb: 2 }}>
-          {fetchError?.message || 'Website not found or you do not have access to it.'}
+          {errorMessage}
         </Alert>
         <Button
           startIcon={<ArrowBackIcon />}
@@ -331,7 +325,7 @@ const WebsiteSettings: React.FC = () => {
       >
         <Alert 
           onClose={() => setSnackbarOpen(false)} 
-          severity="success"
+          severity={snackbarSeverity}
           sx={{ width: '100%' }}
         >
           {snackbarMessage}

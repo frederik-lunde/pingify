@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router'; // Fixed import for react-router-dom
+import { useNavigate, Link } from 'react-router';
 import { 
   Container, 
   Paper,
@@ -24,51 +24,63 @@ import {
   Login as LoginIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
+import { useForm } from '../hooks'; // Import from the new hooks directory
+
+//Should replace with useForm
 import { 
   validateRegistrationForm, 
   prepareRegistrationData, 
-  RegisterFormData,
-  ValidationErrors
+  RegisterFormData
 } from '../utils/validation/registerValidation';
 
 const Register: React.FC = () => {
-  // Form state
-  const [formData, setFormData] = useState<RegisterFormData>({
-    email: '',
-    name: '',
-    password: '',
-    confirmPassword: ''
-  });
-  
   // UI state
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   
-  const { register, loading } = useAuth();
+  const { register, loading, error: authError } = useAuth();
   const navigate = useNavigate();
 
-  // Handle input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear validation error when field is edited
-    if (validationErrors[name]) {
-      setValidationErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
+  // Use our new form hook
+  const { 
+    values: formData, 
+    errors, 
+    handleChange, 
+    handleSubmit, 
+    setFieldValue //look into
+  } = useForm<RegisterFormData>({
+    initialValues: {
+      email: '',
+      name: '',
+      password: '',
+      confirmPassword: ''
+    },
+    validator: validateRegistrationForm,
+    onSubmit: async (values) => {
+      try {
+        // Prepare and submit registration data
+        const registrationData = prepareRegistrationData(values);
+        await register(
+          registrationData.email, 
+          registrationData.password, 
+          registrationData.name
+        );
+        
+        // Show success message
+        setSnackbarMessage('Registration successful! Redirecting to dashboard...');
+        setSnackbarOpen(true);
+        
+        // Redirect after short delay
+        setTimeout(() => {
+          navigate('/');
+        }, 1500);
+      } catch (err) {
+        // Error will be handled by the auth context
+      }
     }
-  };
+  });
 
   // Toggle password visibility
   const togglePasswordVisibility = () => {
@@ -77,39 +89,6 @@ const Register: React.FC = () => {
 
   const toggleConfirmPasswordVisibility = () => {
     setShowConfirmPassword((prev) => !prev);
-  };
-
-  // Form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate form
-    const errors = validateRegistrationForm(formData);
-    setValidationErrors(errors);
-    
-    // Stop if there are validation errors
-    if (Object.keys(errors).length > 0) return;
-    
-    try {
-      // Prepare and submit registration data
-      const registrationData = prepareRegistrationData(formData);
-      await register(
-        registrationData.email, 
-        registrationData.password, 
-        registrationData.name
-      );
-      
-      // Show success message
-      setSnackbarMessage('Registration successful! Redirecting to dashboard...');
-      setSnackbarOpen(true);
-      
-      // Redirect after short delay
-      setTimeout(() => {
-        navigate('/');
-      }, 1500);
-    } catch (err) {
-      setError('Registration failed. Please check your information and try again.');
-    }
   };
 
   // Handle snackbar close
@@ -138,7 +117,7 @@ const Register: React.FC = () => {
           </Typography>
         </Box>
 
-        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+        {authError && <Alert severity="error" sx={{ mb: 3 }}>{authError}</Alert>}
         
         <Box component="form" onSubmit={handleSubmit}>
           <Grid container spacing={2}>
@@ -152,8 +131,8 @@ const Register: React.FC = () => {
                 label="Email Address"
                 value={formData.email}
                 onChange={handleChange}
-                error={!!validationErrors.email}
-                helperText={validationErrors.email}
+                error={!!errors.email}
+                helperText={errors.email}
                 autoComplete="email"
                 autoFocus
                 InputProps={{
@@ -184,8 +163,8 @@ const Register: React.FC = () => {
                 label="Display Name (Optional)"
                 value={formData.name}
                 onChange={handleChange}
-                error={!!validationErrors.name}
-                helperText={validationErrors.name}
+                error={!!errors.name}
+                helperText={errors.name}
                 autoComplete="name"
                 InputProps={{
                   startAdornment: (
@@ -208,8 +187,8 @@ const Register: React.FC = () => {
                 label="Password"
                 value={formData.password}
                 onChange={handleChange}
-                error={!!validationErrors.password}
-                helperText={validationErrors.password}
+                error={!!errors.password}
+                helperText={errors.password}
                 autoComplete="new-password"
                 InputProps={{
                   startAdornment: (
@@ -243,8 +222,8 @@ const Register: React.FC = () => {
                 label="Confirm Password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                error={!!validationErrors.confirmPassword}
-                helperText={validationErrors.confirmPassword}
+                error={!!errors.confirmPassword}
+                helperText={errors.confirmPassword}
                 autoComplete="new-password"
                 InputProps={{
                   startAdornment: (

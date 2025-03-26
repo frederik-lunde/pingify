@@ -1,5 +1,5 @@
-// client/src/components/dashboard/SimpleWebsiteCard.tsx
-import React, { useCallback, useMemo, useRef, useEffect } from 'react';
+// client/src/components/dashboard/WebsiteCard.tsx
+import React, { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Card,
@@ -43,7 +43,7 @@ ChartJS.register(
   ChartTooltip
 );
 
-interface SimpleWebsiteCardProps {
+interface WebsiteCardProps {
   userWebsite: UserWebsite;
   latestResult?: MonitoringResult;
   results: MonitoringResult[];
@@ -53,52 +53,17 @@ interface SimpleWebsiteCardProps {
 // Create a component for the chart to optimize rendering
 const ResponseTimeChart = React.memo(({ data, options }: { data: any, options: any }) => {
   return <Line data={data} options={options} />;
-}, (prevProps, nextProps) => {
-  // Custom comparison function to prevent unnecessary re-renders
-  // Only update the chart if the data structure has changed
-  if (!prevProps.data || !nextProps.data) return false;
-  
-  // If number of data points changed, update the chart
-  if (prevProps.data.labels.length !== nextProps.data.labels.length) {
-    return false;
-  }
-  
-  // Check if the latest data point changed
-  const prevLatestValue = prevProps.data.datasets[0].data[prevProps.data.datasets[0].data.length - 1];
-  const nextLatestValue = nextProps.data.datasets[0].data[nextProps.data.datasets[0].data.length - 1];
-  
-  if (prevLatestValue !== nextLatestValue) {
-    return false;
-  }
-  
-  // Otherwise don't re-render
-  return true;
 });
 
-const SimpleWebsiteCard = React.memo(({
+const WebsiteCard = React.memo(({
   userWebsite,
   latestResult,
   results,
   loading = false,
-}: SimpleWebsiteCardProps) => {
+}: WebsiteCardProps) => {
   const navigate = useNavigate();
   const theme = useTheme();
 
-  // Store previous results to compare for chart updates
-  const prevResultsRef = useRef(results);
-  
-  // Track when results change for chart updates
-  useEffect(() => {
-    prevResultsRef.current = results;
-  }, [results]);
-  
-  // Log when results change - for debugging
-  useEffect(() => {
-    if (results?.length) {
-      console.log(`${userWebsite.name} card results updated: ${results.length} results`);
-    }
-  }, [results, userWebsite.name]);
-  
   // Calculate uptime percentage
   const uptime = useMemo(() => {
     if (!results || results.length === 0) return 100;
@@ -109,7 +74,7 @@ const SimpleWebsiteCard = React.memo(({
   
   const uptimeColor = getStatusColor(uptime);
 
-  // Use chartUtils to prepare chart data
+  // Use chartUtils to prepare chart data - now with proper memoization
   const chartData = useMemo(() => {
     if (!results || results.length === 0) return null;
     return prepareCardChartData(results, theme, 10);
@@ -119,7 +84,7 @@ const SimpleWebsiteCard = React.memo(({
   const showLoading = loading && !results.length;
   const showChart = results.length > 0 && chartData;
 
-  // Memoize event handlers
+  // Memoize event handlers to prevent unnecessary rerenders
   const handleClick = useCallback(() => {
     navigate(`/website/${userWebsite.websiteId}`);
   }, [navigate, userWebsite.websiteId]);
@@ -129,11 +94,11 @@ const SimpleWebsiteCard = React.memo(({
     navigate(`/website/${userWebsite.websiteId}/settings`);
   }, [navigate, userWebsite.websiteId]);
   
-  // Use chartUtils for options
+  // Use chartUtils for options - memoized
   const chartOptions = useMemo(() => getCardChartOptions(), []);
 
-  // Calculate status information
-  const isOnline = latestResult?.isAvailable ?? false;
+  // Calculate status information - memoized
+  const isOnline = useMemo(() => latestResult?.isAvailable ?? false, [latestResult]);
   const statusColor = isOnline ? 'success' : 'error';
   const responseTime = latestResult?.responseTime ?? 0;
   const responseTimeColor = getResponseTimeColor(responseTime);
@@ -225,7 +190,11 @@ const SimpleWebsiteCard = React.memo(({
               <CircularProgress size={24} />
             </Box>
           ) : showChart ? (
-            <ResponseTimeChart data={chartData} options={chartOptions} key={`chart-${userWebsite.websiteId}`} />
+            <ResponseTimeChart 
+              data={chartData} 
+              options={chartOptions} 
+              key={`chart-${userWebsite.websiteId}`} 
+            />
           ) : (
             <Box 
               sx={{ 
@@ -246,4 +215,4 @@ const SimpleWebsiteCard = React.memo(({
   );
 });
 
-export default SimpleWebsiteCard;
+export default WebsiteCard;

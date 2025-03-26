@@ -1,20 +1,22 @@
-// src/components/Dashboard.tsx
+// src/pages/Dashboard.tsx
 import React from 'react';
 import { Container, Box, CircularProgress } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
-import { useUserStats } from '../api/hooks/useMonitoring';
-import { useWebsiteData } from '../hooks/useWebsiteData';
 import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
 import StatsCard from '../components/StatsCard';
 import WebsiteGrid from '../components/dashboard/WebsiteGrid';
+import { useUserStats, useWebsiteData } from '../hooks'; // Import from the new hooks directory
 
 const Dashboard: React.FC = () => {
   
-  // Get stats and websites data
+  // Get stats using our new hook
   const { data: stats, loading: statsLoading} = useUserStats();
+  
+  // Get website data using our new domain hook
   const { 
     websitesWithLatestResults, 
     loading: websitesLoading, 
+    overallStatus
   } = useWebsiteData();
 
   // Safety checks for TypeScript
@@ -27,6 +29,7 @@ const Dashboard: React.FC = () => {
 
   // Debug output 
   console.log('Dashboard render with', websitesWithLatestResults.length, 'websites');
+  console.log('Overall status:', overallStatus);
 
   // Loading states
   if (websitesLoading && !websitesWithLatestResults.length) {

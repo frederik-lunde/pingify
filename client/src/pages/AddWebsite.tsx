@@ -1,3 +1,4 @@
+// client/src/pages/AddWebsite.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -16,10 +17,10 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { Add as AddIcon, HelpOutline as HelpIcon } from '@mui/icons-material';
-import { useWebsiteCrud } from '../api/hooks/useWebsites';
-import { WebsiteCreateDTO, Website} from '../types';
+import { WebsiteCreateDTO, Website } from '../types';
 import WebsiteUrlSearch from '../components/WebsiteUrlSearch';
 import { validateWebsiteForm, prepareWebsiteData, ValidationErrors } from '../utils/validation/addWebsiteValidation';
+import { useWebsiteCrud } from '../hooks'; // Import from the new hooks directory
 
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
@@ -108,7 +109,8 @@ const AddWebsite: React.FC = () => {
         navigate('/');
       }, 1500);
     } catch (err) {
-      setSnackbarMessage(apiError?.message || 'Failed to add website. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add website';
+      setSnackbarMessage(errorMessage);
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
@@ -144,6 +146,7 @@ const AddWebsite: React.FC = () => {
                 onChange={handleUrlChange}
                 onSelect={handleWebsiteSelect}
                 error={validationErrors.url}
+                searchLimit={15} // You can pass a custom search limit
               />
             </Grid>
 

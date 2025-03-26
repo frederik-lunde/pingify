@@ -28,8 +28,8 @@ import {
   Legend
 } from 'chart.js';
 
-// Custom hook
-import { useWebsiteDetail } from '../hooks/useWebsiteDetail';
+// Import our new domain hook
+import { useWebsiteDetail } from '../hooks';
 
 // Component imports
 import WebsiteHeader from '../components/website-details/WebsiteHeader';
@@ -57,7 +57,7 @@ const WebsiteDetails: React.FC = () => {
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   
-  // Use our custom hook to manage the website details
+  // Use our new hook to manage the website details
   const { 
     results, 
     loading, 
@@ -69,7 +69,8 @@ const WebsiteDetails: React.FC = () => {
     statusColor,
     refetch,
     userWebsite,
-
+    uptime,
+    avgResponseTime
   } = useWebsiteDetail(websiteId);
 
   // Safe versions of the data for TypeScript
@@ -79,7 +80,6 @@ const WebsiteDetails: React.FC = () => {
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
   };
-
 
   // Loading state
   if (loading && !safeResults.length) {

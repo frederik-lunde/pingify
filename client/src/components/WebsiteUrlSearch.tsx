@@ -1,5 +1,5 @@
 // client/src/components/WebsiteUrlSearch.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TextField,
   Autocomplete,
@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { Website } from '../types';
-import { searchWebsites } from '../api/websites';
+import { useWebsiteSearch } from '../hooks'; // Import from the new hooks directory
 import { debounce } from 'lodash';
 
 export interface WebsiteUrlSearchProps {
@@ -22,6 +22,7 @@ export interface WebsiteUrlSearchProps {
   label?: string;
   placeholder?: string;
   helperText?: string;
+  searchLimit?: number;
 }
 
 const WebsiteUrlSearch = ({
@@ -31,10 +32,15 @@ const WebsiteUrlSearch = ({
   error,
   label = "Website URL",
   placeholder = "https://example.com",
-  helperText = "Full URL including http:// or https://"
+  helperText = "Full URL including http:// or https://",
+  searchLimit = 10
 }: WebsiteUrlSearchProps) => {
-  const [options, setOptions] = useState<Website[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Use our new search hook
+  const { 
+    results: options, 
+    loading, 
+    search: searchWebsites 
+  } = useWebsiteSearch('', searchLimit);
   
   // Sync input value with parent value prop
   const [inputValue, setInputValue] = useState(value || '');
@@ -44,23 +50,14 @@ const WebsiteUrlSearch = ({
     if (value !== inputValue) {
       setInputValue(value || '');
     }
-  }, [value]);
+  }, [value, inputValue]);
   
-  // Debounced search function
-  const debouncedSearch = useCallback(
-    debounce(async (searchTerm: string) => {
-      try {
-        setLoading(true);
-        const results = await searchWebsites(searchTerm);
-        setOptions(results);
-      } catch (err) {
-        console.error('Error searching websites:', err);
-      } finally {
-        setLoading(false);
-      }
-    }, 300),
-    []
-  );
+  // Create debounced search function
+  const debouncedSearch = React.useMemo(() => 
+    debounce((searchTerm: string) => {
+      searchWebsites(searchTerm);
+    }, 300)
+  , [searchWebsites]);
 
   // Load initial options on mount
   useEffect(() => {

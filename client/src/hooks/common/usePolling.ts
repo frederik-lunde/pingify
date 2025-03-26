@@ -1,5 +1,5 @@
 // src/hooks/common/usePolling.ts
-import {useEffect, useCallback, useRef, useReducer } from 'react';
+import { useEffect, useCallback, useRef, useReducer } from 'react';
 import { DEFAULT_POLLING_INTERVAL } from '../../api/config';
 import isEqual from 'lodash/isEqual';
 
@@ -24,6 +24,9 @@ export interface PollingOptions<T> {
   
   /** Callback for failed fetches */
   onError?: (error: Error) => void;
+  
+  /** Determine if browser visibility affects polling */
+  respectVisibility?: boolean;
 }
 
 /**
@@ -47,6 +50,9 @@ export interface PollingResult<T> {
   
   /** Function to start polling */
   startPolling: () => void;
+  
+  /** The number of successful fetches completed */
+  fetchCount: number;
 }
 
 // Reducer to handle data updates with minimal rerenders
@@ -54,7 +60,7 @@ type PollingState<T> = {
   data: T | null;
   loading: boolean;
   error: Error | null;
-  pollCount: number; // Used to track polling cycles (useful for debugging)
+  fetchCount: number;
 };
 
 type PollingAction<T> = 
@@ -77,7 +83,7 @@ function createPollingReducer<T>() {
               data: action.payload, 
               loading: false, 
               error: null,
-              pollCount: state.pollCount + 1
+              fetchCount: state.fetchCount + 1
             }
           : { 
               ...state, 
@@ -95,7 +101,7 @@ function createPollingReducer<T>() {
 }
 
 /**
- * A hook that handles polling an API endpoint at regular intervals,
+ * Enhanced hook that handles polling an API endpoint at regular intervals,
  * with optimizations to prevent unnecessary re-renders
  * 
  * @param fetchFunction The function to call for fetching data
@@ -113,7 +119,8 @@ export function usePolling<T>(
     enabled = true,
     fetchOnMount = true,
     onSuccess,
-    onError
+    onError,
+    respectVisibility = true
   } = options;
 
   // Create a stable reference to the fetch function
@@ -130,7 +137,7 @@ export function usePolling<T>(
     data: initialData,
     loading: fetchOnMount,
     error: null,
-    pollCount: 0
+    fetchCount: 0
   });
   
   // Use refs to track polling state
@@ -138,7 +145,8 @@ export function usePolling<T>(
   const intervalId = useRef<number | null>(null);
   const isMounted = useRef<boolean>(false);
   const initialDataApplied = useRef<boolean>(false);
-
+  const isDocumentVisible = useRef<boolean>(true);
+  
   // Apply initial data only once
   useEffect(() => {
     if (initialData !== null && !initialDataApplied.current) {
@@ -146,8 +154,33 @@ export function usePolling<T>(
     }
   }, [initialData]);
 
+  // Track document visibility
+  useEffect(() => {
+    if (!respectVisibility) return;
+    
+    function handleVisibilityChange() {
+      isDocumentVisible.current = document.visibilityState === 'visible';
+      
+      // If polling is enabled and document becomes visible, trigger a fetch
+      if (isDocumentVisible.current && isPollingEnabled.current) {
+        fetchData();
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [respectVisibility]);
+  
   // Function to fetch data
   const fetchData = useCallback(async (): Promise<void> => {
+    // Skip if document is not visible and we're respecting visibility
+    if (respectVisibility && !isDocumentVisible.current) {
+      return;
+    }
+    
     dispatch({ type: 'FETCH_START' });
     
     try {
@@ -167,7 +200,7 @@ export function usePolling<T>(
         console.error('Error in polling fetch:', errorObject);
       }
     }
-  }, [onSuccess, onError]);
+  }, [onSuccess, onError, respectVisibility]);
 
   // Start polling
   const startPolling = useCallback(() => {
@@ -246,7 +279,8 @@ export function usePolling<T>(
     error: state.error,
     refetch: fetchData,
     stopPolling,
-    startPolling
+    startPolling,
+    fetchCount: state.fetchCount
   };
 }
 
