@@ -94,10 +94,6 @@ const DirectWebsiteGrid: React.FC<DirectWebsiteGridProps> = React.memo(({
 
   return (
     <>
-      <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
-        Your Websites
-      </Typography>
-      
       <Grid container spacing={3}>
         {websitesWithLatestResults.map((item) => (
           <Grid key={`website-${item.userWebsite.websiteId}`} size={{ xs: 12, sm: 6, md: 3 }}>
