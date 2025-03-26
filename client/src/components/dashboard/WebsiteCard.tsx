@@ -21,6 +21,7 @@ import {
 import { Line } from 'react-chartjs-2';
 import { MonitoringResult, UserWebsite } from '../../types';
 import { getStatusColor, getResponseTimeColor, formatResponseTime, formatUptime } from '../../utils/statusUtils';
+import { prepareCardChartData, getCardChartOptions } from '../../utils/chartUtils';
 
 // Import just what we need from chart.js
 import {
@@ -109,30 +110,11 @@ const SimpleWebsiteCard = React.memo(({
   
   const uptimeColor = getStatusColor(uptime);
 
-  // Keep track of chart data and update it instead of recreating it
+  // Use chartUtils to prepare chart data
   const chartData = useMemo(() => {
     if (!results || results.length === 0) return null;
-    
-    // Get the last 10 results in reverse chronological order (oldest first for chart)
-    const data = [...results]
-      .sort((a, b) => new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime())
-      .slice(-10);
-    
-    return {
-      labels: data.map(r => new Date(r.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
-      datasets: [
-        {
-          data: data.map(r => r.responseTime || 0),
-          borderColor: theme.palette.primary.main,
-          backgroundColor: theme.palette.primary.main + '33', // Add transparency
-          fill: true,
-          tension: 0.3,
-          pointRadius: 2,
-          borderWidth: 2
-        }
-      ]
-    };
-  }, [results, theme.palette.primary.main]);
+    return prepareCardChartData(results, theme, 10);
+  }, [results, theme]);
   
   // Determine loading status for UI
   const showLoading = loading && !results.length;
@@ -155,29 +137,8 @@ const SimpleWebsiteCard = React.memo(({
     }
   }, [onDelete, userWebsite.websiteId]);
 
-  // Chart options - memoize to prevent unnecessary re-renders
-  const chartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false // Hide legend
-      },
-      tooltip: {
-        enabled: true,
-        mode: 'index' as const,
-        intersect: false
-      }
-    },
-    scales: {
-      x: {
-        display: false // Hide x-axis
-      },
-      y: {
-        display: false // Hide y-axis
-      }
-    }
-  }), []);
+  // Use chartUtils for options
+  const chartOptions = useMemo(() => getCardChartOptions(), []);
 
   // Calculate status information
   const isOnline = latestResult?.isAvailable ?? false;

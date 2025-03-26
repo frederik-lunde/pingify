@@ -1,10 +1,35 @@
 import { MonitoringResult } from '../types';
-import { ChartOptions } from 'chart.js';
+import { ChartOptions, ChartData } from 'chart.js';
 import { Theme } from '@mui/material';
 
-export const prepareChartData = (monitoringResults: MonitoringResult[], theme: Theme) => {
-  // Create a reversed copy of results to show oldest first
-  const chartData = [...monitoringResults].reverse().slice(0, 20);
+/**
+ * Sorts and formats monitoring results data for consistent chart usage
+ * @param monitoringResults Raw monitoring results
+ * @param limit Maximum number of data points to include
+ * @returns Sorted array of monitoring results (oldest first)
+ */
+export const prepareTimeSeriesData = (monitoringResults: MonitoringResult[], limit: number = 20): MonitoringResult[] => {
+  if (!monitoringResults || monitoringResults.length === 0) return [];
+  
+  // Sort by timestamp (oldest first)
+  return [...monitoringResults]
+    .sort((a, b) => new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime())
+    .slice(-limit); // Take only the most recent N results
+};
+
+/**
+ * Prepares chart data for the detailed view (ResponseTimeChart)
+ * @param monitoringResults Monitoring results array
+ * @param theme MUI theme for colors
+ * @param limit Maximum number of data points
+ * @returns Chart.js data object
+ */
+export const prepareDetailedChartData = (
+  monitoringResults: MonitoringResult[], 
+  theme: Theme,
+  limit: number = 20
+): ChartData<'line'> => {
+  const chartData = prepareTimeSeriesData(monitoringResults, limit);
   
   return {
     labels: chartData.map(r => new Date(r.checkedAt).toLocaleTimeString()),
@@ -21,7 +46,41 @@ export const prepareChartData = (monitoringResults: MonitoringResult[], theme: T
   };
 };
 
-export const getChartOptions = (): ChartOptions<'line'> => {
+/**
+ * Prepares chart data for the compact card view (WebsiteCard)
+ * @param monitoringResults Monitoring results array
+ * @param theme MUI theme for colors
+ * @param limit Maximum number of data points
+ * @returns Chart.js data object
+ */
+export const prepareCardChartData = (
+  monitoringResults: MonitoringResult[], 
+  theme: Theme,
+  limit: number = 10
+): ChartData<'line'> => {
+  const chartData = prepareTimeSeriesData(monitoringResults, limit);
+  
+  return {
+    labels: chartData.map(r => new Date(r.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+    datasets: [
+      {
+        data: chartData.map(r => r.responseTime || 0),
+        borderColor: theme.palette.primary.main,
+        backgroundColor: theme.palette.primary.main + '33', // Add transparency
+        fill: true,
+        tension: 0.3,
+        pointRadius: 2,
+        borderWidth: 2
+      }
+    ]
+  };
+};
+
+/**
+ * Gets chart options for the detailed view (ResponseTimeChart)
+ * @returns Chart.js options
+ */
+export const getDetailedChartOptions = (): ChartOptions<'line'> => {
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -51,3 +110,36 @@ export const getChartOptions = (): ChartOptions<'line'> => {
     }
   };
 };
+
+/**
+ * Gets chart options for the compact card view (WebsiteCard)
+ * @returns Chart.js options
+ */
+export const getCardChartOptions = (): ChartOptions<'line'> => {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false // Hide legend
+      },
+      tooltip: {
+        enabled: true,
+        mode: 'index' as const,
+        intersect: false
+      }
+    },
+    scales: {
+      x: {
+        display: false // Hide x-axis
+      },
+      y: {
+        display: false // Hide y-axis
+      }
+    }
+  };
+};
+
+// Backward compatibility aliases
+export const prepareChartData = prepareDetailedChartData;
+export const getChartOptions = getDetailedChartOptions;

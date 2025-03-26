@@ -2,7 +2,7 @@ import React from 'react';
 import { Paper, Typography, Box, useTheme } from '@mui/material';
 import { Line } from 'react-chartjs-2';
 import { MonitoringResult } from '../../types';
-import { prepareChartData, getChartOptions } from '../../utils/chartUtils';
+import { prepareDetailedChartData, getDetailedChartOptions } from '../../utils/chartUtils';
 
 // Chart.js components are registered in the main WebsiteDetails component
 // to avoid duplication of registration
@@ -22,8 +22,8 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({ results }) => {
       <Box sx={{ height: 300 }}>
         {results && results.length > 0 ? (
           <Line 
-            data={prepareChartData(results, theme)} 
-            options={getChartOptions()} 
+            data={prepareDetailedChartData(results, theme, 20)} 
+            options={getDetailedChartOptions()} 
           />
         ) : (
           <Box display="flex" height="100%" alignItems="center" justifyContent="center">
