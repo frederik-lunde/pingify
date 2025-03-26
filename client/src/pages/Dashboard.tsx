@@ -2,22 +2,21 @@
 import React from 'react';
 import { Container, Box, CircularProgress, Button } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
-import {Add as AddIcon} from '@mui/icons-material';
+import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router';
 import { useUserStats } from '../api/hooks/useMonitoring';
 import { useWebsiteData } from '../hooks/useWebsiteData';
 import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
 import StatsCard from '../components/StatsCard';
 import AlertsSection from '../components/dashboard/AlertsSection';
-import WebsiteStatusSection from '../components/dashboard/WebsiteStatusSection';
-import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
+import WebsiteCardsGrid from '../components/dashboard/WebsiteCardsGrid';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   
   // Using the updated hook names
-  const { data: stats, loading: statsLoading } = useUserStats();
-  const { websitesWithLatestResults, loading: websitesLoading } = useWebsiteData();
+  const { data: stats, loading: statsLoading, refetch: refetchStats } = useUserStats();
+  const { websitesWithLatestResults, loading: websitesLoading, refetch: refetchWebsites } = useWebsiteData();
 
   // Safety checks for TypeScript
   const safeStats = stats || { 
@@ -27,8 +26,13 @@ const Dashboard: React.FC = () => {
     websiteStats: [] 
   };
 
+  // Handle refresh after website deletion
+  const handleWebsiteDeleted = () => {
+    refetchWebsites();
+    refetchStats();
+  };
 
-  if (websitesLoading) {
+  if (websitesLoading && !websitesWithLatestResults.length) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
@@ -84,15 +88,25 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
-      <WebsiteStatusSection websitesWithLatestResults={websitesWithLatestResults} />
+      {/* Website Cards Grid - New Component */}
+      <WebsiteCardsGrid 
+        websitesWithLatestResults={websitesWithLatestResults} 
+        loading={websitesLoading}
+        onDeleted={handleWebsiteDeleted}
+      />
 
+      {/* Alerts Section */}
       <AlertsSection />
       
+      {/* Keep the WebsiteStatsSection for detailed stats */}
       {safeStats.websiteStats && safeStats.websiteStats.length > 0 && (
         <WebsiteStatsSection websiteStats={safeStats.websiteStats} />
       )}
     </Container>
   );
 };
+
+// We need to import this at the end to avoid circular import issues
+import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
 
 export default Dashboard;
