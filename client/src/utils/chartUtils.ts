@@ -161,7 +161,3 @@ export const getCardChartOptions = () => ({
     },
   },
 });
-
-// Backward compatibility aliases
-export const prepareChartData = prepareDetailedChartData;
-export const getChartOptions = getDetailedChartOptions;

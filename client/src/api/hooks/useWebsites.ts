@@ -7,8 +7,8 @@ import {
   addWebsiteToUser, 
   updateUserWebsite, 
   removeWebsiteFromUser,
-  getWebsiteResults
 } from '../websites';
+import { getResultsByWebsite } from '../monitoring';
 import { DEFAULT_POLLING_INTERVAL } from '../config';
 import { usePolling, PollingOptions } from '../../hooks/common';
 
@@ -57,7 +57,7 @@ export function useWebsiteResults(
   options?: Partial<PollingOptions<MonitoringResult[]>>
 ) {
   const fetchResults = useCallback(async () => {
-    return await getWebsiteResults(websiteId, limit);
+    return await getResultsByWebsite(websiteId, limit);
   }, [websiteId, limit]);
 
   return usePolling<MonitoringResult[]>(fetchResults, { 
