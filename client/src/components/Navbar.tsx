@@ -15,17 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router';
 import AddIcon from '@mui/icons-material/Add';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
-import { useUserUnreadAlerts } from '../api/hooks/useAlerts';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import Badge from '@mui/material/Badge';
-import Divider from '@mui/material/Divider';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
-import { formatDistanceToNow } from 'date-fns';
-import Button from '@mui/material/Button';
-import Stack from '@mui/material/Stack';
-import { getAlertTypeColor } from '../utils/statusUtils';
-import { AlertUser } from '../types';
+import AlertsDropdown from './navbar/AlertDropdown';
 
 const pages = [
   { 
@@ -47,22 +37,7 @@ const settings = ['Profile', 'Logout'];
 function Navbar() {
   const [anchorElNav, setAnchorElNav] = React.useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
-  const [anchorElNotifications, setAnchorElNotifications] = React.useState<null | HTMLElement>(null);
   
-  // Use our hook with the existing parameter format
-  const { 
-    unreadAlerts = [], 
-    loading: alertsLoading, 
-    markAsRead, 
-    markAllAsRead 
-  } = useUserUnreadAlerts(
-    50,        // limit
-    undefined, // type
-    undefined, // from
-    undefined, // to
-    false      // isResolved - only showing unresolved alerts
-  );
-
   const { logout, user } = useAuth();
   const navigate = useNavigate();
 
@@ -74,20 +49,12 @@ function Navbar() {
     setAnchorElUser(event.currentTarget);
   };
 
-  const handleOpenNotifications = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorElNotifications(event.currentTarget);
-  };
-
   const handleCloseNavMenu = () => {
     setAnchorElNav(null);
   };
 
   const handleCloseUserMenu = () => {
     setAnchorElUser(null);
-  };
-
-  const handleCloseNotifications = () => {
-    setAnchorElNotifications(null);
   };
 
   const handlePageClick = (path: string) => {
@@ -106,28 +73,6 @@ function Navbar() {
       }
     }
   };
-
-  const handleAlertClick = React.useCallback(async (alertUser: AlertUser) => {
-    try {
-      const alert = alertUser.alert;
-      await markAsRead(alert.id);
-      handleCloseNotifications();
-      navigate(`/website/${alert.websiteId}`);
-    } catch (error) {
-      console.error('Failed to mark alert as read:', error);
-    }
-  }, [markAsRead, navigate, handleCloseNotifications]);
-
-  const handleMarkAllAsRead = React.useCallback(async () => {
-    try {
-      await markAllAsRead();
-    } catch (error) {
-      console.error('Failed to mark all alerts as read:', error);
-    }
-  }, [markAllAsRead]);
-
-  // Count unresolved unread alerts for the badge
-  const unresolvedCount = (unreadAlerts ?? []).filter(item => !item.alert.isResolved).length;
 
   return (
     <AppBar position="static">
@@ -241,23 +186,8 @@ function Navbar() {
             gap: 2,
             ml: 'auto'
           }}>
-            {/* Notifications - Updated with new alert functionality */}
-            <Tooltip title="Alerts">
-              <IconButton
-                aria-label={`Show ${unresolvedCount} alerts`}
-                color="inherit"
-                onClick={handleOpenNotifications}
-                sx={{ opacity: alertsLoading ? 0.7 : 1 }}
-              >
-                <Badge 
-                  badgeContent={unresolvedCount} 
-                  color="error"
-                  max={9}
-                >
-                  <NotificationsIcon />
-                </Badge>
-              </IconButton>
-            </Tooltip>
+            {/* Alerts Dropdown Component */}
+            <AlertsDropdown />
 
             {/* User Menu */}
             <Tooltip title="Open settings">
@@ -278,89 +208,6 @@ function Navbar() {
               </IconButton>
             </Tooltip>
           </Box>
-
-          {/* Notifications Dropdown - Updated to use unreadAlerts */}
-          <Menu
-            anchorEl={anchorElNotifications}
-            open={Boolean(anchorElNotifications)}
-            onClose={handleCloseNotifications}
-            PaperProps={{
-              sx: {
-                maxHeight: '400px',
-                width: '350px',
-              }
-            }}
-          >
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1 }}>
-              <Typography variant="subtitle1" fontWeight="bold">
-                Alerts
-              </Typography>
-              <Button 
-                size="small"
-                variant="text"
-                color="primary"
-                onClick={handleMarkAllAsRead}
-                disabled={(unreadAlerts ?? []).length === 0 || alertsLoading}
-                sx={{
-                  textTransform: 'none',
-                  minWidth: 'auto'
-                }}
-              >
-                Mark all as read
-              </Button>
-            </Stack>
-            <Divider />
-            
-            {alertsLoading ? (
-              <MenuItem disabled>
-                <Typography variant="body2" color="text.secondary">
-                  Loading alerts...
-                </Typography>
-              </MenuItem>
-            ) : (unreadAlerts ?? []).length === 0 ? (
-              <MenuItem disabled>
-                <Typography variant="body2" color="text.secondary">
-                  No new alerts
-                </Typography>
-              </MenuItem>
-            ) : (
-              (unreadAlerts ?? []).map((alertUser) => {
-                const alert = alertUser.alert;
-                const websiteName = alert.website?.websiteUsers?.[0]?.name || alert.website?.url || 'Unknown Website';
-                
-                return (
-                  <MenuItem 
-                    key={alertUser.id} 
-                    onClick={() => handleAlertClick(alertUser)}
-                    sx={{
-                      bgcolor: !alertUser.isRead ? 'action.hover' : 'inherit',
-                      '&:hover': {
-                        backgroundColor: 'action.selected',
-                      }
-                    }}
-                  >
-                    <ListItemIcon>
-                      <FiberManualRecordIcon 
-                        fontSize="small" 
-                        color={getAlertTypeColor(alert.type)} 
-                      />
-                    </ListItemIcon>
-                    <Box sx={{ flexGrow: 1 }}>
-                      <Typography variant="body2" fontWeight={500}>
-                        {websiteName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {alert.message}
-                      </Typography>
-                    </Box>
-                    <Typography variant="caption" color="text.secondary">
-                      {formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true })}
-                    </Typography>
-                  </MenuItem>
-                );
-              })
-            )}
-          </Menu>
 
           {/* User Menu Dropdown */}
           <Menu
