@@ -186,24 +186,6 @@ export const toggleWebsiteStatus = async (
   }
 };
 
-/**
- * Get monitoring results for a website
- */
-export const getMonitoringResults = async (
-  req: Request<{ id: string }, {}, {}, { limit?: string }>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 100;
-    
-    const results = await websiteService.getWebsiteResults(parseInt(id, 10), limit);
-    res.json(results);
-  } catch (error) {
-    next(error);
-  }
-};
 
 /**
  * Add a website to user's dashboard

@@ -18,8 +18,6 @@ router.patch('/admin/:id/toggle', websiteController.toggleWebsiteStatus);
 // Core website routes
 router.get('/search', websiteController.searchWebsites);
 router.get('/:id', websiteController.getWebsiteById);
-router.get('/:id/results', websiteController.getMonitoringResults);
-
 // User dashboard routes
 router.get('/user/dashboard', websiteController.getUserWebsites);
 router.get('/user/dashboard/:id', websiteController.getUserWebsiteById);

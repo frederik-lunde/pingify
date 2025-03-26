@@ -59,4 +59,3 @@ export const updateUserWebsite = async (
 export const removeWebsiteFromUser = async (websiteId: number): Promise<void> => {
   await apiClient.delete(`/websites/user/dashboard/${websiteId}`);
 };
-

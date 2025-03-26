@@ -164,13 +164,6 @@ export async function toggleWebsiteStatus(id: number): Promise<Website> {
 }
 
 /**
- * Get website monitoring results
- */
-export async function getWebsiteResults(id: number, limit = 100) {
-  return ResultsManager.getResultsForWebsite(id, limit);
-}
-
-/**
  * Add a website to a user's dashboard 
  * Creates the website if it doesn't exist
  */
