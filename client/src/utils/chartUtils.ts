@@ -96,15 +96,19 @@ export const getDetailedChartOptions = (): ChartOptions<'line'> => {
         title: {
           display: true,
           text: 'Time'
+        },
+        ticks: {
+          maxRotation: 30,
+          minRotation: 30
         }
       }
     },
     plugins: {
       legend: {
-        position: 'top' as const,
+        display: false
       },
       title: {
-        display: true,
+        display: false,
         text: 'Response Time History'
       }
     }
@@ -115,30 +119,48 @@ export const getDetailedChartOptions = (): ChartOptions<'line'> => {
  * Gets chart options for the compact card view (WebsiteCard)
  * @returns Chart.js options
  */
-export const getCardChartOptions = (): ChartOptions<'line'> => {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false // Hide legend
-      },
-      tooltip: {
-        enabled: true,
-        mode: 'index' as const,
-        intersect: false
-      }
+export const getCardChartOptions = () => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false, // Hide legend
     },
-    scales: {
-      x: {
-        display: false // Hide x-axis
+    tooltip: {
+      enabled: true,
+      mode: 'index' as const,
+      intersect: false,
+    },
+  },
+  scales: {
+    x: {
+      display: true, // Show x-axis title
+      title: {
+        display: true,
+        text: 'Response time: 10 Checks', // X-axis label
       },
-      y: {
-        display: false // Hide y-axis
-      }
-    }
-  };
-};
+      ticks: {
+        display: false, // Hide x-axis values
+      },
+      grid: {
+        display: false, // Remove x-axis grid lines
+      },
+    },
+    y: {
+      display: false, // Show y-axis title
+      title: {
+        display: true,
+        text: 'Response Time (ms)', // Y-axis label
+      },
+      ticks: {
+        display: false, // Hide y-axis values
+      },
+      grid: {
+        display: false, // Remove y-axis grid lines
+      },
+    },
+  },
+});
 
 // Backward compatibility aliases
 export const prepareChartData = prepareDetailedChartData;
