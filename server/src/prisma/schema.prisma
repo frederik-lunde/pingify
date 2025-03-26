@@ -17,7 +17,7 @@ model User {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   websiteUsers WebsiteUser[] // Relation to the join table
-  UserAlert    UserAlert[]
+  UserAlert    AlertUser[]
 }
 
 model Website {
@@ -71,31 +71,35 @@ model MonitoringResult {
 }
 
 model Alert {
-  id        Int         @id @default(autoincrement())
-  websiteId Int
-  message   String
-  type      String
-  createdAt DateTime    @default(now())
-  website   Website     @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  UserAlert UserAlert[]
+  id           Int         @id @default(autoincrement())
+  websiteId    Int
+  message      String
+  type         String
+  isRead       Boolean     @default(false)  // For backward compatibility
+  isResolved   Boolean     @default(false)  // New field to track resolution
+  resolvedAt   DateTime?   // Track when the alert was resolved
+  createdAt    DateTime    @default(now())
+  website      Website     @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  alertUsers   AlertUser[] // Relation to junction table
 
   @@index([websiteId])
   @@index([createdAt])
   @@index([type])
+  @@index([isRead])
+  @@index([isResolved])
 }
 
-model UserAlert {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  alertId    Int
-  createdAt  DateTime @default(now())
-  isRead     Boolean  @default(false)
-  isResolved Boolean  @default(false)
+model AlertUser {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  alertId   Int
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alert     Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  alert Alert @relation(fields: [alertId], references: [id], onDelete: Cascade)
-
+  @@unique([userId, alertId]) // A user can only have one record per alert
   @@index([userId])
   @@index([alertId])
-  @@index([createdAt])
+  @@index([isRead])
 }
