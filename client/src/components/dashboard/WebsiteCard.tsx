@@ -26,6 +26,7 @@ import { prepareCardChartData, getCardChartOptions } from '../../utils/chartUtil
 // Import just what we need from chart.js
 import {
   Chart as ChartJS,
+  Filler,
   CategoryScale,
   LinearScale,
   PointElement,
@@ -35,6 +36,7 @@ import {
 
 // Register Chart.js components
 ChartJS.register(
+  Filler,
   CategoryScale,
   LinearScale,
   PointElement,
