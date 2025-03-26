@@ -4,19 +4,21 @@ import { authenticate } from '../middleware/authMiddleware';
 
 const router = Router();
 
+router.use(authenticate);
+
 // Admin routes
-router.get('/admin/results', authenticate, monitoringController.getAllResults);
-router.get('/admin/stats', authenticate, monitoringController.getOverallStats);
+router.get('/admin/results', monitoringController.getAllResults);
+router.get('/admin/stats', monitoringController.getOverallStats);
 
 // User routes
-router.get('/user/results', authenticate, monitoringController.getUserResults);
-router.get('/user/stats', authenticate, monitoringController.getUserStats);
+router.get('/user/results', monitoringController.getUserResults);
+router.get('/user/stats', monitoringController.getUserStats);
 
 // Website-specific routes (accessible to users who have access)
-router.get('/website/:websiteId/results', authenticate, monitoringController.getResultsByWebsite);
-router.get('/website/:websiteId/stats', authenticate, monitoringController.getWebsiteStats);
+router.get('/website/:websiteId/results', monitoringController.getResultsByWebsite);
+router.get('/website/:websiteId/stats', monitoringController.getWebsiteStats);
 
 // Trigger an immediate check for a website
-router.post('/check/:websiteId', authenticate, monitoringController.triggerWebsiteCheck);
+router.post('/check/:websiteId', monitoringController.triggerWebsiteCheck);
 
 export default router;
