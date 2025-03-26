@@ -16,7 +16,6 @@ import {
   CheckCircleOutline as CheckIcon,
   ErrorOutline as ErrorIcon,
   Settings as SettingsIcon,
-  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { Line } from 'react-chartjs-2';
 import { MonitoringResult, UserWebsite } from '../../types';
@@ -49,7 +48,6 @@ interface SimpleWebsiteCardProps {
   latestResult?: MonitoringResult;
   results: MonitoringResult[];
   loading?: boolean;
-  onDelete?: (websiteId: number) => void;
 }
 
 // Create a component for the chart to optimize rendering
@@ -82,7 +80,6 @@ const SimpleWebsiteCard = React.memo(({
   latestResult,
   results,
   loading = false,
-  onDelete
 }: SimpleWebsiteCardProps) => {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -131,14 +128,7 @@ const SimpleWebsiteCard = React.memo(({
     e.stopPropagation(); // Prevent card click
     navigate(`/website/${userWebsite.websiteId}/settings`);
   }, [navigate, userWebsite.websiteId]);
-
-  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click
-    if (onDelete) {
-      onDelete(userWebsite.websiteId);
-    }
-  }, [onDelete, userWebsite.websiteId]);
-
+  
   // Use chartUtils for options
   const chartOptions = useMemo(() => getCardChartOptions(), []);
 
@@ -178,15 +168,6 @@ const SimpleWebsiteCard = React.memo(({
                 sx={{ mr: 0.5 }}
               >
                 <SettingsIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Remove Website">
-              <IconButton 
-                size="small" 
-                onClick={handleDeleteClick}
-                color="error"
-              >
-                <DeleteIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
