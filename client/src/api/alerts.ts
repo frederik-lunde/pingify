@@ -1,36 +1,21 @@
 import apiClient from './client';
-import { Alert, AlertStats, AlertType, AlertUser } from '../types';
+import { Alert, AlertStats, AlertQueryOptions, AlertUser } from '../types';
+
 
 /**
- * Get alerts for the user's websites
- */
-export const getUserAlerts = async (
-  limit = 50, 
-  type?: AlertType, 
-  from?: Date, 
-  to?: Date,
-  isResolved?: boolean
-): Promise<Alert[]> => {
-  const params: any = { limit };
-  if (type) params.type = type;
-  if (from) params.from = from.toISOString();
-  if (to) params.to = to.toISOString();
-  if (isResolved !== undefined) params.isResolved = isResolved;
-  
-  const response = await apiClient.get('/alerts/user', { params });
-  return response.data;
-};
-
-/**
- * Get unread alerts for the user
+ * Get unread alerts for the user using options object
  */
 export const getUserUnreadAlerts = async (
-  limit = 50, 
-  type?: AlertType, 
-  from?: Date, 
-  to?: Date,
-  isResolved?: boolean
+  options: AlertQueryOptions = {}
 ): Promise<AlertUser[]> => {
+  const { 
+    limit = 50, 
+    type, 
+    from, 
+    to, 
+    isResolved 
+  } = options;
+  
   const params: any = { limit };
   if (type) params.type = type;
   if (from) params.from = from.toISOString();
@@ -42,30 +27,44 @@ export const getUserUnreadAlerts = async (
 };
 
 /**
- * Mark an alert as read
+ * Get alerts for the user's websites using options object
  */
-export const markAlertAsRead = async (alertId: number): Promise<void> => {
-  await apiClient.post(`/alerts/user/read/${alertId}`);
+export const getUserAlerts = async (
+  options: AlertQueryOptions = {}
+): Promise<Alert[]> => {
+  const { 
+    limit = 50, 
+    type, 
+    from, 
+    to, 
+    isResolved 
+  } = options;
+  
+  const params: any = { limit };
+  if (type) params.type = type;
+  if (from) params.from = from.toISOString();
+  if (to) params.to = to.toISOString();
+  if (isResolved !== undefined) params.isResolved = isResolved;
+  
+  const response = await apiClient.get('/alerts/user', { params });
+  return response.data;
 };
 
 /**
- * Mark all alerts as read
- */
-export const markAllAlertsAsRead = async (): Promise<void> => {
-  await apiClient.post('/alerts/user/read-all');
-};
-
-/**
- * Get alerts for a specific website
+ * Get alerts for a specific website using options object
  */
 export const getAlertsByWebsite = async (
   websiteId: number, 
-  limit = 50, 
-  type?: AlertType, 
-  from?: Date, 
-  to?: Date,
-  isResolved?: boolean
+  options: AlertQueryOptions = {}
 ): Promise<Alert[]> => {
+  const { 
+    limit = 50, 
+    type, 
+    from, 
+    to, 
+    isResolved 
+  } = options;
+  
   const params: any = { limit };
   if (type) params.type = type;
   if (from) params.from = from.toISOString();
@@ -76,9 +75,15 @@ export const getAlertsByWebsite = async (
   return response.data;
 };
 
-/**
- * Get alert statistics for the user
- */
+// These functions remain unchanged
+export const markAlertAsRead = async (alertId: number): Promise<void> => {
+  await apiClient.post(`/alerts/user/read/${alertId}`);
+};
+
+export const markAllAlertsAsRead = async (): Promise<void> => {
+  await apiClient.post('/alerts/user/read-all');
+};
+
 export const getUserAlertStats = async (days = 7): Promise<AlertStats> => {
   const response = await apiClient.get('/alerts/user/stats', {
     params: { days }

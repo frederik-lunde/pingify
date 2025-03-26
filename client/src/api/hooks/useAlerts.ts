@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Alert, AlertStats, AlertType, AlertUser } from '../../types';
+import { Alert, AlertStats, AlertQueryOptions, AlertUser } from '../../types';
 import { 
   getUserAlerts, 
   getUserUnreadAlerts, 
@@ -12,37 +12,29 @@ import { DEFAULT_POLLING_INTERVAL } from '../config';
 import { usePolling } from '../../hooks/common';
 
 /**
- * Hook for polling user's alerts
+ * Hook for polling user's alerts with improved parameter handling
  */
 export function useUserAlerts(
-  limit = 50, 
-  type?: AlertType, 
-  from?: Date, 
-  to?: Date,
-  isResolved?: boolean,
+  options: AlertQueryOptions = {}, 
   pollingInterval = DEFAULT_POLLING_INTERVAL
 ) {
   const fetchAlerts = useCallback(async () => {
-    return await getUserAlerts(limit, type, from, to, isResolved);
-  }, [limit, type, from, to, isResolved]);
+    return await getUserAlerts(options);
+  }, [options]);
 
   return usePolling<Alert[]>(fetchAlerts, { pollingInterval });
 }
 
 /**
- * Hook for polling unread alerts for the user
+ * Hook for polling unread alerts for the user with improved parameter handling
  */
 export function useUserUnreadAlerts(
-  limit = 50, 
-  type?: AlertType, 
-  from?: Date, 
-  to?: Date,
-  isResolved?: boolean, 
+  options: AlertQueryOptions = {}, 
   pollingInterval = DEFAULT_POLLING_INTERVAL
 ) {
   const fetchUnreadAlerts = useCallback(async () => {
-    return await getUserUnreadAlerts(limit, type, from, to, isResolved);
-  }, [limit, type, from, to, isResolved]);
+    return await getUserUnreadAlerts(options);
+  }, [options]);
 
   const { 
     data: unreadAlerts, 
@@ -74,22 +66,18 @@ export function useUserUnreadAlerts(
 }
 
 /**
- * Hook for polling alerts for a specific website
+ * Hook for polling alerts for a specific website with improved parameter handling
  */
 export function useWebsiteAlerts(
   websiteId: number, 
-  limit = 50, 
-  type?: AlertType,
-  from?: Date, 
-  to?: Date,
-  isResolved?: boolean,
+  options: AlertQueryOptions = {},
   pollingInterval = DEFAULT_POLLING_INTERVAL
 ) {
   const [noAlertsEnabled, setNoAlertsEnabled] = useState<boolean>(false);
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const data = await getAlertsByWebsite(websiteId, limit, type, from, to, isResolved);
+      const data = await getAlertsByWebsite(websiteId, options);
       setNoAlertsEnabled(false);
       return data;
     } catch (err) {
@@ -100,7 +88,7 @@ export function useWebsiteAlerts(
       }
       throw err;
     }
-  }, [websiteId, limit, type, from, to, isResolved]);
+  }, [websiteId, options]);
 
   const { data: alerts, loading, error, refetch } = usePolling<Alert[]>(fetchAlerts, { pollingInterval });
 

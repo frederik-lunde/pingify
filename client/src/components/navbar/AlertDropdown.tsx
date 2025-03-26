@@ -17,30 +17,28 @@ import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router';
 import { useUserUnreadAlerts } from '../../api/hooks/useAlerts';
-import { AlertUser } from '../../types';
+import { AlertUser, AlertQueryOptions } from '../../types';
 import { getAlertTypeColor } from '../../utils/statusUtils';
 
 interface AlertsDropdownProps {
-  limit?: number;
+  options?: AlertQueryOptions;
+  pollingInterval?: number;
 }
 
-const AlertsDropdown: React.FC<AlertsDropdownProps> = ({ limit = 50 }) => {
+const AlertsDropdown: React.FC<AlertsDropdownProps> = ({ 
+  options = { limit: 50, isResolved: false },
+  pollingInterval,
+}) => {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const navigate = useNavigate();
 
-  // Use our hook with the existing parameter format
+  // Use our hook with the improved API
   const { 
     unreadAlerts = [], 
     loading, 
     markAsRead, 
     markAllAsRead 
-  } = useUserUnreadAlerts(
-    limit,       // limit
-    undefined,   // type
-    undefined,   // from
-    undefined,   // to
-    false        // isResolved - only showing unresolved alerts
-  );
+  } = useUserUnreadAlerts(options, pollingInterval);
 
   const handleOpenAlerts = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);

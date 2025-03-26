@@ -187,7 +187,12 @@ function Navbar() {
             ml: 'auto'
           }}>
             {/* Alerts Dropdown Component */}
-            <AlertsDropdown />
+            <AlertsDropdown 
+              options={{ 
+                limit: 50,
+                isResolved: false 
+              }}
+            />
 
             {/* User Menu */}
             <Tooltip title="Open settings">
