@@ -15,45 +15,17 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router';
 import AddIcon from '@mui/icons-material/Add';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
+import { useUserUnreadAlerts } from '../api/hooks/useAlerts';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import Badge from '@mui/material/Badge';
-import { useCallback } from 'react';
-import { Alert } from '../types'; // Assuming you have an Alert type
-import { getAlertTypeColor } from '../utils/statusUtils'; // Your alert color utility
 import Divider from '@mui/material/Divider';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { formatDistanceToNow } from 'date-fns';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-
-// Mock alerts data - replace with your actual data source
-const mockAlerts: Alert[] = [
-  {
-    id: '1',
-    websiteId: '3',
-    websiteName: 'Example Site',
-    type: 'down',
-    message: 'Website is down',
-    createdAt: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-  },
-  {
-    id: '2',
-    websiteId: '5',
-    websiteName: 'Another Site',
-    type: 'slow',
-    message: 'High response time',
-    createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-  },
-  {
-    id: '3',
-    websiteId: '6',
-    websiteName: 'Tv2',
-    type: 'recovered',
-    message: 'Back online',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-  },
-];
+import { getAlertTypeColor } from '../utils/statusUtils';
+import { AlertUser } from '../types';
 
 const pages = [
   { 
@@ -76,7 +48,20 @@ function Navbar() {
   const [anchorElNav, setAnchorElNav] = React.useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
   const [anchorElNotifications, setAnchorElNotifications] = React.useState<null | HTMLElement>(null);
-  const [alerts, setAlerts] = React.useState<Alert[]>(mockAlerts); // Replace with your actual alerts data
+  
+  // Use our hook with the existing parameter format
+  const { 
+    unreadAlerts = [], 
+    loading: alertsLoading, 
+    markAsRead, 
+    markAllAsRead 
+  } = useUserUnreadAlerts(
+    50,        // limit
+    undefined, // type
+    undefined, // from
+    undefined, // to
+    false      // isResolved - only showing unresolved alerts
+  );
 
   const { logout, user } = useAuth();
   const navigate = useNavigate();
@@ -122,10 +107,27 @@ function Navbar() {
     }
   };
 
-  const handleAlertClick = useCallback((websiteId: string) => {
-    handleCloseNotifications();
-    navigate(`/website/${websiteId}`);
-  }, [navigate]);
+  const handleAlertClick = React.useCallback(async (alertUser: AlertUser) => {
+    try {
+      const alert = alertUser.alert;
+      await markAsRead(alert.id);
+      handleCloseNotifications();
+      navigate(`/website/${alert.websiteId}`);
+    } catch (error) {
+      console.error('Failed to mark alert as read:', error);
+    }
+  }, [markAsRead, navigate, handleCloseNotifications]);
+
+  const handleMarkAllAsRead = React.useCallback(async () => {
+    try {
+      await markAllAsRead();
+    } catch (error) {
+      console.error('Failed to mark all alerts as read:', error);
+    }
+  }, [markAllAsRead]);
+
+  // Count unresolved unread alerts for the badge
+  const unresolvedCount = (unreadAlerts ?? []).filter(item => !item.alert.isResolved).length;
 
   return (
     <AppBar position="static">
@@ -239,15 +241,16 @@ function Navbar() {
             gap: 2,
             ml: 'auto'
           }}>
-            {/* Notifications */}
+            {/* Notifications - Updated with new alert functionality */}
             <Tooltip title="Alerts">
               <IconButton
-                aria-label={`Show ${alerts.length} alerts`}
+                aria-label={`Show ${unresolvedCount} alerts`}
                 color="inherit"
                 onClick={handleOpenNotifications}
+                sx={{ opacity: alertsLoading ? 0.7 : 1 }}
               >
                 <Badge 
-                  badgeContent={alerts.length} 
+                  badgeContent={unresolvedCount} 
                   color="error"
                   max={9}
                 >
@@ -276,7 +279,7 @@ function Navbar() {
             </Tooltip>
           </Box>
 
-          {/* Notifications Dropdown */}
+          {/* Notifications Dropdown - Updated to use unreadAlerts */}
           <Menu
             anchorEl={anchorElNotifications}
             open={Boolean(anchorElNotifications)}
@@ -296,12 +299,8 @@ function Navbar() {
                 size="small"
                 variant="text"
                 color="primary"
-                onClick={() => {
-                  // TODO: Implement mark all as read functionality
-                  console.log('Mark all alerts as read', alerts);
-                  // This will be replaced with your actual API call
-                }}
-                disabled={alerts.length === 0}
+                onClick={handleMarkAllAsRead}
+                disabled={(unreadAlerts ?? []).length === 0 || alertsLoading}
                 sx={{
                   textTransform: 'none',
                   minWidth: 'auto'
@@ -311,42 +310,55 @@ function Navbar() {
               </Button>
             </Stack>
             <Divider />
-            {alerts.length === 0 ? (
+            
+            {alertsLoading ? (
+              <MenuItem disabled>
+                <Typography variant="body2" color="text.secondary">
+                  Loading alerts...
+                </Typography>
+              </MenuItem>
+            ) : (unreadAlerts ?? []).length === 0 ? (
               <MenuItem disabled>
                 <Typography variant="body2" color="text.secondary">
                   No new alerts
                 </Typography>
               </MenuItem>
             ) : (
-              alerts.map((alert) => (
-                <MenuItem 
-                  key={alert.id} 
-                  onClick={() => handleAlertClick(alert.websiteId)}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'action.hover',
-                    }
-                  }}
-                >
-                  <ListItemIcon>
-                    <FiberManualRecordIcon 
-                      fontSize="small" 
-                      color={getAlertTypeColor(alert.type)} 
-                    />
-                  </ListItemIcon>
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Typography variant="body2" fontWeight={500}>
-                      {alert.websiteName}
-                    </Typography>
+              (unreadAlerts ?? []).map((alertUser) => {
+                const alert = alertUser.alert;
+                const websiteName = alert.website?.websiteUsers?.[0]?.name || alert.website?.url || 'Unknown Website';
+                
+                return (
+                  <MenuItem 
+                    key={alertUser.id} 
+                    onClick={() => handleAlertClick(alertUser)}
+                    sx={{
+                      bgcolor: !alertUser.isRead ? 'action.hover' : 'inherit',
+                      '&:hover': {
+                        backgroundColor: 'action.selected',
+                      }
+                    }}
+                  >
+                    <ListItemIcon>
+                      <FiberManualRecordIcon 
+                        fontSize="small" 
+                        color={getAlertTypeColor(alert.type)} 
+                      />
+                    </ListItemIcon>
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        {websiteName}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {alert.message}
+                      </Typography>
+                    </Box>
                     <Typography variant="caption" color="text.secondary">
-                      {alert.message}
+                      {formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true })}
                     </Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    {formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true })}
-                  </Typography>
-                </MenuItem>
-              ))
+                  </MenuItem>
+                );
+              })
             )}
           </Menu>
 
