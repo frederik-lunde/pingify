@@ -15,45 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router';
 import AddIcon from '@mui/icons-material/Add';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import Badge from '@mui/material/Badge';
-import { useCallback } from 'react';
-import { Alert } from '../types'; // Assuming you have an Alert type
-import { getAlertTypeColor } from '../utils/statusUtils'; // Your alert color utility
-import Divider from '@mui/material/Divider';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
-import { formatDistanceToNow } from 'date-fns';
-import Button from '@mui/material/Button';
-import Stack from '@mui/material/Stack';
-
-// Mock alerts data - replace with your actual data source
-const mockAlerts: Alert[] = [
-  {
-    id: '1',
-    websiteId: '3',
-    websiteName: 'Example Site',
-    type: 'down',
-    message: 'Website is down',
-    createdAt: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-  },
-  {
-    id: '2',
-    websiteId: '5',
-    websiteName: 'Another Site',
-    type: 'slow',
-    message: 'High response time',
-    createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-  },
-  {
-    id: '3',
-    websiteId: '6',
-    websiteName: 'Recovered Site',
-    type: 'recovered',
-    message: 'Back online',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-  },
-];
+import NotificationBadge from '../components/navbar/NotificationBadge';
 
 const pages = [
   { 
@@ -75,8 +37,6 @@ const settings = ['Profile', 'Logout'];
 function Navbar() {
   const [anchorElNav, setAnchorElNav] = React.useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
-  const [anchorElNotifications, setAnchorElNotifications] = React.useState<null | HTMLElement>(null);
-  const [alerts, setAlerts] = React.useState<Alert[]>(mockAlerts); // Replace with your actual alerts data
 
   const { logout, user } = useAuth();
   const navigate = useNavigate();
@@ -89,20 +49,12 @@ function Navbar() {
     setAnchorElUser(event.currentTarget);
   };
 
-  const handleOpenNotifications = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorElNotifications(event.currentTarget);
-  };
-
   const handleCloseNavMenu = () => {
     setAnchorElNav(null);
   };
 
   const handleCloseUserMenu = () => {
     setAnchorElUser(null);
-  };
-
-  const handleCloseNotifications = () => {
-    setAnchorElNotifications(null);
   };
 
   const handlePageClick = (path: string) => {
@@ -121,11 +73,6 @@ function Navbar() {
       }
     }
   };
-
-  const handleAlertClick = useCallback((websiteId: string) => {
-    handleCloseNotifications();
-    navigate(`/website/${websiteId}`);
-  }, [navigate]);
 
   return (
     <AppBar position="static">
@@ -239,22 +186,8 @@ function Navbar() {
             gap: 2,
             ml: 'auto'
           }}>
-            {/* Notifications */}
-            <Tooltip title="Alerts">
-              <IconButton
-                aria-label={`Show ${alerts.length} alerts`}
-                color="inherit"
-                onClick={handleOpenNotifications}
-              >
-                <Badge 
-                  badgeContent={alerts.length} 
-                  color="error"
-                  max={9}
-                >
-                  <NotificationsIcon />
-                </Badge>
-              </IconButton>
-            </Tooltip>
+            {/* Notifications - Now using our new component */}
+            <NotificationBadge />
 
             {/* User Menu */}
             <Tooltip title="Open settings">
@@ -275,80 +208,6 @@ function Navbar() {
               </IconButton>
             </Tooltip>
           </Box>
-
-          {/* Notifications Dropdown */}
-          <Menu
-            anchorEl={anchorElNotifications}
-            open={Boolean(anchorElNotifications)}
-            onClose={handleCloseNotifications}
-            PaperProps={{
-              sx: {
-                maxHeight: '400px',
-                width: '350px',
-              }
-            }}
-          >
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1 }}>
-              <Typography variant="subtitle1" fontWeight="bold">
-                Alerts
-              </Typography>
-              <Button 
-                size="small"
-                variant="text"
-                color="primary"
-                onClick={() => {
-                  // TODO: Implement mark all as read functionality
-                  console.log('Mark all alerts as read', alerts);
-                  // This will be replaced with your actual API call
-                }}
-                disabled={alerts.length === 0}
-                sx={{
-                  textTransform: 'none',
-                  minWidth: 'auto'
-                }}
-              >
-                Mark all as read
-              </Button>
-            </Stack>
-            <Divider />
-            {alerts.length === 0 ? (
-              <MenuItem disabled>
-                <Typography variant="body2" color="text.secondary">
-                  No new alerts
-                </Typography>
-              </MenuItem>
-            ) : (
-              alerts.map((alert) => (
-                <MenuItem 
-                  key={alert.id} 
-                  onClick={() => handleAlertClick(alert.websiteId)}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'action.hover',
-                    }
-                  }}
-                >
-                  <ListItemIcon>
-                    <FiberManualRecordIcon 
-                      fontSize="small" 
-                      color={getAlertTypeColor(alert.type)} 
-                    />
-                  </ListItemIcon>
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Typography variant="body2" fontWeight={500}>
-                      {alert.websiteName}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {alert.message}
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    {formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true })}
-                  </Typography>
-                </MenuItem>
-              ))
-            )}
-          </Menu>
 
           {/* User Menu Dropdown */}
           <Menu
