@@ -11,13 +11,20 @@ export const getRecentAlerts = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { limit = '50', type, from, to } = req.query;
+    const { 
+      limit = '50', 
+      type, 
+      from, 
+      to, 
+      isResolved 
+    } = req.query;
     
     const alerts = await AlertService.getRecentAlerts({
       limit: parseInt(limit as string, 10),
       type: type as string,
       from: from ? new Date(from as string) : undefined,
-      to: to ? new Date(to as string) : undefined
+      to: to ? new Date(to as string) : undefined,
+      isResolved: isResolved !== undefined ? isResolved === 'true' : undefined
     });
     
     res.json(alerts);
@@ -27,7 +34,7 @@ export const getRecentAlerts = async (
 };
 
 /**
- * Get alerts for the current user (only for websites with alertEnabled = true)
+ * Get alerts for the current user
  */
 export const getUserAlerts = async (
   req: Request,
@@ -36,7 +43,13 @@ export const getUserAlerts = async (
 ): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { limit = '50', type, from, to } = req.query;
+    const { 
+      limit = '50', 
+      type, 
+      from, 
+      to, 
+      isResolved 
+    } = req.query;
     
     const alerts = await AlertService.getAlertsForUser(
       userId,
@@ -44,11 +57,86 @@ export const getUserAlerts = async (
         limit: parseInt(limit as string, 10),
         type: type as string,
         from: from ? new Date(from as string) : undefined,
-        to: to ? new Date(to as string) : undefined
+        to: to ? new Date(to as string) : undefined,
+        isResolved: isResolved !== undefined ? isResolved === 'true' : undefined
       }
     );
     
     res.json(alerts);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get unread alerts for the current user
+ */
+export const getUserUnreadAlerts = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { 
+      limit = '50', 
+      type, 
+      from, 
+      to, 
+      isResolved 
+    } = req.query;
+    
+    const alerts = await AlertService.getUserUnreadAlerts(
+      userId,
+      {
+        limit: parseInt(limit as string, 10),
+        type: type as string,
+        from: from ? new Date(from as string) : undefined,
+        to: to ? new Date(to as string) : undefined,
+        isResolved: isResolved !== undefined ? isResolved === 'true' : undefined
+      }
+    );
+    
+    res.json(alerts);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Mark an alert as read
+ */
+export const markAlertAsRead = async (
+  req: Request<{ alertId: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { alertId } = req.params;
+    
+    await AlertService.markAlertAsRead(userId, parseInt(alertId, 10));
+    
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Mark all alerts as read
+ */
+export const markAllAlertsAsRead = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    
+    await AlertService.markAllAlertsAsRead(userId);
+    
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
@@ -64,7 +152,13 @@ export const getAlertsByWebsite = async (
 ): Promise<void> => {
   try {
     const { websiteId } = req.params;
-    const { limit = '50', type, from, to } = req.query;
+    const { 
+      limit = '50', 
+      type, 
+      from, 
+      to, 
+      isResolved 
+    } = req.query;
     const userId = req.user?.id;
     
     // Check if the user has access to this website
@@ -75,12 +169,6 @@ export const getAlertsByWebsite = async (
         res.status(404).json({ message: 'Website not found' });
         return;
       }
-      
-      // Check if the user has alerts enabled for this website
-      if (!userWebsite.alertEnabled) {
-        res.json([]); // Return empty array if alerts aren't enabled
-        return;
-      }
     }
     
     const alerts = await AlertService.getAlertsByWebsite(
@@ -89,7 +177,8 @@ export const getAlertsByWebsite = async (
         limit: parseInt(limit as string, 10),
         type: type as string,
         from: from ? new Date(from as string) : undefined,
-        to: to ? new Date(to as string) : undefined
+        to: to ? new Date(to as string) : undefined,
+        isResolved: isResolved !== undefined ? isResolved === 'true' : undefined
       }
     );
     
@@ -119,7 +208,7 @@ export const getAlertStats = async (
 };
 
 /**
- * Get alert statistics for the current user (only for websites with alertEnabled = true)
+ * Get alert statistics for the current user
  */
 export const getUserAlertStats = async (
   req: Request,

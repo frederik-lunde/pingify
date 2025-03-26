@@ -76,13 +76,17 @@ export interface OverallStats {
   overallResponseTime: number;
 }
 
-// Alert types
+// Updated Alert types
+export type AlertType = 'down' | 'slow';
+
 export interface Alert {
   id: number;
   websiteId: number;
   type: AlertType;
   message: string;
   isRead: boolean;
+  isResolved: boolean;
+  resolvedAt: string | null;
   createdAt: string;
   website?: {
     url: string;
@@ -90,10 +94,20 @@ export interface Alert {
   };
 }
 
-export type AlertType = 'down' | 'slow' | 'recovered';
+// New interface for user-specific alert status
+export interface AlertUser {
+  id: number;
+  userId: number;
+  alertId: number;
+  isRead: boolean;
+  createdAt: string;
+  alert: Alert;
+}
 
 export interface AlertStats {
   totalAlerts: number;
+  resolvedAlerts: number;
+  unresolvedAlerts: number;
   byType: Record<AlertType, number>;
   byWebsite: Array<{ 
     websiteId: number, 
@@ -107,6 +121,7 @@ export interface AlertQueryOptions {
   type?: AlertType;
   from?: Date;
   to?: Date;
+  isResolved?: boolean;
 }
 
 export interface EmailAlertOptions {

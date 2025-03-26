@@ -14,9 +14,9 @@ router.get('/admin/stats', alertController.getAlertStats);
 
 // User routes
 router.get('/user', alertController.getUserAlerts);
+router.get('/user/unread', alertController.getUserUnreadAlerts);
+router.post('/user/read/:alertId', alertController.markAlertAsRead);
+router.post('/user/read-all', alertController.markAllAlertsAsRead);
 router.get('/user/stats', alertController.getUserAlertStats);
-
-// Website-specific routes (accessible to users who have access)
-router.get('/website/:websiteId', alertController.getAlertsByWebsite);
 
 export default router;
