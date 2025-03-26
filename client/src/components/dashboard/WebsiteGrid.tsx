@@ -100,7 +100,7 @@ const DirectWebsiteGrid: React.FC<DirectWebsiteGridProps> = React.memo(({
       
       <Grid container spacing={3}>
         {websitesWithLatestResults.map((item) => (
-          <Grid key={`website-${item.userWebsite.websiteId}`} size={{ xs: 12, sm: 6, md: 4 }}>
+          <Grid key={`website-${item.userWebsite.websiteId}`} size={{ xs: 12, sm: 6, md: 3 }}>
             <SimpleWebsiteCard
               userWebsite={item.userWebsite}
               latestResult={item.latestResult}

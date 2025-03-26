@@ -231,7 +231,7 @@ const SimpleWebsiteCard = React.memo(({
         </Box>
 
         {/* Response time chart */}
-        <Box sx={{ flexGrow: 1, minHeight: 100, mt: 'auto' }}>
+        <Box sx={{ flexGrow: 1, minHeight: 60, maxHeight: 120, mt: 'auto' }}>
           {showLoading ? (
             <Box 
               sx={{ 

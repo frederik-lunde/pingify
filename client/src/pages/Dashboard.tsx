@@ -63,8 +63,16 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+    <Container 
+      maxWidth={false} 
+      disableGutters 
+      sx={{ 
+        px: { xs: 1, sm: 2 },  // Reduced horizontal padding
+        mt: 2,                 // Reduced top margin
+        mb: 2                  // Reduced bottom margin
+      }}
+    >
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
         <Box display="flex" alignItems="center">
           <h1>Website Monitoring Dashboard</h1>
         </Box>
@@ -79,7 +87,7 @@ const Dashboard: React.FC = () => {
       </Box>
       
       {/* Summary Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container spacing={2} sx={{ mb: 2 }}>  {/* Reduced spacing between grid items */}
         <Grid size={{ xs: 12, md: 4 }}>
           <StatsCard 
             title="Total Websites" 
