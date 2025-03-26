@@ -1,19 +1,17 @@
 // src/components/Dashboard.tsx
 import React, { useCallback } from 'react';
-import { Container, Box, CircularProgress, Button } from '@mui/material';
+import { Container, Box, CircularProgress } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Using Grid2 instead of legacy Grid
-import { Add as AddIcon } from '@mui/icons-material';
-import { useNavigate } from 'react-router';
+//import { Add as AddIcon } from '@mui/icons-material';
 import { useUserStats } from '../api/hooks/useMonitoring';
 import { useWebsiteData } from '../hooks/useWebsiteData';
 import { getStatusColor, getResponseTimeColor } from '../utils/statusUtils';
 import StatsCard from '../components/StatsCard';
-import AlertsSection from '../components/dashboard/AlertsSection';
-import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
+//import AlertsSection from '../components/dashboard/AlertsSection';
+//import WebsiteStatsSection from '../components/dashboard/WebsiteStatsSection';
 import DirectWebsiteGrid from '../components/dashboard/WebsiteGrid';
 
 const Dashboard: React.FC = () => {
-  const navigate = useNavigate();
   
   // Get stats and websites data
   const { data: stats, loading: statsLoading, refetch: refetchStats } = useUserStats();
@@ -37,10 +35,6 @@ const Dashboard: React.FC = () => {
     refetchStats();
   }, [refetchWebsites, refetchStats]);
 
-  // Handle add website button click
-  const handleAddWebsite = useCallback(() => {
-    navigate('/add-website');
-  }, [navigate]);
 
   // Debug output 
   console.log('Dashboard render with', websitesWithLatestResults.length, 'websites');
@@ -71,21 +65,7 @@ const Dashboard: React.FC = () => {
         mt: 2,                 // Reduced top margin
         mb: 2                  // Reduced bottom margin
       }}
-    >
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-        <Box display="flex" alignItems="center">
-          <h1>Website Monitoring Dashboard</h1>
-        </Box>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={handleAddWebsite}
-        >
-          Add Website
-        </Button>
-      </Box>
-      
+    > 
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 2 }}>  {/* Reduced spacing between grid items */}
         <Grid size={{ xs: 12, md: 4 }}>
@@ -116,14 +96,11 @@ const Dashboard: React.FC = () => {
         loading={websitesLoading}
         onDeleted={handleWebsiteDeleted}
       />
-
-      {/* Alerts Section */}
-      <AlertsSection />
       
       {/* Keep the WebsiteStatsSection for detailed stats */}
-      {safeStats.websiteStats && safeStats.websiteStats.length > 0 && (
+      {/* {safeStats.websiteStats && safeStats.websiteStats.length > 0 && (
         <WebsiteStatsSection websiteStats={safeStats.websiteStats} />
-      )}
+      )} */}
     </Container>
   );
 };

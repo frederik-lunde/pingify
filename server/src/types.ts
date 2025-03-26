@@ -1,4 +1,4 @@
-import { Website, MonitoringResult, Alert, User, WebsiteUser } from '@prisma/client';
+import { Website, MonitoringResult, Alert, User, WebsiteUser, AlertUser } from '@prisma/client';
 
 // Website-related DTOs
 export interface CreateWebsiteDTO {
@@ -45,6 +45,7 @@ export interface AlertQueryOptions {
   type?: string;
   from?: Date;
   to?: Date;
+  isResolved?: boolean;
 }
 
 export interface EmailAlertOptions {
@@ -68,7 +69,21 @@ export interface CustomError extends Error {
   status?: number;
 }
 
-export type AlertType = 'down' | 'recovered' | 'slow';
+export type AlertType = 'down' | 'slow';
+
+// Alert-related extended interfaces
+export interface AlertWithWebsite extends Alert {
+  website: {
+    url: string;
+    websiteUsers?: {
+      name: string;
+    }[];
+  };
+}
+
+export interface AlertUserWithAlert extends AlertUser {
+  alert: AlertWithWebsite;
+}
 
 // Export Prisma types for easy access
-export { Website, MonitoringResult, Alert, User, WebsiteUser };
+export { Website, MonitoringResult, Alert, User, WebsiteUser, AlertUser };
