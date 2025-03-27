@@ -1,8 +1,7 @@
-// src/utils/charts/downtimeCharts.ts
+// src/utils/charts/downtimeChart.ts
 import { Theme } from "@mui/material";
 import { ChartData, ChartOptions } from "chart.js";
-import { MonitoringResult } from "../../types";
-import { TimeRange } from "../../components/website-details/TimeRangeSelector";
+import { MonitoringResult, TimeRange } from "../../types";
 import { filterResultsByTimeRange } from "./common";
 
 /**

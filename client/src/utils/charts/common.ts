@@ -1,7 +1,6 @@
 // src/utils/charts/common.ts
 import { Theme } from "@mui/material";
-import { MonitoringResult } from "../../types";
-import { TimeRange } from "../../components/website-details/TimeRangeSelector";
+import { MonitoringResult, TimeRange } from "../../types";
 
 /**
  * Get date range based on time range selection

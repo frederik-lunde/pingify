@@ -1,5 +1,5 @@
 // src/pages/WebsiteDetails.tsx
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { useParams } from "react-router";
 import {
   Container,
@@ -10,178 +10,116 @@ import {
   Paper,
   Snackbar,
   Alert,
-  Tabs,
-  Tab,
 } from "@mui/material";
-import {
-  ErrorOutline as ErrorIcon,
-  Refresh as RefreshIcon,
-} from "@mui/icons-material";
+import { ErrorOutline as ErrorIcon, Refresh as RefreshIcon } from "@mui/icons-material";
 
-// Chart.js registration
+// Global Chart.js registration (if not done in App.tsx)
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip as ChartTooltip,
-  Legend,
+  Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement,
+  BarElement, Title, Tooltip as ChartTooltip, Legend, Filler
 } from "chart.js";
+ChartJS.register(
+    CategoryScale, LinearScale, PointElement, LineElement, BarElement,
+    Title, ChartTooltip, Legend, Filler // Ensure Filler is registered if used
+);
 
-// Import our enhanced domain hook
-import { useWebsiteDetail } from "../hooks/domain/useWebsiteDetail";
+// Import the hook
+import { useWebsiteDetail } from "../hooks/domain/useWebsiteDetail"; // Corrected hook name
 
 // Component imports
-import WebsiteHeader from "../components/website-details/WebsiteHeader";
-import WebsiteStatsCards from "../components/website-details/WebsiteStatsCards";
+import WebsiteHeader from "../components/website-details/WebsiteHeader"; // Assuming exists
+import WebsiteStatsCards from "../components/website-details/WebsiteStatsCards"; // Assuming exists
 import ResponseTimeChart from "../components/website-details/ResponseTimeChart";
 import UptimeChart from "../components/website-details/UptimeChart";
 import DowntimePatternChart from "../components/website-details/DownTimePatternChart";
 import ResultsTable from "../components/website-details/ResultsTable";
-import TimeRangeSelector, {
-  TimeRange,
-} from "../components/website-details/TimeRangeSelector";
+import TimeRangeSelector from "../components/website-details/TimeRangeSelector";
+import WebsiteDetailsTabs from "../components/website-details/WebsiteDetailsTabs"; // Import the new Tabs component
+import { TimeRange } from "../types"; // Import TimeRange
 
-// Register Chart.js components once
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  ChartTooltip,
-  Legend,
-);
-
-// Tab panel interface
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-// Tab panel component
-const TabPanel = (props: TabPanelProps) => {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`website-details-tabpanel-${index}`}
-      aria-labelledby={`website-details-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
-    </div>
-  );
+// Helper function for available ranges
+const getAvailableTimeRanges = (tabIndex: number): TimeRange[] => {
+  switch (tabIndex) {
+    case 0: // Response Time
+    case 1: // Uptime Status
+    case 3: // Recent Checks
+      return ["1d", "7d", "30d", "365d", "all"];
+    case 2: // Downtime Patterns
+      return ["1d", "7d", "30d", "365d"]; // Adjust as needed, maybe 'all' is too much for patterns
+    default:
+      return ["1d", "7d", "30d", "365d", "all"];
+  }
 };
+
 
 const WebsiteDetails: React.FC = () => {
   const params = useParams<Record<string, string>>();
-  const id = params.id;
-  const websiteId = parseInt(id || "0", 10);
+  const websiteId = parseInt(params.id || "0", 10);
 
-  // UI State
+  // State for active tab index
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
-  const [snackbarMessage, setSnackbarMessage] = useState<string>("");
-  const [activeTab, setActiveTab] = useState(0);
+  const [snackbarMessage, setSnackbarMessage] = useState<string>(""); // Keep for potential feedback
 
-  // Define available time range options per tab
-  const getAvailableTimeRanges = (tabIndex: number): TimeRange[] => {
-    switch (tabIndex) {
-      case 0: // Response Time tab
-      case 1: // Uptime Status tab
-        return ["1d", "7d", "30d", "365d", "all"];
-      case 2: // Downtime Patterns tab
-        return ["1d", "7d", "30d"]; // Only show day, week, month options for pattern analysis
-      case 3: // Recent Checks tab
-        return ["1d", "7d", "30d", "365d", "all"];
-      default:
-        return ["1d", "7d", "30d", "365d", "all"];
-    }
-  };
-
-  // Use our enhanced hook to manage the website details
+  // Use the central hook for data fetching and time range state
   const {
-    results,
+    userWebsite,
+    results, // These are now filtered by the hook based on its timeRange state
     loading,
     error,
     isChecking,
     handleCheckNow,
-    latestResult,
     currentStatus,
     statusColor,
     refetch,
-    userWebsite,
-    uptime,
-    avgResponseTime,
-    timeRange,
-    setTimeRange,
-  } = useWebsiteDetail(websiteId);
+    // latestResult, // Can be used in stats cards
+    // uptime, avgResponseTime, // Can be used in stats cards
+    timeRange,     // Get current timeRange from hook
+    setTimeRange,  // Get setter from hook
+  } = useWebsiteDetail(websiteId); // Use default initial time range ('7d')
 
-  // Safe versions of the data for TypeScript
-  const safeResults = results || [];
+  // Available ranges based on current tab
+  const availableRanges = getAvailableTimeRanges(activeTabIndex);
 
-  // Handle snackbar close
-  const handleSnackbarClose = () => {
-    setSnackbarOpen(false);
-  };
-
-  // Handle tab change
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
-
-    // Get available time ranges for this tab
-    const availableRanges = getAvailableTimeRanges(newValue);
-
-    // If current timeRange isn't available in this tab, reset to default
-    if (!availableRanges.includes(timeRange)) {
-      setTimeRange(availableRanges[0]);
+  // Callback for when the tab changes
+  const handleTabChange = useCallback((newTabIndex: number) => {
+    setActiveTabIndex(newTabIndex);
+    // Check if the current timeRange is valid for the new tab
+    const newAvailableRanges = getAvailableTimeRanges(newTabIndex);
+    if (!newAvailableRanges.includes(timeRange)) {
+      // If not valid, reset to the first available range for that tab
+      setTimeRange(newAvailableRanges[0]);
     }
-  };
+  }, [timeRange, setTimeRange]); // Dependency on timeRange and setTimeRange
 
-  // Handle time range change
-  const handleTimeRangeChange = (newTimeRange: TimeRange) => {
+   // Handle time range change from the selector
+   // This directly calls the setter provided by the hook
+  const handleTimeRangeChange = useCallback((newTimeRange: TimeRange) => {
     setTimeRange(newTimeRange);
-  };
+  }, [setTimeRange]);
 
-  // Loading state
-  if (loading && !safeResults.length) {
+  const handleSnackbarClose = () => setSnackbarOpen(false);
+
+  // --- Render Logic ---
+
+  // Loading State (Initial Load)
+  if (loading && !results.length && !userWebsite) { // More precise initial loading check
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="80vh"
-      >
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
       </Box>
     );
   }
 
-  // Error state
-  if (error) {
+  // Error State
+  if (error && !userWebsite) { // Show error primarily if website data failed
     return (
       <Container maxWidth="lg" sx={{ mt: 4 }}>
         <Paper sx={{ p: 3, textAlign: "center" }}>
           <ErrorIcon color="error" sx={{ fontSize: 40, mb: 2 }} />
-          <Typography variant="h5" color="error">
-            Error Loading Data
-          </Typography>
-          <Typography variant="body1" sx={{ mt: 2 }}>
-            {error.message}
-          </Typography>
-          <Button
-            variant="contained"
-            onClick={() => refetch()}
-            startIcon={<RefreshIcon />}
-            sx={{ mt: 3 }}
-          >
+          <Typography variant="h5" color="error">Error Loading Website Details</Typography>
+          <Typography variant="body1" sx={{ mt: 2 }}>{error.message}</Typography>
+          <Button variant="contained" onClick={() => refetch()} startIcon={<RefreshIcon />} sx={{ mt: 3 }}>
             Try Again
           </Button>
         </Paper>
@@ -189,15 +127,13 @@ const WebsiteDetails: React.FC = () => {
     );
   }
 
-  // No access state
-  if (!userWebsite) {
+  // Not Found / No Access State
+  if (!userWebsite && !loading) { // Ensure it's not shown during initial load
     return (
       <Container maxWidth="lg" sx={{ mt: 4 }}>
         <Paper sx={{ p: 3, textAlign: "center" }}>
-          <ErrorIcon color="error" sx={{ fontSize: 40, mb: 2 }} />
-          <Typography variant="h5" color="error">
-            Website Not Found
-          </Typography>
+          <ErrorIcon color="info" sx={{ fontSize: 40, mb: 2 }} />
+          <Typography variant="h5">Website Not Found</Typography>
           <Typography variant="body1" sx={{ mt: 2 }}>
             This website doesn't exist or you don't have access to it.
           </Typography>
@@ -206,69 +142,69 @@ const WebsiteDetails: React.FC = () => {
     );
   }
 
+  // Main Content Render
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <WebsiteHeader
-        userWebsite={userWebsite}
-        currentStatus={currentStatus}
-        statusColor={statusColor}
-        isChecking={isChecking}
-        onCheckNow={handleCheckNow}
-      />
+      {userWebsite && ( // Render header only if userWebsite data is available
+        <WebsiteHeader
+          userWebsite={userWebsite}
+          currentStatus={currentStatus}
+          statusColor={statusColor}
+          isChecking={isChecking}
+          onCheckNow={handleCheckNow}
+        />
+      )}
 
-      {/* Stats Cards */}
-      <WebsiteStatsCards latestResult={latestResult} />
+      {/* Pass relevant stats if needed */}
+      {/* <WebsiteStatsCards latestResult={latestResult} uptime={uptime} avgResponseTime={avgResponseTime} /> */}
+      <WebsiteStatsCards latestResult={results.length > 0 ? results[0] : null} /> {/* Example: pass latest from filtered */}
 
-      {/* Time Range Selector */}
+
       <TimeRangeSelector
         value={timeRange}
         onChange={handleTimeRangeChange}
-        availableRanges={getAvailableTimeRanges(activeTab)}
+        availableRanges={availableRanges} // Pass dynamic ranges
       />
 
-      {/* Tabs Navigation */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
-          value={activeTab}
-          onChange={handleTabChange}
-          aria-label="Website monitoring tabs"
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          <Tab label="Response Time" />
-          <Tab label="Uptime Status" />
-          <Tab label="Downtime Patterns" />
-          <Tab label="Recent Checks" />
-        </Tabs>
-
-        {/* Tab Content */}
-        <TabPanel value={activeTab} index={0}>
-          <ResponseTimeChart results={safeResults} timeRange={timeRange} />
-        </TabPanel>
-
-        <TabPanel value={activeTab} index={1}>
-          <UptimeChart results={safeResults} timeRange={timeRange} />
-        </TabPanel>
-
-        <TabPanel value={activeTab} index={2}>
-          <DowntimePatternChart results={safeResults} timeRange={timeRange} />
-        </TabPanel>
-
-        <TabPanel value={activeTab} index={3}>
-          <ResultsTable results={safeResults} limit={20} />
-        </TabPanel>
-      </Paper>
+      {/* Render Tabs and pass chart components */}
+      <WebsiteDetailsTabs
+         onTabChange={handleTabChange} // Pass tab change handler
+         responseTimeChart={
+            <ResponseTimeChart
+                results={results}
+                timeRange={timeRange}
+                loading={loading && activeTabIndex === 0} // Pass loading/error specific to this chart
+                error={error && activeTabIndex === 0 ? error : null}
+             />
+         }
+         uptimeChart={
+             <UptimeChart
+                results={results}
+                timeRange={timeRange}
+                loading={loading && activeTabIndex === 1}
+                error={error && activeTabIndex === 1 ? error : null}
+             />
+         }
+         downtimePatternChart={
+             <DowntimePatternChart
+                results={results}
+                timeRange={timeRange}
+                loading={loading && activeTabIndex === 2}
+             />
+         }
+         resultsTable={
+             <ResultsTable
+                results={results}
+                timeRange={timeRange} // Pass timeRange for filtering
+                loading={loading && activeTabIndex === 3}
+                limit={20}
+            />
+         }
+      />
 
       {/* Feedback Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert onClose={handleSnackbarClose} severity="info">
-          {snackbarMessage}
-        </Alert>
+      <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
+        <Alert onClose={handleSnackbarClose} severity="info">{snackbarMessage}</Alert>
       </Snackbar>
     </Container>
   );

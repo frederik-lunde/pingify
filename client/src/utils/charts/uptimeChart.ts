@@ -1,8 +1,7 @@
-// src/utils/charts/uptimeCharts.ts
+// src/utils/charts/uptimeChart.ts
 import { Theme } from "@mui/material";
 import { ChartData, ChartOptions } from "chart.js";
-import { MonitoringResult } from "../../types";
-import { TimeRange } from "../../components/website-details/TimeRangeSelector";
+import { MonitoringResult, TimeRange } from "../../types";
 import {
   filterResultsByTimeRange,
   groupResultsByTime,

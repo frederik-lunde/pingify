@@ -1,39 +1,16 @@
-// src/components/website-details/UptimeChart.tsx
+// client/src/components/website-details/UptimeChart.tsx
 import React, { useMemo } from "react";
-import { Paper, Typography, Box, useTheme, Skeleton } from "@mui/material";
-import { Bar } from "react-chartjs-2";
-import { MonitoringResult } from "../../types";
-import {
-  prepareUptimeStatusData,
-  getUptimeStatusOptions,
-} from "../../utils/charts/uptimeChart";
-import { TimeRange } from "./TimeRangeSelector";
-
-// Import required chart.js components
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from "chart.js";
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-);
+import { useTheme } from "@mui/material";
+import { MonitoringResult, TimeRange } from "../../types";
+import { prepareUptimeStatusData, getUptimeStatusOptions } from "../../utils/charts/uptimeChart";
+import BaseChart from "./BaseChart";
+import { ChartOptions } from "chart.js"; // Import types
 
 interface UptimeChartProps {
   results: MonitoringResult[];
   timeRange: TimeRange;
   loading?: boolean;
+  error?: Error | null; // Add error prop
   height?: number;
   title?: string;
 }
@@ -42,62 +19,34 @@ const UptimeChart: React.FC<UptimeChartProps> = ({
   results,
   timeRange,
   loading = false,
+  error = null, // Destructure error
   height = 300,
   title = "Uptime Status",
 }) => {
   const theme = useTheme();
 
-  // Memoize chart data and options for better performance
   const chartData = useMemo(() => {
+    // prepareUptimeStatusData expects unfiltered results if it does filtering internally,
+    // or filtered results if it doesn't. The hook now provides filtered results.
+    // Ensure prepareUptimeStatusData handles this correctly or adjust the hook/utility.
+    // Assuming prepareUptimeStatusData now works with the already filtered `results`.
     if (!results || results.length === 0) return null;
     return prepareUptimeStatusData(results, timeRange, theme);
-  }, [results, timeRange, theme]);
+  }, [results, timeRange, theme]); // Depends on filtered results
 
-  const chartOptions = useMemo(() => getUptimeStatusOptions(), []);
-
-  // Show loading state
-  if (loading) {
-    return (
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          {title}
-        </Typography>
-        <Box sx={{ height }}>
-          <Skeleton
-            variant="rectangular"
-            width="100%"
-            height="100%"
-            animation="wave"
-          />
-        </Box>
-      </Paper>
-    );
-  }
+  const chartOptions = useMemo((): ChartOptions<"bar"> => getUptimeStatusOptions(), []);
 
   return (
-    <Paper sx={{ p: 3, mb: 3 }}>
-      <Typography variant="h6" gutterBottom>
-        {title}
-      </Typography>
-      <Box sx={{ height }}>
-        {results && results.length > 0 && chartData ? (
-          <Bar data={chartData} options={chartOptions} />
-        ) : (
-          <Box
-            display="flex"
-            height="100%"
-            alignItems="center"
-            justifyContent="center"
-          >
-            <Typography variant="body1" color="textSecondary">
-              No data available for chart
-            </Typography>
-          </Box>
-        )}
-      </Box>
-    </Paper>
+    <BaseChart
+      title={title}
+      chartType="bar"
+      data={chartData}
+      options={chartOptions}
+      loading={loading}
+      error={error} // Pass error
+      height={height}
+    />
   );
 };
 
-// Memoize the component to prevent unnecessary re-renders
 export default React.memo(UptimeChart);

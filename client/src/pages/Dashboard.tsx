@@ -15,7 +15,6 @@ const Dashboard: React.FC = () => {
   const {
     websitesWithLatestResults,
     loading: websitesLoading,
-    overallStatus,
   } = useWebsiteData();
 
   // Safety checks for TypeScript
@@ -26,13 +25,7 @@ const Dashboard: React.FC = () => {
     websiteStats: [],
   };
 
-  // Debug output
-  console.log(
-    "Dashboard render with",
-    websitesWithLatestResults.length,
-    "websites",
-  );
-  console.log("Overall status:", overallStatus);
+
 
   // Loading states
   if (websitesLoading && !websitesWithLatestResults.length) {
