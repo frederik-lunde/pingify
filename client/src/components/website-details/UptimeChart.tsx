@@ -2,7 +2,10 @@
 import React, { useMemo } from "react";
 import { useTheme } from "@mui/material";
 import { MonitoringResult, TimeRange } from "../../types";
-import { prepareUptimeStatusData, getUptimeStatusOptions } from "../../utils/charts/uptimeChart";
+import {
+  prepareUptimeStatusData,
+  getUptimeStatusOptions,
+} from "../../utils/charts/uptimeChart";
 import BaseChart from "./BaseChart";
 import { ChartOptions } from "chart.js"; // Import types
 
@@ -34,7 +37,10 @@ const UptimeChart: React.FC<UptimeChartProps> = ({
     return prepareUptimeStatusData(results, timeRange, theme);
   }, [results, timeRange, theme]); // Depends on filtered results
 
-  const chartOptions = useMemo((): ChartOptions<"bar"> => getUptimeStatusOptions(), []);
+  const chartOptions = useMemo(
+    (): ChartOptions<"bar"> => getUptimeStatusOptions(),
+    [],
+  );
 
   return (
     <BaseChart

@@ -57,10 +57,26 @@ const WebsiteDetailsTabs: React.FC<WebsiteDetailsTabsProps> = ({
         variant="scrollable"
         scrollButtons="auto"
       >
-        <Tab label="Response Time" id="website-details-tab-0" aria-controls="website-details-tabpanel-0" />
-        <Tab label="Uptime Status" id="website-details-tab-1" aria-controls="website-details-tabpanel-1" />
-        <Tab label="Downtime Patterns" id="website-details-tab-2" aria-controls="website-details-tabpanel-2" />
-        <Tab label="Recent Checks" id="website-details-tab-3" aria-controls="website-details-tabpanel-3" />
+        <Tab
+          label="Response Time"
+          id="website-details-tab-0"
+          aria-controls="website-details-tabpanel-0"
+        />
+        <Tab
+          label="Uptime Status"
+          id="website-details-tab-1"
+          aria-controls="website-details-tabpanel-1"
+        />
+        <Tab
+          label="Downtime Patterns"
+          id="website-details-tab-2"
+          aria-controls="website-details-tabpanel-2"
+        />
+        <Tab
+          label="Recent Checks"
+          id="website-details-tab-3"
+          aria-controls="website-details-tabpanel-3"
+        />
       </Tabs>
 
       {/* Tab Content */}

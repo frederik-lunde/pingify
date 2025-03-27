@@ -63,39 +63,48 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({
   }, [sortedResults, timeRange, theme]);
 
   // Memoize chart options
-  const chartOptions = useMemo((): ChartOptions<"line"> => ({ // Add type annotation
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      y: { beginAtZero: true, title: { display: true, text: "Response Time (ms)" } },
-      x: {
-        title: { display: true, text: "Time" },
-        ticks: { maxRotation: 30, minRotation: 30 },
-      },
-    },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          title: (tooltipItems: TooltipItem<"line">[]) => {
-            const index = tooltipItems[0].dataIndex;
-            return sortedResults[index] ? new Date(sortedResults[index].checkedAt).toLocaleString() : "";
-          },
-          // Add label callback if needed
-          label: (context: TooltipItem<"line">) => {
-             let label = context.dataset.label || '';
-             if (label) {
-                 label += ': ';
-             }
-             if (context.parsed.y !== null) {
-                 label += `${context.parsed.y} ms`;
-             }
-             return label;
-          }
+  const chartOptions = useMemo(
+    (): ChartOptions<"line"> => ({
+      // Add type annotation
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: "Response Time (ms)" },
+        },
+        x: {
+          title: { display: true, text: "Time" },
+          ticks: { maxRotation: 30, minRotation: 30 },
         },
       },
-    },
-  }), [sortedResults]); // Options depend on sortedResults for tooltip
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (tooltipItems: TooltipItem<"line">[]) => {
+              const index = tooltipItems[0].dataIndex;
+              return sortedResults[index]
+                ? new Date(sortedResults[index].checkedAt).toLocaleString()
+                : "";
+            },
+            // Add label callback if needed
+            label: (context: TooltipItem<"line">) => {
+              let label = context.dataset.label || "";
+              if (label) {
+                label += ": ";
+              }
+              if (context.parsed.y !== null) {
+                label += `${context.parsed.y} ms`;
+              }
+              return label;
+            },
+          },
+        },
+      },
+    }),
+    [sortedResults],
+  ); // Options depend on sortedResults for tooltip
 
   // Render using BaseChart
   return (

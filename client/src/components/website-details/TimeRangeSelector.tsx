@@ -16,8 +16,6 @@ import {
 } from "@mui/icons-material";
 import { TimeRange } from "../../types";
 
-
-
 // TimeRangeSelector Props
 export interface TimeRangeSelectorProps {
   value: TimeRange;

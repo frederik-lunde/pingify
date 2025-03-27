@@ -15,8 +15,6 @@ export interface MonitoringResult {
   };
 }
 
-
-
 // Core Website entity (without user-specific settings)
 export interface Website {
   id: number;

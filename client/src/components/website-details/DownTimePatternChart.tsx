@@ -45,7 +45,7 @@ const DowntimePatternChart: React.FC<DowntimePatternChartProps> = ({
       case "30d":
         return "weekday"; // For week/month, show day of week patterns
       case "365d":
-      // case "all": // Decide if 'all' should show month or weekday
+        // case "all": // Decide if 'all' should show month or weekday
         return "weekday"; // Or potentially "month" if implemented
       default:
         return "hour"; // Fallback
@@ -74,72 +74,75 @@ const DowntimePatternChart: React.FC<DowntimePatternChartProps> = ({
     if (!results || results.length === 0) return null;
 
     try {
-        switch (patternType) {
+      switch (patternType) {
         case "hour":
-            return prepareDowntimeByHourData(results, timeRange, theme);
+          return prepareDowntimeByHourData(results, timeRange, theme);
         case "weekday":
-            return prepareDowntimeByWeekdayData(results, timeRange, theme);
+          return prepareDowntimeByWeekdayData(results, timeRange, theme);
         // case "month": // Add when month data preparation is implemented
         //   return prepareDowntimeByMonthData(results, timeRange, theme);
         default:
-            // Fallback gracefully, maybe return null or default to hour
-            console.warn(`Unsupported patternType '${patternType}' in DowntimePatternChart. Falling back to hour.`);
-            return prepareDowntimeByHourData(results, timeRange, theme);
-        }
+          // Fallback gracefully, maybe return null or default to hour
+          console.warn(
+            `Unsupported patternType '${patternType}' in DowntimePatternChart. Falling back to hour.`,
+          );
+          return prepareDowntimeByHourData(results, timeRange, theme);
+      }
     } catch (prepError) {
-        console.error("Error preparing downtime chart data:", prepError);
-        // You could potentially pass this specific error down to BaseChart
-        return null; // Return null to show empty/error state in BaseChart
+      console.error("Error preparing downtime chart data:", prepError);
+      // You could potentially pass this specific error down to BaseChart
+      return null; // Return null to show empty/error state in BaseChart
     }
   }, [results, timeRange, theme, patternType]); // Dependencies include patternType now
 
   // Memoize chart options selection
-  const chartOptions = useMemo((): ChartOptions<"bar"> => { // Explicit type
+  const chartOptions = useMemo((): ChartOptions<"bar"> => {
+    // Explicit type
     try {
-        switch (patternType) {
+      switch (patternType) {
         case "hour":
-            return getDowntimeByHourOptions();
+          return getDowntimeByHourOptions();
         case "weekday":
-            return getDowntimeByWeekdayOptions();
+          return getDowntimeByWeekdayOptions();
         // case "month": // Add when month options are implemented
         //   return getDowntimeByMonthOptions();
         default:
-            // Fallback gracefully
-            return getDowntimeByHourOptions();
-        }
+          // Fallback gracefully
+          return getDowntimeByHourOptions();
+      }
     } catch (optionsError) {
-        console.error("Error getting downtime chart options:", optionsError);
-        return {}; // Return empty options or default
+      console.error("Error getting downtime chart options:", optionsError);
+      return {}; // Return empty options or default
     }
   }, [patternType]); // Options depend only on patternType
 
   return (
     // Use a Box to potentially group the BaseChart and its specific subtitle
     <Box>
-        {/* Display the dynamic secondary title (e.g., "By Hour of Day") */}
-        {/* Position it relative to the BaseChart */}
-        <Typography
-            variant="subtitle2"
-            color="textSecondary"
-            align="right"
-            // Adjust styling for positioning above the chart area within the Paper
-            sx={{ mb: -2.5, mr: 3, position: 'relative', zIndex: 1 }}
-        >
-            {patternTitle}
-        </Typography>
+      {/* Display the dynamic secondary title (e.g., "By Hour of Day") */}
+      {/* Position it relative to the BaseChart */}
+      <Typography
+        variant="subtitle2"
+        color="textSecondary"
+        align="right"
+        // Adjust styling for positioning above the chart area within the Paper
+        sx={{ mb: -2.5, mr: 3, position: "relative", zIndex: 1 }}
+      >
+        {patternTitle}
+      </Typography>
 
-        {/* Use the BaseChart component for rendering */}
-        <BaseChart
-          title={title} // Main title (e.g., "Downtime Patterns")
-          chartType="bar"
-          data={chartData} // Pass prepared data
-          options={chartOptions} // Pass selected options
-          loading={loading} // Pass loading state
-          error={error} // Pass error state
-          height={height} // Pass height
-          // Optionally customize empty message
-          // emptyMessage="No downtime patterns found for this period."
-        />
+      {/* Use the BaseChart component for rendering */}
+      <BaseChart
+        title={title} // Main title (e.g., "Downtime Patterns")
+        chartType="bar"
+        data={chartData} // Pass prepared data
+        options={chartOptions} // Pass selected options
+        loading={loading} // Pass loading state
+        error={error} // Pass error state
+        height={height} // Pass height
+        // Optionally customize empty message
+        // emptyMessage="No downtime patterns found for this period."
+      />
     </Box>
   );
 };

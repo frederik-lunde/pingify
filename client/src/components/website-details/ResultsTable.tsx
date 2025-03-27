@@ -17,7 +17,6 @@ import { MonitoringResult, TimeRange } from "../../types";
 import { formatResponseTime } from "../../utils/statusUtils";
 import { filterResultsByTimeRange } from "../../utils/charts/common";
 
-
 interface ResultsTableProps {
   results: MonitoringResult[];
   timeRange: TimeRange; // Add timeRange prop

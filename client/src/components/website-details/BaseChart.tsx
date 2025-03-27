@@ -11,7 +11,6 @@ import {
 import { Line, Bar } from "react-chartjs-2";
 import { ChartData, ChartOptions } from "chart.js";
 
-
 type ChartType = "line" | "bar";
 
 interface BaseChartProps {
@@ -69,7 +68,14 @@ const BaseChart: React.FC<BaseChartProps> = ({
     }
 
     // 3. Empty State (or data seems invalid)
-    if (!data || !data.labels || data.labels.length === 0 || !data.datasets || data.datasets.length === 0 || data.datasets.every(ds => ds.data.length === 0)) {
+    if (
+      !data ||
+      !data.labels ||
+      data.labels.length === 0 ||
+      !data.datasets ||
+      data.datasets.length === 0 ||
+      data.datasets.every((ds) => ds.data.length === 0)
+    ) {
       return (
         <Box
           display="flex"
@@ -89,11 +95,15 @@ const BaseChart: React.FC<BaseChartProps> = ({
   };
 
   return (
-    <Paper sx={{ p: 3, mb: 3, overflow: 'hidden' }}> {/* Added overflow hidden */}
+    <Paper sx={{ p: 3, mb: 3, overflow: "hidden" }}>
+      {" "}
+      {/* Added overflow hidden */}
       <Typography variant="h6" gutterBottom>
         {title}
       </Typography>
-      <Box sx={{ height, position: 'relative' }}> {/* Ensure relative positioning for chart */}
+      <Box sx={{ height, position: "relative" }}>
+        {" "}
+        {/* Ensure relative positioning for chart */}
         {renderContent()}
       </Box>
     </Paper>
