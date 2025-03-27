@@ -1,20 +1,32 @@
-// src/hooks/domain/useWebsiteDetail.ts
+// src/hooks/domain/useEnhancedWebsiteDetail.ts
 import { useState, useCallback, useMemo } from 'react';
 import { useWebsiteResults } from '../api/useMonitoring';
 import { useWebsite } from '../api/useWebsites';
 import { useWebsiteCheck } from '../api/useMonitoring';
 import { DEFAULT_POLLING_INTERVAL } from '../../api/config';
+import { TimeRange } from '../../components/website-details/TimeRangeSelector';
+import { getDateRangeFromTimeRange, filterResultsByTimeRange } from '../../utils/charts/common';
 
 /**
- * Hook that combines data for a specific website detail view
+ * Enhanced hook that combines data for a website detail view with time range support
  */
 export function useWebsiteDetail(
   websiteId: number, 
-  resultsLimit = 50,
+  initialTimeRange: TimeRange = '7d',
+  resultsLimit = 500, // Increased limit to have enough data for charts
   pollingInterval = DEFAULT_POLLING_INTERVAL
 ) {
+  // State for selected time range
+  const [timeRange, setTimeRange] = useState<TimeRange>(initialTimeRange);
+  
   // Track manual check status
   const [isCheckingManually, setIsCheckingManually] = useState(false);
+  
+  // Calculate date range based on selected time range
+  const dateRange = useMemo(() => 
+    getDateRangeFromTimeRange(timeRange), 
+    [timeRange]
+  );
   
   // Get website details with the API hook
   const { 
@@ -26,15 +38,28 @@ export function useWebsiteDetail(
     startPolling: startWebsitePolling
   } = useWebsite(websiteId, pollingInterval);
 
-  // Get results with the API hook  
+  // Get results with the API hook, using date range filter if not 'all' time
   const { 
-    data: results = [], 
+    data: allResults = [], 
     loading: resultsLoading, 
     error: resultsError, 
     refetch: refetchResults,
     stopPolling: stopResultsPolling,
     startPolling: startResultsPolling
-  } = useWebsiteResults(websiteId, { limit: resultsLimit }, pollingInterval);
+  } = useWebsiteResults(
+    websiteId, 
+    { 
+      limit: resultsLimit,
+      from: timeRange !== 'all' ? dateRange.from : undefined
+    }, 
+    pollingInterval
+  );
+  
+  // Filter results by time range
+  const results = useMemo(() => {
+    if (!allResults || allResults.length === 0) return [];
+    return filterResultsByTimeRange(allResults, timeRange);
+  }, [allResults, timeRange]);
   
   // Get manual check capability
   const { 
@@ -49,9 +74,12 @@ export function useWebsiteDetail(
   const error = websiteError || resultsError;
 
   // Derive latest result state
-  const latestResult = useMemo(() => (
-    results && results.length > 0 ? results[0] : null
-  ), [results]);
+  const latestResult = useMemo(() => {
+    const sortedResults = [...results].sort(
+      (a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime()
+    );
+    return sortedResults.length > 0 ? sortedResults[0] : null;
+  }, [results]);
 
   // Derive current status
   const currentStatus = useMemo(() => {
@@ -122,7 +150,12 @@ export function useWebsiteDetail(
     // Basic data
     userWebsite,
     results,
+    allResults,
     latestResult,
+    
+    // Time range controls
+    timeRange,
+    setTimeRange,
     
     // Status information
     currentStatus,
@@ -143,4 +176,5 @@ export function useWebsiteDetail(
   };
 }
 
+// Keep the default export too
 export default useWebsiteDetail;
