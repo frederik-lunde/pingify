@@ -2,7 +2,6 @@
 import React, { useMemo } from 'react';
 import {
   Box,
-  CircularProgress,
   Alert,
   Button,
   Typography,
@@ -35,21 +34,20 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(({
   const sortedWebsites = useMemo(() => {
     if (!websitesWithLatestResults?.length) return [];
     
-    // Sort by online status first, then by name
+    // Sort by online status first (offline websites first), then by name
     return [...websitesWithLatestResults].sort((a, b) => {
-      // First sort by status (online websites first)
+      // First sort by status (offline websites first)
       const aStatus = a.latestResult?.isAvailable ?? true;
       const bStatus = b.latestResult?.isAvailable ?? true;
       
       if (aStatus !== bStatus) {
-        return aStatus ? -1 : 1;
+        return aStatus ? 1 : -1; 
       }
       
       // Then by name
       return a.userWebsite.name.localeCompare(b.userWebsite.name);
     });
   }, [websitesWithLatestResults]);
-
   // Function to render skeleton cards during loading
   const renderSkeletonCards = () => {
     return Array(4).fill(0).map((_, i) => (
