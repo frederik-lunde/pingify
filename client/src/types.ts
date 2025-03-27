@@ -1,3 +1,5 @@
+// src/types.ts
+
 // Basic data types
 export interface MonitoringResult {
   id: number;
@@ -145,4 +147,50 @@ export interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
+}
+
+// Time range type for chart filtering
+export type TimeRange = '1d' | '7d' | '30d' | '365d' | 'all';
+
+// Time grouping type for data aggregation
+export type TimeGrouping = 'hour' | 'day' | 'week' | 'month';
+
+// Grouped data result type
+export interface GroupedTimeData {
+  period: string;
+  total: number;
+  available: number;
+  unavailable: number;
+  uptimePercentage: number;
+  averageResponseTime: number;
+}
+
+// Downtime heatmap data point
+export interface DowntimeHeatmapPoint {
+  day: string;
+  hour: string;
+  value: number | null;
+  total: number;
+  downtime: number;
+}
+
+// Enhanced WebsiteDetail hook return type
+export interface EnhancedWebsiteDetailData {
+  userWebsite: UserWebsite | null;
+  results: MonitoringResult[];
+  allResults: MonitoringResult[];
+  latestResult: MonitoringResult | null;
+  timeRange: TimeRange;
+  setTimeRange: (range: TimeRange) => void;
+  currentStatus: string;
+  statusColor: 'success' | 'error' | 'info';
+  uptime: number;
+  avgResponseTime: number;
+  loading: boolean;
+  isChecking: boolean;
+  error: Error | null;
+  handleCheckNow: () => Promise<void>;
+  refetch: () => Promise<void>;
+  stopPolling: () => void;
+  startPolling: () => void;
 }

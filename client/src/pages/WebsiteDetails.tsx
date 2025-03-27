@@ -1,4 +1,4 @@
-//client\src\pages\WebsiteDetails.tsx
+// src/pages/WebsiteDetails.tsx
 import React, { useState } from 'react';
 import { useParams } from 'react-router';
 import { 
@@ -9,7 +9,9 @@ import {
   Button, 
   Paper,
   Snackbar,
-  Alert
+  Alert,
+  Tabs,
+  Tab
 } from '@mui/material';
 import { 
   ErrorOutline as ErrorIcon, 
@@ -23,19 +25,23 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip as ChartTooltip,
   Legend
 } from 'chart.js';
 
-// Import our new domain hook
-import { useWebsiteDetail } from '../hooks';
+// Import our enhanced domain hook
+import { useWebsiteDetail } from '../hooks/domain/useWebsiteDetail';
 
 // Component imports
 import WebsiteHeader from '../components/website-details/WebsiteHeader';
 import WebsiteStatsCards from '../components/website-details/WebsiteStatsCards';
 import ResponseTimeChart from '../components/website-details/ResponseTimeChart';
+import UptimeChart from '../components/website-details/UptimeChart';
+import DowntimePatternChart from '../components/website-details/DownTimePatterChart';
 import ResultsTable from '../components/website-details/ResultsTable';
+import TimeRangeSelector, { TimeRange } from '../components/website-details/TimeRangeSelector';
 
 // Register Chart.js components once
 ChartJS.register(
@@ -43,10 +49,39 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   ChartTooltip,
   Legend
 );
+
+// Tab panel interface
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+// Tab panel component
+const TabPanel = (props: TabPanelProps) => {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`website-details-tabpanel-${index}`}
+      aria-labelledby={`website-details-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ pt: 3 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+};
 
 const WebsiteDetails: React.FC = () => {
   const params = useParams<Record<string, string>>();
@@ -56,8 +91,9 @@ const WebsiteDetails: React.FC = () => {
   // UI State
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+  const [activeTab, setActiveTab] = useState(0);
   
-  // Use our new hook to manage the website details
+  // Use our enhanced hook to manage the website details
   const { 
     results, 
     loading, 
@@ -70,7 +106,9 @@ const WebsiteDetails: React.FC = () => {
     refetch,
     userWebsite,
     uptime,
-    avgResponseTime
+    avgResponseTime,
+    timeRange,
+    setTimeRange
   } = useWebsiteDetail(websiteId);
 
   // Safe versions of the data for TypeScript
@@ -79,6 +117,16 @@ const WebsiteDetails: React.FC = () => {
   // Handle snackbar close
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
+  };
+
+  // Handle tab change
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+
+  // Handle time range change
+  const handleTimeRangeChange = (newTimeRange: TimeRange) => {
+    setTimeRange(newTimeRange);
   };
 
   // Loading state
@@ -145,11 +193,50 @@ const WebsiteDetails: React.FC = () => {
       {/* Stats Cards */}
       <WebsiteStatsCards latestResult={latestResult} />
 
-      {/* Response Time Chart */}
-      <ResponseTimeChart results={safeResults} />
+      {/* Time Range Selector */}
+      <TimeRangeSelector 
+        value={timeRange} 
+        onChange={handleTimeRangeChange} 
+      />
 
-      {/* Recent Checks Table */}
-      <ResultsTable results={safeResults} />
+      {/* Tabs Navigation */}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs 
+          value={activeTab} 
+          onChange={handleTabChange} 
+          aria-label="Website monitoring tabs"
+          variant="scrollable"
+          scrollButtons="auto"
+        >
+          <Tab label="Response Time" />
+          <Tab label="Uptime Status" />
+          <Tab label="Downtime Patterns" />
+          <Tab label="Recent Checks" />
+        </Tabs>
+
+        {/* Tab Content */}
+        <TabPanel value={activeTab} index={0}>
+          <ResponseTimeChart results={safeResults} timeRange={timeRange} />
+        </TabPanel>
+        
+        <TabPanel value={activeTab} index={1}>
+          <UptimeChart 
+            results={safeResults} 
+            timeRange={timeRange} 
+          />
+        </TabPanel>
+        
+        <TabPanel value={activeTab} index={2}>
+          <DowntimePatternChart 
+            results={safeResults} 
+            timeRange={timeRange} 
+          />
+        </TabPanel>
+        
+        <TabPanel value={activeTab} index={3}>
+          <ResultsTable results={safeResults} limit={20} />
+        </TabPanel>
+      </Paper>
 
       {/* Feedback Snackbar */}
       <Snackbar
