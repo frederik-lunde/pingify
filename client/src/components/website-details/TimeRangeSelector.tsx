@@ -23,7 +23,53 @@ export interface TimeRangeSelectorProps {
   value: TimeRange;
   onChange: (value: TimeRange) => void;
   label?: string;
+  availableRanges?: TimeRange[]; // New prop to restrict available options
 }
+
+// Time range button configuration
+const timeRangeButtons: Array<{
+  value: TimeRange;
+  label: string;
+  tooltip: string;
+  icon: React.ReactNode;
+  ariaLabel: string;
+}> = [
+  { 
+    value: '1d', 
+    label: 'Day', 
+    tooltip: 'Last 24 hours',
+    icon: <TodayIcon fontSize="small" />,
+    ariaLabel: 'Last 24 hours'
+  },
+  { 
+    value: '7d', 
+    label: 'Week', 
+    tooltip: 'Last 7 days',
+    icon: <WeekIcon fontSize="small" />,
+    ariaLabel: 'Last 7 days'
+  },
+  { 
+    value: '30d', 
+    label: 'Month', 
+    tooltip: 'Last 30 days',
+    icon: <MonthIcon fontSize="small" />,
+    ariaLabel: 'Last 30 days'
+  },
+  { 
+    value: '365d', 
+    label: 'Year', 
+    tooltip: 'Last 365 days',
+    icon: <YearIcon fontSize="small" />,
+    ariaLabel: 'Last 365 days'
+  },
+  { 
+    value: 'all', 
+    label: 'All', 
+    tooltip: 'All time',
+    icon: <AllTimeIcon fontSize="small" />,
+    ariaLabel: 'All time'
+  }
+];
 
 /**
  * Time range selector component for filtering data by time period
@@ -31,7 +77,8 @@ export interface TimeRangeSelectorProps {
 const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
   value,
   onChange,
-  label = "Time Range:"
+  label = "Time Range:",
+  availableRanges = ['1d', '7d', '30d', '365d', 'all'] // Default to all ranges
 }) => {
   // Handle change events
   const handleChange = (_event: React.MouseEvent<HTMLElement>, newValue: TimeRange | null) => {
@@ -66,50 +113,19 @@ const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
           },
         }}
       >
-        <Tooltip title="Last 24 hours">
-          <ToggleButton value="1d" aria-label="Last 24 hours">
-            <TodayIcon fontSize="small" />
-            <Typography sx={{ ml: 0.5, display: { xs: 'none', sm: 'block' } }}>
-              Day
-            </Typography>
-          </ToggleButton>
-        </Tooltip>
-        
-        <Tooltip title="Last 7 days">
-          <ToggleButton value="7d" aria-label="Last 7 days">
-            <WeekIcon fontSize="small" />
-            <Typography sx={{ ml: 0.5, display: { xs: 'none', sm: 'block' } }}>
-              Week
-            </Typography>
-          </ToggleButton>
-        </Tooltip>
-        
-        <Tooltip title="Last 30 days">
-          <ToggleButton value="30d" aria-label="Last 30 days">
-            <MonthIcon fontSize="small" />
-            <Typography sx={{ ml: 0.5, display: { xs: 'none', sm: 'block' } }}>
-              Month
-            </Typography>
-          </ToggleButton>
-        </Tooltip>
-        
-        <Tooltip title="Last 365 days">
-          <ToggleButton value="365d" aria-label="Last 365 days">
-            <YearIcon fontSize="small" />
-            <Typography sx={{ ml: 0.5, display: { xs: 'none', sm: 'block' } }}>
-              Year
-            </Typography>
-          </ToggleButton>
-        </Tooltip>
-        
-        <Tooltip title="All time">
-          <ToggleButton value="all" aria-label="All time">
-            <AllTimeIcon fontSize="small" />
-            <Typography sx={{ ml: 0.5, display: { xs: 'none', sm: 'block' } }}>
-              All
-            </Typography>
-          </ToggleButton>
-        </Tooltip>
+        {timeRangeButtons
+          .filter(btn => availableRanges.includes(btn.value)) // Only show available options
+          .map(btn => (
+            <Tooltip key={btn.value} title={btn.tooltip}>
+              <ToggleButton value={btn.value} aria-label={btn.ariaLabel}>
+                {btn.icon}
+                <Typography sx={{ ml: 0.5, display: { xs: 'none', sm: 'block' } }}>
+                  {btn.label}
+                </Typography>
+              </ToggleButton>
+            </Tooltip>
+          ))
+        }
       </ToggleButtonGroup>
     </Box>
   );

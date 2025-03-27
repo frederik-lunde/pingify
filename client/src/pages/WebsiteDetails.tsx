@@ -39,7 +39,7 @@ import WebsiteHeader from '../components/website-details/WebsiteHeader';
 import WebsiteStatsCards from '../components/website-details/WebsiteStatsCards';
 import ResponseTimeChart from '../components/website-details/ResponseTimeChart';
 import UptimeChart from '../components/website-details/UptimeChart';
-import DowntimePatternChart from '../components/website-details/DownTimePatterChart';
+import DowntimePatternChart from '../components/website-details/DownTimePatternChart';
 import ResultsTable from '../components/website-details/ResultsTable';
 import TimeRangeSelector, { TimeRange } from '../components/website-details/TimeRangeSelector';
 
@@ -93,6 +93,21 @@ const WebsiteDetails: React.FC = () => {
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [activeTab, setActiveTab] = useState(0);
   
+  // Define available time range options per tab
+  const getAvailableTimeRanges = (tabIndex: number): TimeRange[] => {
+    switch (tabIndex) {
+      case 0: // Response Time tab
+      case 1: // Uptime Status tab
+        return ['1d', '7d', '30d', '365d', 'all'];
+      case 2: // Downtime Patterns tab
+        return ['1d', '7d']; // Only show day, week, month options for pattern analysis
+      case 3: // Recent Checks tab
+        return ['1d', '7d', '30d', '365d', 'all'];
+      default:
+        return ['1d', '7d', '30d', '365d', 'all'];
+    }
+  };
+  
   // Use our enhanced hook to manage the website details
   const { 
     results, 
@@ -122,6 +137,14 @@ const WebsiteDetails: React.FC = () => {
   // Handle tab change
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
+    
+    // Get available time ranges for this tab
+    const availableRanges = getAvailableTimeRanges(newValue);
+    
+    // If current timeRange isn't available in this tab, reset to default
+    if (!availableRanges.includes(timeRange)) {
+      setTimeRange(availableRanges[0]);
+    }
   };
 
   // Handle time range change
@@ -196,7 +219,8 @@ const WebsiteDetails: React.FC = () => {
       {/* Time Range Selector */}
       <TimeRangeSelector 
         value={timeRange} 
-        onChange={handleTimeRangeChange} 
+        onChange={handleTimeRangeChange}
+        availableRanges={getAvailableTimeRanges(activeTab)}
       />
 
       {/* Tabs Navigation */}

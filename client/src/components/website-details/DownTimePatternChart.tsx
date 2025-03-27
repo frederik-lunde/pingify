@@ -1,13 +1,11 @@
 // src/components/website-details/DowntimePatternChart.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { 
   Paper, 
   Typography, 
   Box, 
   useTheme, 
-  Skeleton, 
-  ToggleButtonGroup, 
-  ToggleButton 
+  Skeleton
 } from '@mui/material';
 import { Bar } from 'react-chartjs-2';
 import { MonitoringResult } from '../../types';
@@ -40,8 +38,6 @@ ChartJS.register(
   Legend
 );
 
-type PatternType = 'hour' | 'weekday';
-
 interface DowntimePatternChartProps {
   results: MonitoringResult[];
   timeRange: TimeRange;
@@ -58,29 +54,66 @@ const DowntimePatternChart: React.FC<DowntimePatternChartProps> = ({
   title = "Downtime Patterns"
 }) => {
   const theme = useTheme();
-  const [patternType, setPatternType] = useState<PatternType>('hour');
+  
+  // Determine the appropriate pattern type based on timeRange
+  const patternType = useMemo(() => {
+    switch (timeRange) {
+      case '1d':
+        return 'hour'; // For 1 day, show hourly breakdown
+      case '7d':
+      case '30d':
+        return 'weekday'; // For week/month, show day of week patterns
+      case '365d':
+      case 'all':
+        return 'month'; // For year/all, show monthly patterns (though month implementation would need to be added)
+      default:
+        return 'hour';
+    }
+  }, [timeRange]);
+  
+  // Get appropriate title based on pattern type
+  const patternTitle = useMemo(() => {
+    switch (patternType) {
+      case 'hour':
+        return 'By Hour of Day';
+      case 'weekday':
+        return 'By Day of Week';
+      case 'month':
+        return 'By Month of Year';
+      default:
+        return 'Distribution';
+    }
+  }, [patternType]);
   
   // Memoize chart data and options for better performance
   const chartData = useMemo(() => {
     if (!results || results.length === 0) return null;
     
-    return patternType === 'hour' 
-      ? prepareDowntimeByHourData(results, timeRange, theme)
-      : prepareDowntimeByWeekdayData(results, timeRange, theme);
+    switch (patternType) {
+      case 'hour':
+        return prepareDowntimeByHourData(results, timeRange, theme);
+      case 'weekday':
+        return prepareDowntimeByWeekdayData(results, timeRange, theme);
+      case 'month':
+        // For now, fall back to weekday data for month pattern
+        // This would be replaced with actual month-based data in a real implementation
+        return prepareDowntimeByWeekdayData(results, timeRange, theme);
+      default:
+        return prepareDowntimeByHourData(results, timeRange, theme);
+    }
   }, [results, timeRange, theme, patternType]);
   
   const chartOptions = useMemo(() => {
-    return patternType === 'hour'
-      ? getDowntimeByHourOptions()
-      : getDowntimeByWeekdayOptions();
-  }, [patternType]);
-  
-  // Handle pattern type change
-  const handlePatternTypeChange = (_event: React.MouseEvent<HTMLElement>, newType: PatternType | null) => {
-    if (newType !== null) {
-      setPatternType(newType);
+    switch (patternType) {
+      case 'hour':
+        return getDowntimeByHourOptions();
+      case 'weekday':
+      case 'month':
+        return getDowntimeByWeekdayOptions();
+      default:
+        return getDowntimeByHourOptions();
     }
-  };
+  }, [patternType]);
   
   // Show loading state
   if (loading) {
@@ -102,21 +135,9 @@ const DowntimePatternChart: React.FC<DowntimePatternChartProps> = ({
         <Typography variant="h6">
           {title}
         </Typography>
-        
-        <ToggleButtonGroup
-          value={patternType}
-          exclusive
-          onChange={handlePatternTypeChange}
-          aria-label="Pattern type"
-          size="small"
-        >
-          <ToggleButton value="hour" aria-label="By hour">
-            By Hour
-          </ToggleButton>
-          <ToggleButton value="weekday" aria-label="By weekday">
-            By Day
-          </ToggleButton>
-        </ToggleButtonGroup>
+        <Typography variant="subtitle2" color="textSecondary">
+          {patternTitle}
+        </Typography>
       </Box>
       
       <Box sx={{ height }}>
