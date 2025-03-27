@@ -13,33 +13,34 @@ import {
   Skeleton,
   Box,
 } from "@mui/material";
-import { MonitoringResult } from "../../types";
+import { MonitoringResult, TimeRange } from "../../types";
 import { formatResponseTime } from "../../utils/statusUtils";
+import { filterResultsByTimeRange } from "../../utils/charts/common";
 
 interface ResultsTableProps {
   results: MonitoringResult[];
+  timeRange: TimeRange; // Add timeRange prop
   loading?: boolean;
   limit?: number;
 }
-
 const ResultsTable: React.FC<ResultsTableProps> = ({
   results,
+  timeRange,
   loading = false,
   limit = 10,
 }) => {
   const theme = useTheme();
 
-  // Memoize the results to avoid unnecessary re-renders
   const displayResults = useMemo(() => {
-    return results
-      .slice(0, limit)
-      .sort(
-        (a, b) =>
-          new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime(),
-      );
-  }, [results, limit]);
+    const filtered = filterResultsByTimeRange(results, timeRange);
+    const sorted = [...filtered].sort(
+      (a, b) =>
+        new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime(),
+    );
 
-  // Create loading skeletons for the table
+    return sorted.slice(0, limit);
+  }, [results, timeRange, limit]);
+
   const renderSkeletonRows = () => {
     return Array(limit)
       .fill(0)
@@ -79,10 +80,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           }}
         >
           <Typography variant="body1">
-            No monitoring results available yet.
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            Results will appear here after the first check.
+            No monitoring results available for the selected time range.
           </Typography>
         </Box>
       </Paper>

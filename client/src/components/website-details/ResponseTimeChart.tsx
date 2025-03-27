@@ -1,39 +1,19 @@
-// src/components/website-details/ResponseTimeChart.tsx
+// client/src/components/website-details/ResponseTimeChart.tsx
 import React, { useMemo } from "react";
-import { Paper, Typography, Box, useTheme, Skeleton } from "@mui/material";
-import { Line } from "react-chartjs-2";
+import { useTheme } from "@mui/material";
 import { MonitoringResult, TimeRange } from "../../types";
-import {
-  filterResultsByTimeRange,
-  formatDateForTimeRange,
-} from "../../utils/charts/common";
+import { formatDateForTimeRange } from "../../utils/charts/common";
+import BaseChart from "./BaseChart"; // Import BaseChart
+import { ChartOptions, TooltipItem } from "chart.js"; // Import types
 
-// Import just what we need from chart.js
-import {
-  Chart as ChartJS,
-  Filler,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip as ChartTooltip,
-  TooltipItem,
-} from "chart.js";
-
-// Register Chart.js components
-ChartJS.register(
-  Filler,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  ChartTooltip,
-);
+// Chart.js registration should be done globally (e.g., in WebsiteDetails.tsx or App.tsx)
+// Remove local registration if done globally
 
 interface ResponseTimeChartProps {
   results: MonitoringResult[];
-  timeRange: TimeRange; // Changed from optional to required
+  timeRange: TimeRange;
   loading?: boolean;
+  error?: Error | null; // Add error prop
   height?: number;
   title?: string;
 }
@@ -42,28 +22,27 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({
   results,
   timeRange,
   loading = false,
+  error = null, // Destructure error
   height = 300,
   title = "Response Time History",
 }) => {
   const theme = useTheme();
 
-  // Create sorted results for both chart data and tooltips
+  // Create sorted results (hook already provides filtered results)
+  // Sorting might still be needed depending on filter logic
   const sortedResults = useMemo(() => {
     if (!results || results.length === 0) return [];
-    // Filter by time range
-    const filteredResults = filterResultsByTimeRange(results, timeRange);
-    // Sort by time (oldest first)
-    return [...filteredResults].sort(
+    // Results from hook are already filtered, just sort
+    return [...results].sort(
       (a, b) =>
         new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime(),
     );
-  }, [results, timeRange]);
+  }, [results]); // Only depends on results now
 
   // Prepare chart data based on sorted results
   const chartData = useMemo(() => {
     if (!sortedResults || sortedResults.length === 0) return null;
 
-    // Prepare data
     return {
       labels: sortedResults.map((result) =>
         formatDateForTimeRange(new Date(result.checkedAt), timeRange),
@@ -73,7 +52,7 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({
           label: "Response Time (ms)",
           data: sortedResults.map((result) => result.responseTime || 0),
           borderColor: theme.palette.primary.main,
-          backgroundColor: theme.palette.primary.main + "20", // with transparency
+          backgroundColor: theme.palette.primary.main + "20",
           fill: true,
           tension: 0.1,
           pointRadius: 2,
@@ -85,93 +64,60 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({
 
   // Memoize chart options
   const chartOptions = useMemo(
-    () => ({
+    (): ChartOptions<"line"> => ({
+      // Add type annotation
       responsive: true,
       maintainAspectRatio: false,
       scales: {
         y: {
           beginAtZero: true,
-          title: {
-            display: true,
-            text: "Response Time (ms)",
-          },
+          title: { display: true, text: "Response Time (ms)" },
         },
         x: {
-          title: {
-            display: true,
-            text: "Time",
-          },
-          ticks: {
-            maxRotation: 30,
-            minRotation: 30,
-          },
+          title: { display: true, text: "Time" },
+          ticks: { maxRotation: 30, minRotation: 30 },
         },
       },
       plugins: {
-        legend: {
-          display: false,
-        },
+        legend: { display: false },
         tooltip: {
           callbacks: {
-            title: function (tooltipItems: TooltipItem<"line">[]) {
+            title: (tooltipItems: TooltipItem<"line">[]) => {
               const index = tooltipItems[0].dataIndex;
-              if (sortedResults && sortedResults[index]) {
-                return new Date(
-                  sortedResults[index].checkedAt,
-                ).toLocaleString();
+              return sortedResults[index]
+                ? new Date(sortedResults[index].checkedAt).toLocaleString()
+                : "";
+            },
+            // Add label callback if needed
+            label: (context: TooltipItem<"line">) => {
+              let label = context.dataset.label || "";
+              if (label) {
+                label += ": ";
               }
-              return "";
+              if (context.parsed.y !== null) {
+                label += `${context.parsed.y} ms`;
+              }
+              return label;
             },
           },
         },
       },
     }),
     [sortedResults],
-  );
+  ); // Options depend on sortedResults for tooltip
 
-  // Show loading state
-  if (loading) {
-    return (
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          {title}
-        </Typography>
-        <Box sx={{ height }}>
-          <Skeleton
-            variant="rectangular"
-            width="100%"
-            height="100%"
-            animation="wave"
-          />
-        </Box>
-      </Paper>
-    );
-  }
-
+  // Render using BaseChart
   return (
-    <Paper sx={{ p: 3, mb: 3 }}>
-      <Typography variant="h6" gutterBottom>
-        {title}
-      </Typography>
-      <Box sx={{ height }}>
-        {results && results.length > 0 && chartData ? (
-          <Line data={chartData} options={chartOptions} />
-        ) : (
-          <Box
-            display="flex"
-            height="100%"
-            alignItems="center"
-            justifyContent="center"
-          >
-            <Typography variant="body1" color="textSecondary">
-              No data available for chart
-            </Typography>
-          </Box>
-        )}
-      </Box>
-    </Paper>
+    <BaseChart
+      title={title}
+      chartType="line"
+      data={chartData}
+      options={chartOptions}
+      loading={loading}
+      error={error} // Pass error down
+      height={height}
+    />
   );
 };
 
-// Memoize the component to prevent unnecessary re-renders
 export default React.memo(ResponseTimeChart);

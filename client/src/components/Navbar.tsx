@@ -82,7 +82,6 @@ function Navbar() {
         }
       } else if (setting === "Profile") {
         // Future implementation for profile page
-        console.log("Profile clicked - not implemented yet");
       }
     },
     [logout, navigate, handleCloseUserMenu],

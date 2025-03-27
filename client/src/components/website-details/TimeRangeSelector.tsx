@@ -14,16 +14,14 @@ import {
   CalendarViewDay as YearIcon,
   AllInclusive as AllTimeIcon,
 } from "@mui/icons-material";
-
-// Define time range options
-export type TimeRange = "1d" | "7d" | "30d" | "365d" | "all";
+import { TimeRange } from "../../types";
 
 // TimeRangeSelector Props
 export interface TimeRangeSelectorProps {
   value: TimeRange;
   onChange: (value: TimeRange) => void;
   label?: string;
-  availableRanges?: TimeRange[]; // New prop to restrict available options
+  availableRanges?: TimeRange[];
 }
 
 // Time range button configuration
@@ -78,14 +76,12 @@ const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
   value,
   onChange,
   label = "Time Range:",
-  availableRanges = ["1d", "7d", "30d", "365d", "all"], // Default to all ranges
+  availableRanges = ["1d", "7d", "30d", "365d", "all"],
 }) => {
-  // Handle change events
   const handleChange = (
     _event: React.MouseEvent<HTMLElement>,
-    newValue: TimeRange | null,
+    newValue: TimeRange | null, // Uses imported type
   ) => {
-    // Don't allow deselecting a value (if null, keep current value)
     if (newValue !== null) {
       onChange(newValue);
     }
@@ -117,7 +113,7 @@ const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
         }}
       >
         {timeRangeButtons
-          .filter((btn) => availableRanges.includes(btn.value)) // Only show available options
+          .filter((btn) => availableRanges.includes(btn.value))
           .map((btn) => (
             <Tooltip key={btn.value} title={btn.tooltip}>
               <ToggleButton value={btn.value} aria-label={btn.ariaLabel}>

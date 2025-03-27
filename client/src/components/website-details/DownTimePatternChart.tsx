@@ -1,41 +1,27 @@
-// src/components/website-details/DowntimePatternChart.tsx
+// src/components/website-details/DownTimePatternChart.tsx
 import React, { useMemo } from "react";
-import { Paper, Typography, Box, useTheme, Skeleton } from "@mui/material";
-import { Bar } from "react-chartjs-2";
-import { MonitoringResult } from "../../types";
+import { useTheme, Box, Typography } from "@mui/material"; // Keep Box/Typography for subtitle
+import { MonitoringResult, TimeRange } from "../../types"; // Import from types.ts
 import {
   prepareDowntimeByHourData,
   getDowntimeByHourOptions,
   prepareDowntimeByWeekdayData,
   getDowntimeByWeekdayOptions,
-} from "../../utils/charts/downTimeChart";
-import { TimeRange } from "./TimeRangeSelector";
+  // Add imports for month/other patterns if implemented later
+  // prepareDowntimeByMonthData,
+  // getDowntimeByMonthOptions,
+} from "../../utils/charts/downTimeChart"; // Ensure correct path
+import BaseChart from "./BaseChart"; // Import the base component
+import { ChartOptions } from "chart.js"; // Import ChartOptions type
 
-// Import required chart.js components
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from "chart.js";
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-);
+// Chart.js registration should be done globally (e.g., in WebsiteDetails.tsx or App.tsx)
+// Remove any local ChartJS.register calls if they existed
 
 interface DowntimePatternChartProps {
-  results: MonitoringResult[];
+  results: MonitoringResult[]; // Expects already filtered results from the hook
   timeRange: TimeRange;
   loading?: boolean;
+  error?: Error | null; // Add error prop for BaseChart
   height?: number;
   title?: string;
 }
@@ -44,6 +30,7 @@ const DowntimePatternChart: React.FC<DowntimePatternChartProps> = ({
   results,
   timeRange,
   loading = false,
+  error = null, // Destructure error prop
   height = 300,
   title = "Downtime Patterns",
 }) => {
@@ -58,109 +45,105 @@ const DowntimePatternChart: React.FC<DowntimePatternChartProps> = ({
       case "30d":
         return "weekday"; // For week/month, show day of week patterns
       case "365d":
-      case "all":
-        return "month"; // For year/all, show monthly patterns (though month implementation would need to be added)
+        // case "all": // Decide if 'all' should show month or weekday
+        return "weekday"; // Or potentially "month" if implemented
       default:
-        return "hour";
+        return "hour"; // Fallback
     }
   }, [timeRange]);
 
-  // Get appropriate title based on pattern type
+  // Get appropriate secondary title based on pattern type
   const patternTitle = useMemo(() => {
     switch (patternType) {
       case "hour":
         return "By Hour of Day";
       case "weekday":
         return "By Day of Week";
-      case "month":
-        return "By Month of Year";
+      // case "month": return "By Month of Year"; // Add when implemented
       default:
         return "Distribution";
     }
   }, [patternType]);
 
-  // Memoize chart data and options for better performance
+  // Memoize chart data preparation
   const chartData = useMemo(() => {
+    // Results are pre-filtered by the hook based on timeRange.
+    // The prepare functions might still filter internally based on timeRange,
+    // which is slightly redundant but acceptable for now.
+    // Ideally, the prepare functions would only aggregate the provided results.
     if (!results || results.length === 0) return null;
 
-    switch (patternType) {
-      case "hour":
-        return prepareDowntimeByHourData(results, timeRange, theme);
-      case "weekday":
-        return prepareDowntimeByWeekdayData(results, timeRange, theme);
-      case "month":
-        // For now, fall back to weekday data for month pattern
-        // This would be replaced with actual month-based data in a real implementation
-        return prepareDowntimeByWeekdayData(results, timeRange, theme);
-      default:
-        return prepareDowntimeByHourData(results, timeRange, theme);
+    try {
+      switch (patternType) {
+        case "hour":
+          return prepareDowntimeByHourData(results, timeRange, theme);
+        case "weekday":
+          return prepareDowntimeByWeekdayData(results, timeRange, theme);
+        // case "month": // Add when month data preparation is implemented
+        //   return prepareDowntimeByMonthData(results, timeRange, theme);
+        default:
+          // Fallback gracefully, maybe return null or default to hour
+          console.warn(
+            `Unsupported patternType '${patternType}' in DowntimePatternChart. Falling back to hour.`,
+          );
+          return prepareDowntimeByHourData(results, timeRange, theme);
+      }
+    } catch (prepError) {
+      console.error("Error preparing downtime chart data:", prepError);
+      // You could potentially pass this specific error down to BaseChart
+      return null; // Return null to show empty/error state in BaseChart
     }
-  }, [results, timeRange, theme, patternType]);
+  }, [results, timeRange, theme, patternType]); // Dependencies include patternType now
 
-  const chartOptions = useMemo(() => {
-    switch (patternType) {
-      case "hour":
-        return getDowntimeByHourOptions();
-      case "weekday":
-      case "month":
-        return getDowntimeByWeekdayOptions();
-      default:
-        return getDowntimeByHourOptions();
+  // Memoize chart options selection
+  const chartOptions = useMemo((): ChartOptions<"bar"> => {
+    // Explicit type
+    try {
+      switch (patternType) {
+        case "hour":
+          return getDowntimeByHourOptions();
+        case "weekday":
+          return getDowntimeByWeekdayOptions();
+        // case "month": // Add when month options are implemented
+        //   return getDowntimeByMonthOptions();
+        default:
+          // Fallback gracefully
+          return getDowntimeByHourOptions();
+      }
+    } catch (optionsError) {
+      console.error("Error getting downtime chart options:", optionsError);
+      return {}; // Return empty options or default
     }
-  }, [patternType]);
-
-  // Show loading state
-  if (loading) {
-    return (
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          {title}
-        </Typography>
-        <Box sx={{ height }}>
-          <Skeleton
-            variant="rectangular"
-            width="100%"
-            height="100%"
-            animation="wave"
-          />
-        </Box>
-      </Paper>
-    );
-  }
+  }, [patternType]); // Options depend only on patternType
 
   return (
-    <Paper sx={{ p: 3, mb: 3 }}>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 2,
-        }}
+    // Use a Box to potentially group the BaseChart and its specific subtitle
+    <Box>
+      {/* Display the dynamic secondary title (e.g., "By Hour of Day") */}
+      {/* Position it relative to the BaseChart */}
+      <Typography
+        variant="subtitle2"
+        color="textSecondary"
+        align="right"
+        // Adjust styling for positioning above the chart area within the Paper
+        sx={{ mb: -2.5, mr: 3, position: "relative", zIndex: 1 }}
       >
-        <Typography variant="h6">{title}</Typography>
-        <Typography variant="subtitle2" color="textSecondary">
-          {patternTitle}
-        </Typography>
-      </Box>
+        {patternTitle}
+      </Typography>
 
-      <Box sx={{ height }}>
-        {results && results.length > 0 && chartData ? (
-          <Bar data={chartData} options={chartOptions} />
-        ) : (
-          <Box
-            display="flex"
-            height="100%"
-            alignItems="center"
-            justifyContent="center"
-          >
-            <Typography variant="body1" color="textSecondary">
-              No data available for chart
-            </Typography>
-          </Box>
-        )}
-      </Box>
-    </Paper>
+      {/* Use the BaseChart component for rendering */}
+      <BaseChart
+        title={title} // Main title (e.g., "Downtime Patterns")
+        chartType="bar"
+        data={chartData} // Pass prepared data
+        options={chartOptions} // Pass selected options
+        loading={loading} // Pass loading state
+        error={error} // Pass error state
+        height={height} // Pass height
+        // Optionally customize empty message
+        // emptyMessage="No downtime patterns found for this period."
+      />
+    </Box>
   );
 };
 

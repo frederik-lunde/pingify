@@ -32,9 +32,6 @@ export function useWebsiteData(limit = 100, pollingInterval?: number) {
   // Combine websites with their results
   const websitesWithLatestResults = useMemo(() => {
     // Debug output for data received
-    console.log(
-      `Processing data: ${userWebsites?.length || 0} websites, ${allMonitoringResults?.length || 0} results`,
-    );
 
     if (!userWebsites?.length) {
       return [];
@@ -64,7 +61,6 @@ export function useWebsiteData(limit = 100, pollingInterval?: number) {
 
   // Helper function to refetch all data
   const refetch = useCallback(() => {
-    console.log("Refetching website data and results");
     refetchWebsites();
     refetchResults();
   }, [refetchWebsites, refetchResults]);

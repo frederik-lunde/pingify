@@ -12,11 +12,8 @@ const Dashboard: React.FC = () => {
   const { data: stats, loading: statsLoading } = useUserStats();
 
   // Get website data using our new domain hook
-  const {
-    websitesWithLatestResults,
-    loading: websitesLoading,
-    overallStatus,
-  } = useWebsiteData();
+  const { websitesWithLatestResults, loading: websitesLoading } =
+    useWebsiteData();
 
   // Safety checks for TypeScript
   const safeStats = stats || {
@@ -25,14 +22,6 @@ const Dashboard: React.FC = () => {
     overallResponseTime: 0,
     websiteStats: [],
   };
-
-  // Debug output
-  console.log(
-    "Dashboard render with",
-    websitesWithLatestResults.length,
-    "websites",
-  );
-  console.log("Overall status:", overallStatus);
 
   // Loading states
   if (websitesLoading && !websitesWithLatestResults.length) {
