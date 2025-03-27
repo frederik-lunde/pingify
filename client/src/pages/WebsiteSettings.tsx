@@ -26,17 +26,24 @@ import {
 } from "@mui/icons-material";
 import { useWebsite, useWebsiteCrud } from "../hooks"; // Import from the new hooks directory
 
-const WebsiteSettings: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const websiteId = parseInt(id || "0", 10);
+interface WebsiteSettingsProps {
+  websiteId: number; // Receive validated ID as a prop
+}
+
+const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
+  // Use the prop
+  // const { id } = useParams<{ id: string }>(); // No longer needed here
+  // const websiteId = parseInt(id || "0", 10); // No longer needed here
   const navigate = useNavigate();
 
-  // Use our new hooks for data fetching with polling disabled for this settings page
+  // --- ADJUSTED HOOK CALL ---
+  // Use pollingInterval = 0 to disable polling timer.
+  // Use default enabled = true and fetchOnMount = true.
   const {
     data: website,
     loading: websiteLoading,
     error: websiteError,
-  } = useWebsite(websiteId, 0, { enabled: false, fetchOnMount: true });
+  } = useWebsite(websiteId, 0);
 
   // Use our website CRUD hook
   const { update, remove, loading: actionLoading } = useWebsiteCrud();
@@ -152,7 +159,19 @@ const WebsiteSettings: React.FC = () => {
   }
 
   // Error state
-  if (websiteError || !website) {
+  if (websiteLoading) {
+    // Show loading indicator *while* loading
+    return (
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+        <Box display="flex" justifyContent="center" my={4}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  if (websiteError || (!websiteLoading && !website)) {
+    // Check !website only *after* loading is false
     const errorMessage =
       websiteError?.message ||
       "Website not found or you do not have access to it.";

@@ -27,9 +27,16 @@ function WebsiteDetailsWrapper() {
 
 function WebsiteSettingsWrapper() {
   const { id } = useParams<{ id: string }>();
+  const websiteId = parseInt(id || "0", 10);
+
+  if (!websiteId) {
+    return <Alert severity="error">Invalid Website ID provided.</Alert>;
+  }
+
   return (
     <ProtectedRoute key={id}>
-      <WebsiteSettings />
+      {/* Pass the validated websiteId */}
+      <WebsiteSettings websiteId={websiteId} />
     </ProtectedRoute>
   );
 }
