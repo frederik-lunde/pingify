@@ -57,7 +57,16 @@ import { TimeRange } from "../types";
 
 // Helper function... (remains the same)
 const getAvailableTimeRanges = (tabIndex: number): TimeRange[] => {
-  /* ... */
+  switch (tabIndex) {
+    case 0: // Response Time
+    case 1: // Uptime Status
+    case 3: // Recent Checks
+      return ["1d", "7d", "30d", "365d", "all"];
+    case 2: // Downtime Patterns
+      return ["1d", "7d", "30d", "365d"]; // Adjust as needed, maybe 'all' is too much for patterns
+    default:
+      return ["1d", "7d", "30d", "365d", "all"];
+  }
 };
 
 const WebsiteDetails: React.FC = () => {
