@@ -1,13 +1,13 @@
 // src/components/website-details/UptimeChart.tsx
-import React, { useMemo } from 'react';
-import { Paper, Typography, Box, useTheme, Skeleton } from '@mui/material';
-import { Bar } from 'react-chartjs-2';
-import { MonitoringResult } from '../../types';
-import { 
-  prepareUptimeStatusData, 
-  getUptimeStatusOptions 
-} from '../../utils/charts/uptimeChart';
-import { TimeRange } from './TimeRangeSelector';
+import React, { useMemo } from "react";
+import { Paper, Typography, Box, useTheme, Skeleton } from "@mui/material";
+import { Bar } from "react-chartjs-2";
+import { MonitoringResult } from "../../types";
+import {
+  prepareUptimeStatusData,
+  getUptimeStatusOptions,
+} from "../../utils/charts/uptimeChart";
+import { TimeRange } from "./TimeRangeSelector";
 
 // Import required chart.js components
 import {
@@ -17,8 +17,8 @@ import {
   BarElement,
   Title,
   Tooltip,
-  Legend
-} from 'chart.js';
+  Legend,
+} from "chart.js";
 
 // Register Chart.js components
 ChartJS.register(
@@ -27,7 +27,7 @@ ChartJS.register(
   BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
 );
 
 interface UptimeChartProps {
@@ -38,23 +38,23 @@ interface UptimeChartProps {
   title?: string;
 }
 
-const UptimeChart: React.FC<UptimeChartProps> = ({ 
-  results, 
+const UptimeChart: React.FC<UptimeChartProps> = ({
+  results,
   timeRange,
   loading = false,
   height = 300,
-  title = "Uptime Status"
+  title = "Uptime Status",
 }) => {
   const theme = useTheme();
-  
+
   // Memoize chart data and options for better performance
   const chartData = useMemo(() => {
     if (!results || results.length === 0) return null;
     return prepareUptimeStatusData(results, timeRange, theme);
   }, [results, timeRange, theme]);
-  
+
   const chartOptions = useMemo(() => getUptimeStatusOptions(), []);
-  
+
   // Show loading state
   if (loading) {
     return (
@@ -63,12 +63,17 @@ const UptimeChart: React.FC<UptimeChartProps> = ({
           {title}
         </Typography>
         <Box sx={{ height }}>
-          <Skeleton variant="rectangular" width="100%" height="100%" animation="wave" />
+          <Skeleton
+            variant="rectangular"
+            width="100%"
+            height="100%"
+            animation="wave"
+          />
         </Box>
       </Paper>
     );
   }
-  
+
   return (
     <Paper sx={{ p: 3, mb: 3 }}>
       <Typography variant="h6" gutterBottom>
@@ -76,12 +81,14 @@ const UptimeChart: React.FC<UptimeChartProps> = ({
       </Typography>
       <Box sx={{ height }}>
         {results && results.length > 0 && chartData ? (
-          <Bar 
-            data={chartData} 
-            options={chartOptions} 
-          />
+          <Bar data={chartData} options={chartOptions} />
         ) : (
-          <Box display="flex" height="100%" alignItems="center" justifyContent="center">
+          <Box
+            display="flex"
+            height="100%"
+            alignItems="center"
+            justifyContent="center"
+          >
             <Typography variant="body1" color="textSecondary">
               No data available for chart
             </Typography>

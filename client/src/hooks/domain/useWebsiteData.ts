@@ -1,8 +1,8 @@
 // src/hooks/domain/useWebsiteData.ts
-import { useMemo, useCallback } from 'react';
-import { UserWebsite, MonitoringResult } from '../../types';
-import { useUserMonitoringResults } from '../api/useMonitoring';
-import { useWebsites } from '../api/useWebsites';
+import { useMemo, useCallback } from "react";
+import { UserWebsite, MonitoringResult } from "../../types";
+import { useUserMonitoringResults } from "../api/useMonitoring";
+import { useWebsites } from "../api/useWebsites";
 
 export interface WebsiteWithResult {
   userWebsite: UserWebsite;
@@ -16,49 +16,55 @@ export interface WebsiteWithResult {
  */
 export function useWebsiteData(limit = 100, pollingInterval?: number) {
   // Fetch websites data
-  const { 
-    data: userWebsites = [], 
-    loading: websitesLoading, 
-    refetch: refetchWebsites 
+  const {
+    data: userWebsites = [],
+    loading: websitesLoading,
+    refetch: refetchWebsites,
   } = useWebsites(pollingInterval);
-  
+
   // Fetch monitoring results data
-  const { 
-    data: allMonitoringResults = [], 
+  const {
+    data: allMonitoringResults = [],
     loading: resultsLoading,
-    refetch: refetchResults 
+    refetch: refetchResults,
   } = useUserMonitoringResults({ limit }, pollingInterval);
-  
+
   // Combine websites with their results
   const websitesWithLatestResults = useMemo(() => {
     // Debug output for data received
-    console.log(`Processing data: ${userWebsites?.length || 0} websites, ${allMonitoringResults?.length || 0} results`);
-    
+    console.log(
+      `Processing data: ${userWebsites?.length || 0} websites, ${allMonitoringResults?.length || 0} results`,
+    );
+
     if (!userWebsites?.length) {
       return [];
     }
-    
+
     // Map each website to include its results
-    return userWebsites.map(userWebsite => {
+    return userWebsites.map((userWebsite) => {
       // Filter results for this specific website
       const websiteResults = (allMonitoringResults || [])
-        .filter(result => result.websiteId === userWebsite.websiteId)
-        .sort((a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime());
-      
+        .filter((result) => result.websiteId === userWebsite.websiteId)
+        .sort(
+          (a, b) =>
+            new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime(),
+        );
+
       // Get the latest result (first after sorting)
-      const latestResult = websiteResults.length > 0 ? websiteResults[0] : undefined;
-      
+      const latestResult =
+        websiteResults.length > 0 ? websiteResults[0] : undefined;
+
       return {
         userWebsite,
         latestResult,
-        results: websiteResults
+        results: websiteResults,
       };
     });
   }, [userWebsites, allMonitoringResults]);
 
   // Helper function to refetch all data
   const refetch = useCallback(() => {
-    console.log('Refetching website data and results');
+    console.log("Refetching website data and results");
     refetchWebsites();
     refetchResults();
   }, [refetchWebsites, refetchResults]);
@@ -69,18 +75,18 @@ export function useWebsiteData(limit = 100, pollingInterval?: number) {
       return {
         totalWebsites: 0,
         onlineWebsites: 0,
-        offlineWebsites: 0
+        offlineWebsites: 0,
       };
     }
 
     const online = websitesWithLatestResults.filter(
-      site => site.latestResult?.isAvailable
+      (site) => site.latestResult?.isAvailable,
     ).length;
 
     return {
       totalWebsites: websitesWithLatestResults.length,
       onlineWebsites: online,
-      offlineWebsites: websitesWithLatestResults.length - online
+      offlineWebsites: websitesWithLatestResults.length - online,
     };
   }, [websitesWithLatestResults]);
 
@@ -88,7 +94,7 @@ export function useWebsiteData(limit = 100, pollingInterval?: number) {
     websitesWithLatestResults,
     loading: websitesLoading || resultsLoading,
     refetch,
-    overallStatus
+    overallStatus,
   };
 }
 

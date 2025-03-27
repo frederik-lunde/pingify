@@ -1,8 +1,7 @@
 // src/hooks/common/usePolling.ts
-import { useEffect, useCallback, useRef, useReducer } from 'react';
-import { DEFAULT_POLLING_INTERVAL } from '../../api/config';
-import isEqual from 'lodash/isEqual';
-
+import { useEffect, useCallback, useRef, useReducer } from "react";
+import { DEFAULT_POLLING_INTERVAL } from "../../api/config";
+import isEqual from "lodash/isEqual";
 
 export interface PollingOptions<T> {
   initialData?: T;
@@ -35,39 +34,43 @@ type PollingState<T> = {
 };
 
 type PollingAction<T> =
-  | { type: 'FETCH_START' }
-  | { type: 'FETCH_SUCCESS'; payload: T }
-  | { type: 'FETCH_ERROR'; payload: Error }
-  | { type: 'RESET_ERROR' }
-  | { type: 'DIRECT_SET_DATA'; payload: T | null };
+  | { type: "FETCH_START" }
+  | { type: "FETCH_SUCCESS"; payload: T }
+  | { type: "FETCH_ERROR"; payload: Error }
+  | { type: "RESET_ERROR" }
+  | { type: "DIRECT_SET_DATA"; payload: T | null };
 
 // --- Reducer Function ---
 // Stays the same, ensuring FETCH_START clears errors.
 function createPollingReducer<T>() {
-  return function reducer(state: PollingState<T>, action: PollingAction<T>): PollingState<T> {
+  return function reducer(
+    state: PollingState<T>,
+    action: PollingAction<T>,
+  ): PollingState<T> {
     switch (action.type) {
-      case 'FETCH_START':
+      case "FETCH_START":
         return { ...state, loading: true, error: null }; // Clear error on start
-      case 'FETCH_SUCCESS':
-        { const dataChanged = !isEqual(state.data, action.payload);
+      case "FETCH_SUCCESS": {
+        const dataChanged = !isEqual(state.data, action.payload);
         return dataChanged
           ? {
               ...state,
               data: action.payload,
               loading: false,
               error: null,
-              fetchCount: state.fetchCount + 1
+              fetchCount: state.fetchCount + 1,
             }
           : {
               ...state,
               loading: false,
-              error: null
-            }; }
-      case 'FETCH_ERROR':
+              error: null,
+            };
+      }
+      case "FETCH_ERROR":
         return { ...state, loading: false, error: action.payload };
-      case 'RESET_ERROR':
+      case "RESET_ERROR":
         return { ...state, error: null };
-      case 'DIRECT_SET_DATA':
+      case "DIRECT_SET_DATA":
         return {
           ...state,
           data: action.payload,
@@ -81,7 +84,7 @@ function createPollingReducer<T>() {
 // --- The Hook ---
 export function usePolling<T>(
   fetchFunction: () => Promise<T>,
-  options: PollingOptions<T> = {}
+  options: PollingOptions<T> = {},
 ): PollingResult<T> {
   const {
     initialData = null,
@@ -90,7 +93,7 @@ export function usePolling<T>(
     fetchOnMount = true,
     onSuccess,
     onError,
-    respectVisibility = true
+    respectVisibility = true,
   } = options;
 
   // Ref to always hold the latest fetch function
@@ -106,7 +109,7 @@ export function usePolling<T>(
     // Initial loading: true only if enabled, fetching on mount, and no initial data provided
     loading: enabled && fetchOnMount && initialData === null,
     error: null,
-    fetchCount: 0
+    fetchCount: 0,
   });
 
   // Refs to manage polling state without causing re-renders
@@ -119,19 +122,20 @@ export function usePolling<T>(
   const refetch = useCallback(async (): Promise<void> => {
     if (!isMounted.current) return; // Prevent updates on unmounted component
 
-    dispatch({ type: 'FETCH_START' });
+    dispatch({ type: "FETCH_START" });
     try {
       const result = await fetchFunctionRef.current(); // Always use the latest function
       if (isMounted.current) {
-        dispatch({ type: 'FETCH_SUCCESS', payload: result });
+        dispatch({ type: "FETCH_SUCCESS", payload: result });
         if (onSuccess) onSuccess(result);
       }
     } catch (err) {
       if (isMounted.current) {
-        const errorObject = err instanceof Error ? err : new Error('Failed to fetch data');
-        dispatch({ type: 'FETCH_ERROR', payload: errorObject });
+        const errorObject =
+          err instanceof Error ? err : new Error("Failed to fetch data");
+        dispatch({ type: "FETCH_ERROR", payload: errorObject });
         if (onError) onError(errorObject);
-        console.error('Error during fetch:', errorObject);
+        console.error("Error during fetch:", errorObject);
       }
     }
   }, [onSuccess, onError]); // Depends only on the callbacks it uses
@@ -159,7 +163,8 @@ export function usePolling<T>(
         stopPolling(); // Stop if component unmounted
         return;
       }
-      const isVisible = !respectVisibility || document.visibilityState === 'visible';
+      const isVisible =
+        !respectVisibility || document.visibilityState === "visible";
       if (isVisible) {
         refetch();
       }
@@ -170,20 +175,22 @@ export function usePolling<T>(
 
     // Set up the interval
     intervalId.current = window.setInterval(performPollCheck, pollingInterval);
-
   }, [enabled, pollingInterval, refetch, respectVisibility, stopPolling]);
-
 
   // --- setData Function ---
   // Remains the same, dispatches DIRECT_SET_DATA
-  const setData = useCallback((updater: T | null | ((currentData: T | null) => T | null)) => {
-    dispatch({
-        type: 'DIRECT_SET_DATA',
-        payload: typeof updater === 'function'
+  const setData = useCallback(
+    (updater: T | null | ((currentData: T | null) => T | null)) => {
+      dispatch({
+        type: "DIRECT_SET_DATA",
+        payload:
+          typeof updater === "function"
             ? (updater as (currentData: T | null) => T | null)(state.data)
-            : updater
-    });
-  }, [state.data]);
+            : updater,
+      });
+    },
+    [state.data],
+  );
 
   // --- Effects ---
 
@@ -199,10 +206,11 @@ export function usePolling<T>(
   useEffect(() => {
     if (enabled) {
       if (fetchOnMount && isMounted.current && !isPollingActive.current) {
-          const isVisible = !respectVisibility || document.visibilityState === 'visible';
-          if (isVisible) {
-             refetch();
-          }
+        const isVisible =
+          !respectVisibility || document.visibilityState === "visible";
+        if (isVisible) {
+          refetch();
+        }
       }
       startPolling(); // Start or restart polling if interval changed
     } else {
@@ -210,8 +218,15 @@ export function usePolling<T>(
     }
 
     // Cleanup within this effect scope if needed (handled by stopPolling call)
-  }, [enabled, pollingInterval, fetchOnMount, startPolling, stopPolling, refetch, respectVisibility]); // Re-evaluate polling when these change
-
+  }, [
+    enabled,
+    pollingInterval,
+    fetchOnMount,
+    startPolling,
+    stopPolling,
+    refetch,
+    respectVisibility,
+  ]); // Re-evaluate polling when these change
 
   // --- Return Value ---
   return {
@@ -222,7 +237,7 @@ export function usePolling<T>(
     stopPolling,
     startPolling,
     fetchCount: state.fetchCount,
-    setData
+    setData,
   };
 }
 

@@ -1,6 +1,6 @@
 // client/src/pages/AddWebsite.tsx
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router';
+import React, { useState } from "react";
+import { useNavigate } from "react-router";
 import {
   Container,
   Paper,
@@ -13,14 +13,18 @@ import {
   Snackbar,
   Alert,
   Tooltip,
-  IconButton
-} from '@mui/material';
-import Grid from '@mui/material/Grid2';
-import { Add as AddIcon, HelpOutline as HelpIcon } from '@mui/icons-material';
-import { WebsiteCreateDTO, Website } from '../types';
-import WebsiteUrlSearch from '../components/WebsiteUrlSearch';
-import { validateWebsiteForm, prepareWebsiteData, ValidationErrors } from '../utils/validation/addWebsiteValidation';
-import { useWebsiteCrud } from '../hooks'; // Import from the new hooks directory
+  IconButton,
+} from "@mui/material";
+import Grid from "@mui/material/Grid2";
+import { Add as AddIcon, HelpOutline as HelpIcon } from "@mui/icons-material";
+import { WebsiteCreateDTO, Website } from "../types";
+import WebsiteUrlSearch from "../components/WebsiteUrlSearch";
+import {
+  validateWebsiteForm,
+  prepareWebsiteData,
+  ValidationErrors,
+} from "../utils/validation/addWebsiteValidation";
+import { useWebsiteCrud } from "../hooks"; // Import from the new hooks directory
 
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
@@ -28,28 +32,32 @@ const AddWebsite: React.FC = () => {
 
   // Form state
   const [formData, setFormData] = useState<Partial<WebsiteCreateDTO>>({
-    name: '',
-    url: '',
+    name: "",
+    url: "",
     interval: 300, // Default: 5 minutes (in seconds)
     alertEnabled: false,
     alertThreshold: 1000, // Default: 1 second (in milliseconds)
-    notifyEmail: '',
+    notifyEmail: "",
   });
 
   // UI state
-  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
+    {},
+  );
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">(
+    "success",
+  );
 
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    const newValue = type === 'checkbox' ? checked : value;
+    const newValue = type === "checkbox" ? checked : value;
 
     setFormData((prev) => ({
       ...prev,
-      [name]: newValue
+      [name]: newValue,
     }));
 
     if (validationErrors[name]) {
@@ -63,10 +71,10 @@ const AddWebsite: React.FC = () => {
 
   // Handle URL change from the search component
   const handleUrlChange = (url: string) => {
-    setFormData(prev => ({ ...prev, url }));
-    
+    setFormData((prev) => ({ ...prev, url }));
+
     if (validationErrors.url) {
-      setValidationErrors(prev => {
+      setValidationErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors.url;
         return newErrors;
@@ -77,22 +85,22 @@ const AddWebsite: React.FC = () => {
   // Handle website selection from search
   const handleWebsiteSelect = (website: Website | null) => {
     if (!website) return;
-    
+
     // Suggest a name based on the URL if user hasn't entered one yet
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      name: prev.name || new URL(website.url).hostname.replace(/^www\./, '')
+      name: prev.name || new URL(website.url).hostname.replace(/^www\./, ""),
     }));
   };
 
   // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate form
     const errors = validateWebsiteForm(formData);
     setValidationErrors(errors);
-    
+
     // Stop if there are validation errors
     if (Object.keys(errors).length > 0) return;
 
@@ -101,17 +109,18 @@ const AddWebsite: React.FC = () => {
       const websiteData = prepareWebsiteData(formData);
       await create(websiteData);
 
-      setSnackbarMessage('Website added successfully!');
-      setSnackbarSeverity('success');
+      setSnackbarMessage("Website added successfully!");
+      setSnackbarSeverity("success");
       setSnackbarOpen(true);
 
       setTimeout(() => {
-        navigate('/');
+        navigate("/");
       }, 1500);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to add website';
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to add website";
       setSnackbarMessage(errorMessage);
-      setSnackbarSeverity('error');
+      setSnackbarSeverity("error");
       setSnackbarOpen(true);
     }
   };
@@ -135,14 +144,17 @@ const AddWebsite: React.FC = () => {
                 required
                 variant="outlined"
                 error={!!validationErrors.name}
-                helperText={validationErrors.name || "A name to identify this website in your dashboard"}
+                helperText={
+                  validationErrors.name ||
+                  "A name to identify this website in your dashboard"
+                }
               />
             </Grid>
 
             {/* Website URL with Search Component */}
             <Grid size={12}>
               <WebsiteUrlSearch
-                value={formData.url || ''}
+                value={formData.url || ""}
                 onChange={handleUrlChange}
                 onSelect={handleWebsiteSelect}
                 error={validationErrors.url}
@@ -161,17 +173,20 @@ const AddWebsite: React.FC = () => {
                 fullWidth
                 variant="outlined"
                 error={!!validationErrors.interval}
-                helperText={validationErrors.interval || "How often the website should be checked (in seconds). Minimum 30s."}
+                helperText={
+                  validationErrors.interval ||
+                  "How often the website should be checked (in seconds). Minimum 30s."
+                }
               />
             </Grid>
 
             {/* Alert Enable Switch */}
             <Grid size={12}>
-              <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 2, mt: 2 }}>
+              <Box sx={{ borderTop: 1, borderColor: "divider", pt: 2, mt: 2 }}>
                 <Typography variant="h6" gutterBottom>
                   Alert Settings
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Box sx={{ display: "flex", alignItems: "center" }}>
                   <FormControlLabel
                     control={
                       <Switch
@@ -205,7 +220,10 @@ const AddWebsite: React.FC = () => {
                     fullWidth
                     variant="outlined"
                     error={!!validationErrors.alertThreshold}
-                    helperText={validationErrors.alertThreshold || "Send an alert if response time exceeds this value (in milliseconds)"}
+                    helperText={
+                      validationErrors.alertThreshold ||
+                      "Send an alert if response time exceeds this value (in milliseconds)"
+                    }
                   />
                 </Grid>
 
@@ -219,24 +237,35 @@ const AddWebsite: React.FC = () => {
                     fullWidth
                     variant="outlined"
                     error={!!validationErrors.notifyEmail}
-                    helperText={validationErrors.notifyEmail || "Email address to receive alert notifications"}
+                    helperText={
+                      validationErrors.notifyEmail ||
+                      "Email address to receive alert notifications"
+                    }
                   />
                 </Grid>
               </>
             )}
 
             {/* Buttons */}
-            <Grid size={12} sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-              <Button variant="outlined" onClick={() => navigate('/')}>
+            <Grid
+              size={12}
+              sx={{
+                mt: 2,
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 2,
+              }}
+            >
+              <Button variant="outlined" onClick={() => navigate("/")}>
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
-                variant="contained" 
-                disabled={loading} 
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={loading}
                 startIcon={<AddIcon />}
               >
-                {loading ? 'Adding...' : 'Add Website'}
+                {loading ? "Adding..." : "Add Website"}
               </Button>
             </Grid>
           </Grid>
@@ -248,9 +277,13 @@ const AddWebsite: React.FC = () => {
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert onClose={() => setSnackbarOpen(false)} severity={snackbarSeverity} sx={{ width: '100%' }}>
+        <Alert
+          onClose={() => setSnackbarOpen(false)}
+          severity={snackbarSeverity}
+          sx={{ width: "100%" }}
+        >
           {snackbarMessage}
         </Alert>
       </Snackbar>

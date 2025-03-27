@@ -1,7 +1,12 @@
 // src/api/enhancedClient.ts
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
-import { API_BASE_URL } from './config';
-import { getAuthToken, fireAuthErrorEvent } from '../utils/authTokenUtils';
+import axios, {
+  AxiosInstance,
+  AxiosRequestConfig,
+  AxiosResponse,
+  AxiosError,
+} from "axios";
+import { API_BASE_URL } from "./config";
+import { getAuthToken, fireAuthErrorEvent } from "../utils/authTokenUtils";
 
 /**
  * API response type with proper typing
@@ -18,7 +23,7 @@ class EnhancedApiClient {
     this.client = axios.create({
       baseURL: API_BASE_URL,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
@@ -28,13 +33,13 @@ class EnhancedApiClient {
         // Get auth token using the centralized utility
         const token = getAuthToken();
         if (token) {
-          config.headers['Authorization'] = `Bearer ${token}`;
+          config.headers["Authorization"] = `Bearer ${token}`;
         }
         return config;
       },
       (error) => {
         return Promise.reject(error);
-      }
+      },
     );
 
     // Add response interceptor for error handling
@@ -48,19 +53,19 @@ class EnhancedApiClient {
         }
 
         // Extract error message safely handling various response formats
-        let errorMessage = 'Unknown API error';
-        
+        let errorMessage = "Unknown API error";
+
         if (error.message) {
           errorMessage = error.message;
         }
-        
+
         // Check if response.data exists and has a message property
         if (error.response?.data) {
           // Type guard to check if data is an object with a message property
           const data = error.response.data as any;
-          if (typeof data === 'object' && data !== null && 'message' in data) {
+          if (typeof data === "object" && data !== null && "message" in data) {
             errorMessage = data.message;
-          } else if (typeof data === 'string') {
+          } else if (typeof data === "string") {
             // Handle case where the entire data is a string message
             errorMessage = data;
           }
@@ -68,18 +73,18 @@ class EnhancedApiClient {
 
         // Enhance error with additional information for better debugging
         const enhancedError = new Error(errorMessage);
-        
+
         // Add additional context to the error
         Object.assign(enhancedError, {
           status: error.response?.status,
           statusText: error.response?.statusText,
           url: error.config?.url,
           method: error.config?.method?.toUpperCase(),
-          data: error.response?.data
+          data: error.response?.data,
         });
-        
+
         return Promise.reject(enhancedError);
-      }
+      },
     );
   }
 
@@ -101,8 +106,16 @@ class EnhancedApiClient {
    * @param config - Axios request config
    * @returns Promise with the response data
    */
-  async post<T, D = any>(url: string, data?: D, config?: AxiosRequestConfig): ApiResponse<T> {
-    const response: AxiosResponse<T> = await this.client.post(url, data, config);
+  async post<T, D = any>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig,
+  ): ApiResponse<T> {
+    const response: AxiosResponse<T> = await this.client.post(
+      url,
+      data,
+      config,
+    );
     return response.data;
   }
 
@@ -113,7 +126,11 @@ class EnhancedApiClient {
    * @param config - Axios request config
    * @returns Promise with the response data
    */
-  async put<T, D = any>(url: string, data?: D, config?: AxiosRequestConfig): ApiResponse<T> {
+  async put<T, D = any>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig,
+  ): ApiResponse<T> {
     const response: AxiosResponse<T> = await this.client.put(url, data, config);
     return response.data;
   }

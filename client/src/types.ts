@@ -79,7 +79,7 @@ export interface OverallStats {
 }
 
 // Updated Alert types
-export type AlertType = 'down' | 'slow' | 'recovered';
+export type AlertType = "down" | "slow" | "recovered";
 
 export interface Alert {
   id: number;
@@ -111,10 +111,10 @@ export interface AlertStats {
   resolvedAlerts: number;
   unresolvedAlerts: number;
   byType: Record<AlertType, number>;
-  byWebsite: Array<{ 
-    websiteId: number, 
-    websiteName: string, 
-    count: number 
+  byWebsite: Array<{
+    websiteId: number;
+    websiteName: string;
+    count: number;
   }>;
 }
 
@@ -144,16 +144,20 @@ export interface AuthContextType {
   token: string | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean,
+  ) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
 }
 
 // Time range type for chart filtering
-export type TimeRange = '1d' | '7d' | '30d' | '365d' | 'all';
+export type TimeRange = "1d" | "7d" | "30d" | "365d" | "all";
 
 // Time grouping type for data aggregation
-export type TimeGrouping = 'hour' | 'day' | 'week' | 'month';
+export type TimeGrouping = "hour" | "day" | "week" | "month";
 
 // Grouped data result type
 export interface GroupedTimeData {
@@ -183,7 +187,7 @@ export interface EnhancedWebsiteDetailData {
   timeRange: TimeRange;
   setTimeRange: (range: TimeRange) => void;
   currentStatus: string;
-  statusColor: 'success' | 'error' | 'info';
+  statusColor: "success" | "error" | "info";
   uptime: number;
   avgResponseTime: number;
   loading: boolean;

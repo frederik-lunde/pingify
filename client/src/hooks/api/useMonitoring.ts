@@ -1,8 +1,8 @@
 // src/hooks/api/useMonitoring.ts
-import { useState, useCallback } from 'react';
-import { MonitoringResult, OverallStats, WebsiteStats } from '../../types';
-import apiClient from '../../api/client';
-import { usePolling } from '../common/usePolling';
+import { useState, useCallback } from "react";
+import { MonitoringResult, OverallStats, WebsiteStats } from "../../types";
+import apiClient from "../../api/client";
+import { usePolling } from "../common/usePolling";
 
 /**
  * Query options for monitoring results
@@ -18,14 +18,16 @@ export interface MonitoringQueryOptions {
  */
 export function useUserMonitoringResults(
   options: MonitoringQueryOptions = { limit: 20 },
-  pollingInterval?: number
+  pollingInterval?: number,
 ) {
   const fetchResults = useCallback(async () => {
     const params: any = { limit: options.limit || 100 };
     if (options.from) params.from = options.from.toISOString();
     if (options.to) params.to = options.to.toISOString();
-    
-    return await apiClient.get<MonitoringResult[]>('/monitoring/user/results', { params });
+
+    return await apiClient.get<MonitoringResult[]>("/monitoring/user/results", {
+      params,
+    });
   }, [options.limit, options.from, options.to]);
 
   return usePolling<MonitoringResult[]>(fetchResults, { pollingInterval });
@@ -35,18 +37,18 @@ export function useUserMonitoringResults(
  * Hook for polling results for a specific website
  */
 export function useWebsiteResults(
-  websiteId: number, 
+  websiteId: number,
   options: MonitoringQueryOptions = { limit: 20 },
-  pollingInterval?: number
+  pollingInterval?: number,
 ) {
   const fetchResults = useCallback(async () => {
     const params: any = { limit: options.limit || 100 };
     if (options.from) params.from = options.from.toISOString();
     if (options.to) params.to = options.to.toISOString();
-    
+
     return await apiClient.get<MonitoringResult[]>(
-      `/monitoring/website/${websiteId}/results`, 
-      { params }
+      `/monitoring/website/${websiteId}/results`,
+      { params },
     );
   }, [websiteId, options.limit, options.from, options.to]);
 
@@ -56,10 +58,10 @@ export function useWebsiteResults(
 /**
  * Hook for polling user dashboard statistics
  */
-export function useUserStats(period = '7d', pollingInterval?: number) {
+export function useUserStats(period = "7d", pollingInterval?: number) {
   const fetchStats = useCallback(async () => {
-    return await apiClient.get<OverallStats>('/monitoring/user/stats', {
-      params: { period }
+    return await apiClient.get<OverallStats>("/monitoring/user/stats", {
+      params: { period },
     });
   }, [period]);
 
@@ -69,11 +71,18 @@ export function useUserStats(period = '7d', pollingInterval?: number) {
 /**
  * Hook for polling statistics for a specific website
  */
-export function useWebsiteStats(websiteId: number, period = '7d', pollingInterval?: number) {
+export function useWebsiteStats(
+  websiteId: number,
+  period = "7d",
+  pollingInterval?: number,
+) {
   const fetchStats = useCallback(async () => {
-    return await apiClient.get<WebsiteStats>(`/monitoring/website/${websiteId}/stats`, {
-      params: { period }
-    });
+    return await apiClient.get<WebsiteStats>(
+      `/monitoring/website/${websiteId}/stats`,
+      {
+        params: { period },
+      },
+    );
   }, [websiteId, period]);
 
   return usePolling<WebsiteStats>(fetchStats, { pollingInterval });
@@ -90,13 +99,18 @@ export function useWebsiteCheck() {
   const checkWebsite = useCallback(async (websiteId: number) => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const data = await apiClient.post<{ message: string }>(`/monitoring/check/${websiteId}`);
+      const data = await apiClient.post<{ message: string }>(
+        `/monitoring/check/${websiteId}`,
+      );
       setResult(data);
       return data;
     } catch (err) {
-      const errorObj = err instanceof Error ? err : new Error(`Failed to check website ID: ${websiteId}`);
+      const errorObj =
+        err instanceof Error
+          ? err
+          : new Error(`Failed to check website ID: ${websiteId}`);
       setError(errorObj);
       throw errorObj;
     } finally {

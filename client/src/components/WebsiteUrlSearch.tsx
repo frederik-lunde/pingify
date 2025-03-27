@@ -1,5 +1,5 @@
 // client/src/components/WebsiteUrlSearch.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   TextField,
   Autocomplete,
@@ -7,12 +7,12 @@ import {
   InputAdornment,
   Tooltip,
   IconButton,
-  Box
-} from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
-import { Website } from '../types';
-import { useWebsiteSearch } from '../hooks'; // Import from the new hooks directory
-import { debounce } from 'lodash';
+  Box,
+} from "@mui/material";
+import { Search as SearchIcon } from "@mui/icons-material";
+import { Website } from "../types";
+import { useWebsiteSearch } from "../hooks"; // Import from the new hooks directory
+import { debounce } from "lodash";
 
 export interface WebsiteUrlSearchProps {
   value: string;
@@ -33,43 +33,48 @@ const WebsiteUrlSearch = ({
   label = "Website URL",
   placeholder = "https://example.com",
   helperText = "Full URL including http:// or https://",
-  searchLimit = 10
+  searchLimit = 10,
 }: WebsiteUrlSearchProps) => {
   // Use our new search hook
-  const { 
-    results: options, 
-    loading, 
-    search: searchWebsites 
-  } = useWebsiteSearch('', searchLimit);
-  
+  const {
+    results: options,
+    loading,
+    search: searchWebsites,
+  } = useWebsiteSearch("", searchLimit);
+
   // Sync input value with parent value prop
-  const [inputValue, setInputValue] = useState(value || '');
-  
+  const [inputValue, setInputValue] = useState(value || "");
+
   // Update inputValue when value prop changes
   useEffect(() => {
     if (value !== inputValue) {
-      setInputValue(value || '');
+      setInputValue(value || "");
     }
   }, [value, inputValue]);
-  
+
   // Create debounced search function
-  const debouncedSearch = React.useMemo(() => 
-    debounce((searchTerm: string) => {
-      searchWebsites(searchTerm);
-    }, 300)
-  , [searchWebsites]);
+  const debouncedSearch = React.useMemo(
+    () =>
+      debounce((searchTerm: string) => {
+        searchWebsites(searchTerm);
+      }, 300),
+    [searchWebsites],
+  );
 
   // Load initial options on mount
   useEffect(() => {
-    debouncedSearch('');
-    
+    debouncedSearch("");
+
     return () => {
       debouncedSearch.cancel();
     };
   }, [debouncedSearch]);
 
   // Handle URL input change - Update parent state while typing
-  const handleInputChange = (_event: React.SyntheticEvent, newInputValue: string) => {
+  const handleInputChange = (
+    _event: React.SyntheticEvent,
+    newInputValue: string,
+  ) => {
     setInputValue(newInputValue);
     onChange(newInputValue); // Update parent state as the user types
     debouncedSearch(newInputValue);
@@ -79,13 +84,13 @@ const WebsiteUrlSearch = ({
   const handleUrlSelect = (
     _event: React.SyntheticEvent<Element, Event>,
     newValue: string | Website | null,
-    _reason: string
+    _reason: string,
   ) => {
-    if (typeof newValue === 'string') {
+    if (typeof newValue === "string") {
       onChange(newValue);
       onSelect(null);
     } else if (newValue === null) {
-      onChange('');
+      onChange("");
       onSelect(null);
     } else {
       onChange(newValue.url);
@@ -95,13 +100,13 @@ const WebsiteUrlSearch = ({
 
   // Get URL from option (string or Website)
   const getOptionLabel = (option: string | Website): string => {
-    return typeof option === 'string' ? option : option.url;
+    return typeof option === "string" ? option : option.url;
   };
 
   // Convert string value to Website object if found in options
   const convertValue = () => {
     if (value) {
-      const matchingWebsite = options.find(opt => opt.url === value);
+      const matchingWebsite = options.find((opt) => opt.url === value);
       return matchingWebsite || value;
     }
     return null;
@@ -142,7 +147,9 @@ const WebsiteUrlSearch = ({
             ...params.InputProps,
             endAdornment: (
               <>
-                {loading ? <CircularProgress color="inherit" size={20} /> : null}
+                {loading ? (
+                  <CircularProgress color="inherit" size={20} />
+                ) : null}
                 {params.InputProps.endAdornment}
                 <InputAdornment position="end">
                   <Tooltip title="Search for existing websites">
@@ -156,15 +163,12 @@ const WebsiteUrlSearch = ({
           }}
         />
       )}
-      
       renderOption={(props, option) => {
-        const url = typeof option === 'string' ? option : option.url;
-        
+        const url = typeof option === "string" ? option : option.url;
+
         return (
           <li {...props}>
-            <Box component="span">
-              {url}
-            </Box>
+            <Box component="span">{url}</Box>
           </li>
         );
       }}

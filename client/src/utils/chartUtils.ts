@@ -1,6 +1,6 @@
-import { MonitoringResult } from '../types';
-import { ChartOptions, ChartData } from 'chart.js';
-import { Theme } from '@mui/material';
+import { MonitoringResult } from "../types";
+import { ChartOptions, ChartData } from "chart.js";
+import { Theme } from "@mui/material";
 
 /**
  * Sorts and formats monitoring results data for consistent chart usage
@@ -8,12 +8,18 @@ import { Theme } from '@mui/material';
  * @param limit Maximum number of data points to include
  * @returns Sorted array of monitoring results (oldest first)
  */
-export const prepareTimeSeriesData = (monitoringResults: MonitoringResult[], limit: number = 20): MonitoringResult[] => {
+export const prepareTimeSeriesData = (
+  monitoringResults: MonitoringResult[],
+  limit: number = 20,
+): MonitoringResult[] => {
   if (!monitoringResults || monitoringResults.length === 0) return [];
-  
+
   // Sort by timestamp (oldest first)
   return [...monitoringResults]
-    .sort((a, b) => new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime(),
+    )
     .slice(-limit); // Take only the most recent N results
 };
 
@@ -25,24 +31,24 @@ export const prepareTimeSeriesData = (monitoringResults: MonitoringResult[], lim
  * @returns Chart.js data object
  */
 export const prepareDetailedChartData = (
-  monitoringResults: MonitoringResult[], 
+  monitoringResults: MonitoringResult[],
   theme: Theme,
-  limit: number = 20
-): ChartData<'line'> => {
+  limit: number = 20,
+): ChartData<"line"> => {
   const chartData = prepareTimeSeriesData(monitoringResults, limit);
-  
+
   return {
-    labels: chartData.map(r => new Date(r.checkedAt).toLocaleTimeString()),
+    labels: chartData.map((r) => new Date(r.checkedAt).toLocaleTimeString()),
     datasets: [
       {
-        label: 'Response Time (ms)',
-        data: chartData.map(r => r.responseTime || 0),
+        label: "Response Time (ms)",
+        data: chartData.map((r) => r.responseTime || 0),
         borderColor: theme.palette.primary.main,
         backgroundColor: theme.palette.primary.light,
         fill: false,
-        tension: 0.1
-      }
-    ]
+        tension: 0.1,
+      },
+    ],
   };
 };
 
@@ -54,25 +60,30 @@ export const prepareDetailedChartData = (
  * @returns Chart.js data object
  */
 export const prepareCardChartData = (
-  monitoringResults: MonitoringResult[], 
+  monitoringResults: MonitoringResult[],
   theme: Theme,
-  limit: number = 10
-): ChartData<'line'> => {
+  limit: number = 10,
+): ChartData<"line"> => {
   const chartData = prepareTimeSeriesData(monitoringResults, limit);
-  
+
   return {
-    labels: chartData.map(r => new Date(r.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+    labels: chartData.map((r) =>
+      new Date(r.checkedAt).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    ),
     datasets: [
       {
-        data: chartData.map(r => r.responseTime || 0),
+        data: chartData.map((r) => r.responseTime || 0),
         borderColor: theme.palette.primary.main,
-        backgroundColor: theme.palette.primary.main + '33', // Add transparency
+        backgroundColor: theme.palette.primary.main + "33", // Add transparency
         fill: true,
         tension: 0.3,
         pointRadius: 2,
-        borderWidth: 2
-      }
-    ]
+        borderWidth: 2,
+      },
+    ],
   };
 };
 
@@ -80,7 +91,7 @@ export const prepareCardChartData = (
  * Gets chart options for the detailed view (ResponseTimeChart)
  * @returns Chart.js options
  */
-export const getDetailedChartOptions = (): ChartOptions<'line'> => {
+export const getDetailedChartOptions = (): ChartOptions<"line"> => {
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -89,29 +100,29 @@ export const getDetailedChartOptions = (): ChartOptions<'line'> => {
         beginAtZero: true,
         title: {
           display: true,
-          text: 'Response Time (ms)'
-        }
+          text: "Response Time (ms)",
+        },
       },
       x: {
         title: {
           display: true,
-          text: 'Time'
+          text: "Time",
         },
         ticks: {
           maxRotation: 30,
-          minRotation: 30
-        }
-      }
+          minRotation: 30,
+        },
+      },
     },
     plugins: {
       legend: {
-        display: false
+        display: false,
       },
       title: {
         display: false,
-        text: 'Response Time History'
-      }
-    }
+        text: "Response Time History",
+      },
+    },
   };
 };
 
@@ -128,7 +139,7 @@ export const getCardChartOptions = () => ({
     },
     tooltip: {
       enabled: true,
-      mode: 'index' as const,
+      mode: "index" as const,
       intersect: false,
     },
   },
@@ -137,7 +148,7 @@ export const getCardChartOptions = () => ({
       display: true, // Show x-axis title
       title: {
         display: true,
-        text: 'Response time: 10 Checks', // X-axis label
+        text: "Response time: 10 Checks", // X-axis label
       },
       ticks: {
         display: false, // Hide x-axis values
@@ -150,7 +161,7 @@ export const getCardChartOptions = () => ({
       display: false, // Show y-axis title
       title: {
         display: true,
-        text: 'Response Time (ms)', // Y-axis label
+        text: "Response Time (ms)", // Y-axis label
       },
       ticks: {
         display: false, // Hide y-axis values

@@ -1,9 +1,13 @@
 // src/hooks/api/useAuth.ts
-import { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router';
-import { getAuthToken, storeAuthToken, removeAuthToken } from '../../utils/authTokenUtils';
-import { User, AuthContextType } from '../../types';
-import apiClient from '../../api/client';
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router";
+import {
+  getAuthToken,
+  storeAuthToken,
+  removeAuthToken,
+} from "../../utils/authTokenUtils";
+import { User, AuthContextType } from "../../types";
+import apiClient from "../../api/client";
 
 /**
  * Interface for login credentials
@@ -40,16 +44,16 @@ export function useAuth(): AuthContextType {
       removeAuthToken();
       setToken(null);
       setUser(null);
-      
+
       // Redirect to login
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
     };
 
     // Listen for custom auth error events
-    window.addEventListener('auth-error', handleAuthError);
-    
+    window.addEventListener("auth-error", handleAuthError);
+
     return () => {
-      window.removeEventListener('auth-error', handleAuthError);
+      window.removeEventListener("auth-error", handleAuthError);
     };
   }, [navigate]);
 
@@ -62,15 +66,15 @@ export function useAuth(): AuthContextType {
       }
 
       try {
-        const userData = await apiClient.get<{ user: User }>('/auth/me');
+        const userData = await apiClient.get<{ user: User }>("/auth/me");
         setUser(userData.user);
         setError(null);
       } catch (err) {
-        console.error('Failed to load user', err);
+        console.error("Failed to load user", err);
         removeAuthToken();
         setToken(null);
         setUser(null);
-        setError('Session expired. Please login again.');
+        setError("Session expired. Please login again.");
       } finally {
         setLoading(false);
       }
@@ -82,65 +86,64 @@ export function useAuth(): AuthContextType {
   /**
    * Login user with email and password
    */
-  const login = useCallback(async (
-    email: string, 
-    password: string, 
-    rememberMe: boolean = false
-  ) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await apiClient.post<{ token: string; user: User }>(
-        '/auth/login', 
-        { email, password }
-      );
-      
-      const { token: authToken, user: userData } = response;
-      
-      storeAuthToken(authToken, rememberMe);
-      setToken(authToken);
-      setUser(userData);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Login failed. Please try again.';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string, rememberMe: boolean = false) => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await apiClient.post<{ token: string; user: User }>(
+          "/auth/login",
+          { email, password },
+        );
+
+        const { token: authToken, user: userData } = response;
+
+        storeAuthToken(authToken, rememberMe);
+        setToken(authToken);
+        setUser(userData);
+      } catch (err: any) {
+        const errorMessage = err.message || "Login failed. Please try again.";
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   /**
    * Register a new user
    */
-  const register = useCallback(async (
-    email: string, 
-    password: string, 
-    name?: string
-  ) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await apiClient.post<{ token: string; user: User }>(
-        '/auth/register', 
-        { email, password, name }
-      );
-      
-      const { token: authToken, user: userData } = response;
-      
-      // For registration, we'll use sessionStorage by default (no "remember me" on registration)
-      storeAuthToken(authToken, false);
-      setToken(authToken);
-      setUser(userData);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Registration failed. Please try again.';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const register = useCallback(
+    async (email: string, password: string, name?: string) => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await apiClient.post<{ token: string; user: User }>(
+          "/auth/register",
+          { email, password, name },
+        );
+
+        const { token: authToken, user: userData } = response;
+
+        // For registration, we'll use sessionStorage by default (no "remember me" on registration)
+        storeAuthToken(authToken, false);
+        setToken(authToken);
+        setUser(userData);
+      } catch (err: any) {
+        const errorMessage =
+          err.message || "Registration failed. Please try again.";
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   /**
    * Logout the current user
@@ -149,17 +152,17 @@ export function useAuth(): AuthContextType {
     removeAuthToken();
     setToken(null);
     setUser(null);
-    navigate('/login');
+    navigate("/login");
   }, [navigate]);
 
-  return { 
-    user, 
-    token, 
-    loading, 
-    error, 
-    login, 
-    register, 
-    logout 
+  return {
+    user,
+    token,
+    loading,
+    error,
+    login,
+    register,
+    logout,
   };
 }
 
