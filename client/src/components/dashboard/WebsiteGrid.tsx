@@ -39,6 +39,7 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
         return a.userWebsite.name.localeCompare(b.userWebsite.name);
       });
     }, [websitesWithLatestResults]);
+    
     // Function to render skeleton cards during loading
     const renderSkeletonCards = () => {
       return Array(4)

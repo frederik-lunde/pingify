@@ -1,5 +1,5 @@
 // src/hooks/ui/useChartHooks.ts
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { useTheme } from '@mui/material';
 import { MonitoringResult, TimeRange } from '../../types';
 import { ChartOptions, TooltipItem } from 'chart.js';
@@ -249,4 +249,88 @@ export function useFilteredResults(allResults: MonitoringResult[], timeRange: Ti
 }
 
 // Import at the top
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+
+/**
+ * Custom hook for preparing card chart data used in WebsiteCard component
+ * @param results Monitoring results to display in chart
+ * @param limit Maximum number of data points to include
+ * @returns Object with chart data and options
+ */
+export function useCardChartData(results: MonitoringResult[], limit: number = 10) {
+  const theme = useTheme();
+  
+  const chartData = useMemo(() => {
+    if (!results || results.length === 0) return null;
+
+    // Sort by time (oldest first)
+    const sortedResults = [...results]
+      .sort((a, b) => new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime())
+      .slice(-limit); // Take only the most recent results
+
+    return {
+      labels: sortedResults.map((r) =>
+        new Date(r.checkedAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      ),
+      datasets: [
+        {
+          data: sortedResults.map((r) => r.responseTime || 0),
+          borderColor: theme.palette.primary.main,
+          backgroundColor: theme.palette.primary.main + "33", // Add transparency
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2,
+          borderWidth: 2,
+        },
+      ],
+    };
+  }, [results, limit, theme]);
+
+  const chartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false, // Hide legend
+      },
+      tooltip: {
+        enabled: true,
+        mode: "index" as const,
+        intersect: false,
+      },
+    },
+    scales: {
+      x: {
+        display: true, // Show x-axis title
+        title: {
+          display: true,
+          text: `Response time: ${Math.min(results.length, limit)} Checks`, // X-axis label
+        },
+        ticks: {
+          display: false, // Hide x-axis values
+        },
+        grid: {
+          display: false, // Remove x-axis grid lines
+        },
+      },
+      y: {
+        display: false, // Show y-axis title
+        title: {
+          display: true,
+          text: "Response Time (ms)", // Y-axis label
+        },
+        ticks: {
+          display: false, // Hide y-axis values
+        },
+        grid: {
+          display: false, // Remove y-axis grid lines
+        },
+      },
+    },
+  }), [results.length, limit]);
+
+  return { chartData, chartOptions };
+}

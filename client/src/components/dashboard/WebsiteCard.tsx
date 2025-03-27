@@ -25,10 +25,7 @@ import {
   formatResponseTime,
   formatUptime,
 } from "../../utils/statusUtils";
-import {
-  prepareCardChartData,
-  getCardChartOptions,
-} from "../../utils/chartUtils";
+import { useCardChartData } from "../../hooks";
 
 // Import just what we need from chart.js
 import {
@@ -85,11 +82,8 @@ const WebsiteCard = React.memo(
 
     const uptimeColor = getStatusColor(uptime);
 
-    // Use chartUtils to prepare chart data - now with proper memoization
-    const chartData = useMemo(() => {
-      if (!results || results.length === 0) return null;
-      return prepareCardChartData(results, theme, 10);
-    }, [results, theme]);
+    // Use our new chart hook for chart data - replacing the chartUtils dependency
+    const { chartData, chartOptions } = useCardChartData(results, 10);
 
     // Determine loading status for UI
     const showLoading = loading && !results.length;
@@ -107,9 +101,6 @@ const WebsiteCard = React.memo(
       },
       [navigate, userWebsite.websiteId],
     );
-
-    // Use chartUtils for options - memoized
-    const chartOptions = useMemo(() => getCardChartOptions(), []);
 
     // Calculate status information - memoized
     const isOnline = useMemo(
