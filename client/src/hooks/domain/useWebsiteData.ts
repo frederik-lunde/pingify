@@ -1,8 +1,8 @@
-// src/hooks/useWebsiteData.ts
+// src/hooks/domain/useWebsiteData.ts
 import { useMemo, useCallback } from 'react';
-import { useUserMonitoringResults } from '../api/hooks/useMonitoring'; 
-import { useWebsites } from '../api/hooks/useWebsites';
-import { UserWebsite, MonitoringResult } from '../types';
+import { UserWebsite, MonitoringResult } from '../../types';
+import { useUserMonitoringResults } from '../api/useMonitoring';
+import { useWebsites } from '../api/useWebsites';
 
 export interface WebsiteWithResult {
   userWebsite: UserWebsite;
@@ -12,22 +12,22 @@ export interface WebsiteWithResult {
 
 /**
  * Hook to get combined website and monitoring result data
- * Simplified version with direct data processing
+ * Uses the API hooks for data fetching
  */
-export function useWebsiteData() {
+export function useWebsiteData(limit = 100, pollingInterval?: number) {
   // Fetch websites data
   const { 
     data: userWebsites = [], 
     loading: websitesLoading, 
     refetch: refetchWebsites 
-  } = useWebsites();
+  } = useWebsites(pollingInterval);
   
   // Fetch monitoring results data
   const { 
     data: allMonitoringResults = [], 
     loading: resultsLoading,
     refetch: refetchResults 
-  } = useUserMonitoringResults(100);
+  } = useUserMonitoringResults({ limit }, pollingInterval);
   
   // Combine websites with their results
   const websitesWithLatestResults = useMemo(() => {
@@ -48,10 +48,6 @@ export function useWebsiteData() {
       // Get the latest result (first after sorting)
       const latestResult = websiteResults.length > 0 ? websiteResults[0] : undefined;
       
-      // Debug output for each website
-      console.log(`Website ${userWebsite.name} (ID: ${userWebsite.websiteId}): ${websiteResults.length} results, latest:`, 
-                  latestResult ? `${latestResult.responseTime}ms` : 'N/A');
-      
       return {
         userWebsite,
         latestResult,
@@ -67,10 +63,32 @@ export function useWebsiteData() {
     refetchResults();
   }, [refetchWebsites, refetchResults]);
 
+  // Calculate overall status
+  const overallStatus = useMemo(() => {
+    if (!websitesWithLatestResults.length) {
+      return {
+        totalWebsites: 0,
+        onlineWebsites: 0,
+        offlineWebsites: 0
+      };
+    }
+
+    const online = websitesWithLatestResults.filter(
+      site => site.latestResult?.isAvailable
+    ).length;
+
+    return {
+      totalWebsites: websitesWithLatestResults.length,
+      onlineWebsites: online,
+      offlineWebsites: websitesWithLatestResults.length - online
+    };
+  }, [websitesWithLatestResults]);
+
   return {
     websitesWithLatestResults,
     loading: websitesLoading || resultsLoading,
-    refetch
+    refetch,
+    overallStatus
   };
 }
 

@@ -16,7 +16,7 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router';
-import { useUserUnreadAlerts } from '../../api/hooks/useAlerts';
+import { useUserUnreadAlerts } from '../../hooks'; // Updated import path
 import { AlertUser, AlertQueryOptions } from '../../types';
 import { getAlertTypeColor } from '../../utils/statusUtils';
 

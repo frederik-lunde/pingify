@@ -1,7 +1,9 @@
+// src/hooks/domain/useAlertData.ts
 import { useMemo, useCallback } from 'react';
-import { useUserAlerts, useUserUnreadAlerts, useAlertStats } from '../api/hooks/useAlerts';
-import { useWebsites } from '../api/hooks/useWebsites';
-import { Alert, AlertUser, AlertStats} from '../types';
+import { useUserAlerts, useUserUnreadAlerts, useAlertStats } from '../api/useAlerts';
+import { useWebsites } from '../api/useWebsites';
+import { Alert, AlertUser, AlertStats} from '../../types';
+import { DEFAULT_POLLING_INTERVAL } from '../../api/config';
 
 export interface AlertSummary {
   stats: AlertStats | null;
@@ -20,14 +22,18 @@ export interface AlertSummary {
 /**
  * Hook to provide comprehensive alert data for the dashboard
  */
-export function useAlertData(days = 7, limit = 50): AlertSummary {
+export function useAlertData(
+  days = 7, 
+  limit = 50,
+  pollingInterval = DEFAULT_POLLING_INTERVAL
+): AlertSummary {
   // Fetch alert statistics
   const { 
     data: stats, 
     loading: statsLoading, 
     error: statsError, 
     refetch: refetchStats 
-  } = useAlertStats(days);
+  } = useAlertStats(days, pollingInterval);
   
   // Fetch all alerts (resolved and unresolved)
   const { 
@@ -35,7 +41,7 @@ export function useAlertData(days = 7, limit = 50): AlertSummary {
     loading: allAlertsLoading, 
     error: allAlertsError, 
     refetch: refetchAllAlerts 
-  } = useUserAlerts(limit);
+  } = useUserAlerts({ limit }, pollingInterval);
   
   // Fetch unread alerts with mark as read functionality
   const { 
@@ -45,13 +51,13 @@ export function useAlertData(days = 7, limit = 50): AlertSummary {
     markAsRead, 
     markAllAsRead, 
     refetch: refetchUnread 
-  } = useUserUnreadAlerts(limit);
+  } = useUserUnreadAlerts({ limit }, pollingInterval);
   
   // Fetch websites for context
   const { 
     data: userWebsites = [], 
     loading: websitesLoading
-  } = useWebsites();
+  } = useWebsites(pollingInterval, { enabled: true });
   
   // Split alerts into resolved and unresolved
   const { unresolvedAlerts, resolvedAlerts } = useMemo(() => {
@@ -82,7 +88,10 @@ export function useAlertData(days = 7, limit = 50): AlertSummary {
   
   // Compile all errors
   const error = useMemo(() => {
-    const errors = [statsError, allAlertsError, unreadError].filter(Boolean);
+    const errors = [statsError, allAlertsError, unreadError]
+      .filter(Boolean)
+      .map(err => err?.message || 'Unknown error');
+    
     return errors.length > 0 ? errors.join(', ') : null;
   }, [statsError, allAlertsError, unreadError]);
   

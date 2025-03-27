@@ -1,15 +1,9 @@
-import { useState, useCallback } from 'react';
+// src/hooks/api/useAlerts.ts
+import { useCallback } from 'react';
 import { Alert, AlertStats, AlertQueryOptions, AlertUser } from '../../types';
-import { 
-  getUserAlerts, 
-  getUserUnreadAlerts, 
-  markAlertAsRead, 
-  markAllAlertsAsRead, 
-  getAlertsByWebsite, 
-  getUserAlertStats 
-} from '../alerts';
-import { DEFAULT_POLLING_INTERVAL } from '../config';
-import { usePolling } from '../../hooks/common';
+import apiClient from '../../api/client';
+import { DEFAULT_POLLING_INTERVAL } from '../../api/config';
+import { usePolling } from '../common/usePolling';
 
 /**
  * Hook for polling user's alerts with improved parameter handling
@@ -19,7 +13,21 @@ export function useUserAlerts(
   pollingInterval = DEFAULT_POLLING_INTERVAL
 ) {
   const fetchAlerts = useCallback(async () => {
-    return await getUserAlerts(options);
+    const { 
+      limit = 50, 
+      type, 
+      from, 
+      to, 
+      isResolved 
+    } = options;
+    
+    const params: any = { limit };
+    if (type) params.type = type;
+    if (from) params.from = from.toISOString();
+    if (to) params.to = to.toISOString();
+    if (isResolved !== undefined) params.isResolved = isResolved;
+    
+    return await apiClient.get<Alert[]>('/alerts/user', { params });
   }, [options]);
 
   return usePolling<Alert[]>(fetchAlerts, { pollingInterval });
@@ -33,7 +41,21 @@ export function useUserUnreadAlerts(
   pollingInterval = DEFAULT_POLLING_INTERVAL
 ) {
   const fetchUnreadAlerts = useCallback(async () => {
-    return await getUserUnreadAlerts(options);
+    const { 
+      limit = 50, 
+      type, 
+      from, 
+      to, 
+      isResolved 
+    } = options;
+    
+    const params: any = { limit };
+    if (type) params.type = type;
+    if (from) params.from = from.toISOString();
+    if (to) params.to = to.toISOString();
+    if (isResolved !== undefined) params.isResolved = isResolved;
+    
+    return await apiClient.get<AlertUser[]>('/alerts/user/unread', { params });
   }, [options]);
 
   const { 
@@ -45,13 +67,13 @@ export function useUserUnreadAlerts(
 
   // Add helper to mark as read and refetch
   const markAsRead = useCallback(async (alertId: number) => {
-    await markAlertAsRead(alertId);
+    await apiClient.post<void>(`/alerts/user/read/${alertId}`);
     refetch();
   }, [refetch]);
 
   // Add helper to mark all as read and refetch
   const markAllAsRead = useCallback(async () => {
-    await markAllAlertsAsRead();
+    await apiClient.post<void>('/alerts/user/read-all');
     refetch();
   }, [refetch]);
 
@@ -73,26 +95,25 @@ export function useWebsiteAlerts(
   options: AlertQueryOptions = {},
   pollingInterval = DEFAULT_POLLING_INTERVAL
 ) {
-  const [noAlertsEnabled, setNoAlertsEnabled] = useState<boolean>(false);
-
   const fetchAlerts = useCallback(async () => {
-    try {
-      const data = await getAlertsByWebsite(websiteId, options);
-      setNoAlertsEnabled(false);
-      return data;
-    } catch (err) {
-      // If we get a 404, it likely means the user doesn't have access or alerts disabled
-      if (err instanceof Error && err.message.includes('404')) {
-        setNoAlertsEnabled(true);
-        return [];
-      }
-      throw err;
-    }
+    const { 
+      limit = 50, 
+      type, 
+      from, 
+      to, 
+      isResolved 
+    } = options;
+    
+    const params: any = { limit };
+    if (type) params.type = type;
+    if (from) params.from = from.toISOString();
+    if (to) params.to = to.toISOString();
+    if (isResolved !== undefined) params.isResolved = isResolved;
+    
+    return await apiClient.get<Alert[]>(`/alerts/website/${websiteId}`, { params });
   }, [websiteId, options]);
 
-  const { data: alerts, loading, error, refetch } = usePolling<Alert[]>(fetchAlerts, { pollingInterval });
-
-  return { alerts, loading, error, noAlertsEnabled, refetch };
+  return usePolling<Alert[]>(fetchAlerts, { pollingInterval });
 }
 
 /**
@@ -100,7 +121,9 @@ export function useWebsiteAlerts(
  */
 export function useAlertStats(days = 7, pollingInterval = DEFAULT_POLLING_INTERVAL) {
   const fetchStats = useCallback(async () => {
-    return await getUserAlertStats(days);
+    return await apiClient.get<AlertStats>('/alerts/user/stats', {
+      params: { days }
+    });
   }, [days]);
 
   return usePolling<AlertStats>(fetchStats, { pollingInterval });

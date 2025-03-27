@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router'; // Fixed import for react-router-dom
+import { useNavigate, Link } from 'react-router';
 import { 
   Container, 
   Paper,
@@ -23,83 +23,57 @@ import {
   Login as LoginIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { 
-  validateLoginForm, 
-  prepareLoginData, 
-  LoginFormData,
-  ValidationErrors
-} from '../utils/validation/loginValidation';
+import { useForm } from '../hooks'; // Import from the new hooks directory
+
+//Should replace with useForm
+import { validateLoginForm, prepareLoginData, LoginFormData } from '../utils/validation/loginValidation';
 
 const Login: React.FC = () => {
-  // Form state
-  const [formData, setFormData] = useState<LoginFormData>({
-    email: '',
-    password: '',
-    rememberMe: false
-  });
-  
   // UI state
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   
-  const { login, loading } = useAuth();
+  const { login, loading, error: authError } = useAuth();
   const navigate = useNavigate();
 
-  // Handle input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    const newValue = type === 'checkbox' ? checked : value;
-    
-    setFormData((prev) => ({
-      ...prev,
-      [name]: newValue
-    }));
-    
-    // Clear validation error when field is edited
-    if (validationErrors[name]) {
-      setValidationErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
+  // Use our new form hook
+  const { 
+    values: formData, 
+    errors, 
+    handleChange, 
+    handleSubmit, 
+    setFieldValue //Look into
+  } = useForm<LoginFormData>({
+    initialValues: {
+      email: '',
+      password: '',
+      rememberMe: false
+    },
+    validator: validateLoginForm,
+    onSubmit: async (values) => {
+      try {
+        // Prepare and submit login data
+        const loginData = prepareLoginData(values);
+        await login(loginData.email, loginData.password, loginData.rememberMe);      
+        
+        // Show success message
+        setSnackbarMessage('Login successful! Redirecting to dashboard...');
+        setSnackbarOpen(true);
+        
+        // Redirect after short delay
+        setTimeout(() => {
+          navigate('/');
+        }, 1000);
+      } catch (err) {
+        // Error will be handled by the auth context
+      }
     }
-  };
+  });
 
   // Toggle password visibility
   const togglePasswordVisibility = () => {
     setShowPassword((prev) => !prev);
-  };
-
-  // Form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate form
-    const errors = validateLoginForm(formData);
-    setValidationErrors(errors);
-    
-    // Stop if there are validation errors
-    if (Object.keys(errors).length > 0) return;
-    
-    try {
-      // Prepare and submit login data
-      const loginData = prepareLoginData(formData);
-      await login(loginData.email, loginData.password, loginData.rememberMe);      
-      
-      // Show success message
-      setSnackbarMessage('Login successful! Redirecting to dashboard...');
-      setSnackbarOpen(true);
-      
-      // Redirect after short delay
-      setTimeout(() => {
-        navigate('/');
-      }, 1000);
-    } catch (err) {
-      setError('Invalid email or password. Please try again.');
-    }
   };
 
   // Handle snackbar close
@@ -128,7 +102,7 @@ const Login: React.FC = () => {
           </Typography>
         </Box>
 
-        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+        {authError && <Alert severity="error" sx={{ mb: 3 }}>{authError}</Alert>}
         
         <Box component="form" onSubmit={handleSubmit}>
           <Grid container spacing={2}>
@@ -142,8 +116,8 @@ const Login: React.FC = () => {
                 label="Email Address"
                 value={formData.email}
                 onChange={handleChange}
-                error={!!validationErrors.email}
-                helperText={validationErrors.email}
+                error={!!errors.email}
+                helperText={errors.email}
                 autoComplete="email"
                 autoFocus
                 InputProps={{
@@ -167,8 +141,8 @@ const Login: React.FC = () => {
                 label="Password"
                 value={formData.password}
                 onChange={handleChange}
-                error={!!validationErrors.password}
-                helperText={validationErrors.password}
+                error={!!errors.password}
+                helperText={errors.password}
                 autoComplete="current-password"
                 InputProps={{
                   startAdornment: (
