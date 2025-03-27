@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import {
   Container,
   Paper,
