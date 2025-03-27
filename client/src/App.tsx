@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router';
+import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router'; // 1. Import useParams
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import WebsiteDetails from './pages/WebsiteDetails';
@@ -9,6 +9,26 @@ import Register from './pages/Register';
 import { CssBaseline } from '@mui/material';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
+
+function WebsiteDetailsWrapper() {
+  const { id } = useParams<{ id: string }>(); 
+
+  return (
+    <ProtectedRoute key={id}> 
+      <WebsiteDetails />
+    </ProtectedRoute>
+  );
+}
+
+function WebsiteSettingsWrapper() {
+    const { id } = useParams<{ id: string }>(); 
+    return (
+      <ProtectedRoute key={id}> 
+        <WebsiteSettings />
+      </ProtectedRoute>
+    );
+}
+
 
 function AppContent() {
   const { user } = useAuth();
@@ -29,19 +49,11 @@ function AppContent() {
         />
         <Route
           path="/website/:id"
-          element={
-            <ProtectedRoute>
-              <WebsiteDetails />
-            </ProtectedRoute>
-          }
+          element={<WebsiteDetailsWrapper />} 
         />
         <Route
           path="/website/:id/settings"
-          element={
-            <ProtectedRoute>
-              <WebsiteSettings />
-            </ProtectedRoute>
-          }
+          element={<WebsiteSettingsWrapper />} 
         />
         <Route
           path="/add-website"

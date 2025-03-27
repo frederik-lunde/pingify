@@ -38,47 +38,61 @@ export function useUserAlerts(
  */
 export function useUserUnreadAlerts(
   options: AlertQueryOptions = {}, 
-  pollingInterval = DEFAULT_POLLING_INTERVAL
+  pollingInterval = DEFAULT_POLLING_INTERVAL,
+  isPollingPaused = false // New parameter to pause polling
 ) {
   const fetchUnreadAlerts = useCallback(async () => {
-    const { 
-      limit = 50, 
-      type, 
-      from, 
-      to, 
-      isResolved 
-    } = options;
-    
+    const { limit = 50, type, from, to, isResolved } = options;
     const params: any = { limit };
     if (type) params.type = type;
     if (from) params.from = from.toISOString();
     if (to) params.to = to.toISOString();
     if (isResolved !== undefined) params.isResolved = isResolved;
     
-    return await apiClient.get<AlertUser[]>('/alerts/user/unread', { params });
+    // Ensure the API returns an array, even if empty
+    const result = await apiClient.get<AlertUser[]>('/alerts/user/unread', { params });
+    return result ?? []; // Default to empty array if API returns null/undefined
   }, [options]);
+
+  const pollingEnabled = !isPollingPaused; 
 
   const { 
     data: unreadAlerts, 
     loading, 
     error, 
-    refetch 
-  } = usePolling<AlertUser[]>(fetchUnreadAlerts, { pollingInterval });
+    refetch, 
+    setData 
+  } = usePolling<AlertUser[]>(fetchUnreadAlerts, { 
+      pollingInterval,
+      initialData: [], 
+      enabled: pollingEnabled  
+  });
 
-  // Add helper to mark as read and refetch
+  // Updated markAsRead: Uses setData, avoids refetch
   const markAsRead = useCallback(async (alertId: number) => {
-    await apiClient.post<void>(`/alerts/user/read/${alertId}`);
-    refetch();
-  }, [refetch]);
+    try {
+      await apiClient.post<void>(`/alerts/user/read/${alertId}`);
+      setData(currentAlerts => 
+        (currentAlerts ?? []).filter(alertUser => alertUser.alert.id !== alertId)
+      );
+    } catch (err) {
+      console.error(`Failed to mark alert ${alertId} as read:`, err);
+      throw err; 
+    }
+  }, [setData]);
 
-  // Add helper to mark all as read and refetch
   const markAllAsRead = useCallback(async () => {
-    await apiClient.post<void>('/alerts/user/read-all');
-    refetch();
-  }, [refetch]);
+     try {
+       await apiClient.post<void>('/alerts/user/read-all');
+       setData([]); 
+     } catch (err) {
+       console.error('Failed to mark all alerts as read:', err);
+       throw err; 
+     }
+  }, [setData]);
 
   return { 
-    unreadAlerts, 
+    unreadAlerts: unreadAlerts ?? [], 
     loading, 
     error, 
     refetch, 
@@ -128,3 +142,4 @@ export function useAlertStats(days = 7, pollingInterval = DEFAULT_POLLING_INTERV
 
   return usePolling<AlertStats>(fetchStats, { pollingInterval });
 }
+

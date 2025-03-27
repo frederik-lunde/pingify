@@ -3,59 +3,30 @@ import { useEffect, useCallback, useRef, useReducer } from 'react';
 import { DEFAULT_POLLING_INTERVAL } from '../../api/config';
 import isEqual from 'lodash/isEqual';
 
-/**
- * Options for the usePolling hook
- */
+
 export interface PollingOptions<T> {
-  /** Initial data to use before the first fetch completes */
   initialData?: T;
-  
-  /** How often to poll in milliseconds */
   pollingInterval?: number;
-  
-  /** Whether polling should be enabled */
   enabled?: boolean;
-  
-  /** Whether to fetch immediately on mount */
   fetchOnMount?: boolean;
-  
-  /** Callback for successful fetches */
   onSuccess?: (data: T) => void;
-  
-  /** Callback for failed fetches */
   onError?: (error: Error) => void;
-  
-  /** Determine if browser visibility affects polling */
   respectVisibility?: boolean;
 }
 
-/**
- * Return type for the usePolling hook
- */
 export interface PollingResult<T> {
-  /** The fetched data */
   data: T | null;
-  
-  /** Whether a fetch is in progress */
   loading: boolean;
-  
-  /** Any error that occurred during fetching */
   error: Error | null;
-  
-  /** Function to manually trigger a fetch */
   refetch: () => Promise<void>;
-  
-  /** Function to stop polling */
   stopPolling: () => void;
-  
-  /** Function to start polling */
-  startPolling: () => void;
-  
-  /** The number of successful fetches completed */
+  startPolling: () => void; // Keep explicit start for flexibility
   fetchCount: number;
+  setData: (updater: T | null | ((currentData: T | null) => T | null)) => void;
 }
 
-// Reducer to handle data updates with minimal rerenders
+// --- Reducer types (PollingState, PollingAction with DIRECT_SET_DATA) ---
+// These remain unchanged.
 type PollingState<T> = {
   data: T | null;
   loading: boolean;
@@ -63,56 +34,55 @@ type PollingState<T> = {
   fetchCount: number;
 };
 
-type PollingAction<T> = 
+type PollingAction<T> =
   | { type: 'FETCH_START' }
   | { type: 'FETCH_SUCCESS'; payload: T }
   | { type: 'FETCH_ERROR'; payload: Error }
-  | { type: 'RESET_ERROR' };
+  | { type: 'RESET_ERROR' }
+  | { type: 'DIRECT_SET_DATA'; payload: T | null };
 
+// --- Reducer Function ---
+// Stays the same, ensuring FETCH_START clears errors.
 function createPollingReducer<T>() {
   return function reducer(state: PollingState<T>, action: PollingAction<T>): PollingState<T> {
     switch (action.type) {
       case 'FETCH_START':
-        return { ...state, loading: true };
+        return { ...state, loading: true, error: null }; // Clear error on start
       case 'FETCH_SUCCESS':
-        // Only update if data has actually changed (using deep comparison)
-        const dataChanged = !isEqual(state.data, action.payload);
-        return dataChanged 
-          ? { 
-              ...state, 
-              data: action.payload, 
-              loading: false, 
+        { const dataChanged = !isEqual(state.data, action.payload);
+        return dataChanged
+          ? {
+              ...state,
+              data: action.payload,
+              loading: false,
               error: null,
               fetchCount: state.fetchCount + 1
             }
-          : { 
-              ...state, 
-              loading: false, 
-              error: null 
-            };
+          : {
+              ...state,
+              loading: false,
+              error: null
+            }; }
       case 'FETCH_ERROR':
         return { ...state, loading: false, error: action.payload };
       case 'RESET_ERROR':
         return { ...state, error: null };
+      case 'DIRECT_SET_DATA':
+        return {
+          ...state,
+          data: action.payload,
+        };
       default:
         return state;
     }
   };
 }
 
-/**
- * Enhanced hook that handles polling an API endpoint at regular intervals,
- * with optimizations to prevent unnecessary re-renders
- * 
- * @param fetchFunction The function to call for fetching data
- * @param options Configuration options for polling
- * @returns Object containing data, loading state, error, and control functions
- */
+// --- The Hook ---
 export function usePolling<T>(
   fetchFunction: () => Promise<T>,
   options: PollingOptions<T> = {}
 ): PollingResult<T> {
-  // Default options
   const {
     initialData = null,
     pollingInterval = DEFAULT_POLLING_INTERVAL,
@@ -123,164 +93,136 @@ export function usePolling<T>(
     respectVisibility = true
   } = options;
 
-  // Create a stable reference to the fetch function
+  // Ref to always hold the latest fetch function
   const fetchFunctionRef = useRef(fetchFunction);
   useEffect(() => {
     fetchFunctionRef.current = fetchFunction;
   }, [fetchFunction]);
 
-  // Create a reducer for this hook instance
+  // Reducer for state management
   const reducer = useRef(createPollingReducer<T>()).current;
-  
-  // State using reducer for more efficient updates
   const [state, dispatch] = useReducer(reducer, {
     data: initialData,
-    loading: fetchOnMount,
+    // Initial loading: true only if enabled, fetching on mount, and no initial data provided
+    loading: enabled && fetchOnMount && initialData === null,
     error: null,
     fetchCount: 0
   });
-  
-  // Use refs to track polling state
-  const isPollingEnabled = useRef<boolean>(enabled);
+
+  // Refs to manage polling state without causing re-renders
   const intervalId = useRef<number | null>(null);
   const isMounted = useRef<boolean>(false);
-  const initialDataApplied = useRef<boolean>(false);
-  const isDocumentVisible = useRef<boolean>(true);
-  
-  // Apply initial data only once
-  useEffect(() => {
-    if (initialData !== null && !initialDataApplied.current) {
-      initialDataApplied.current = true;
-    }
-  }, [initialData]);
+  const isPollingActive = useRef<boolean>(false); // Tracks if interval is currently set
 
-  // Track document visibility
-  useEffect(() => {
-    if (!respectVisibility) return;
-    
-    function handleVisibilityChange() {
-      isDocumentVisible.current = document.visibilityState === 'visible';
-      
-      // If polling is enabled and document becomes visible, trigger a fetch
-      if (isDocumentVisible.current && isPollingEnabled.current) {
-        fetchData();
-      }
-    }
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [respectVisibility]);
-  
-  // Function to fetch data
-  const fetchData = useCallback(async (): Promise<void> => {
-    // Skip if document is not visible and we're respecting visibility
-    if (respectVisibility && !isDocumentVisible.current) {
-      return;
-    }
-    
+  // --- Core Fetch Logic ---
+  // useCallback ensures refetch is stable unless onSuccess/onError change
+  const refetch = useCallback(async (): Promise<void> => {
+    if (!isMounted.current) return; // Prevent updates on unmounted component
+
     dispatch({ type: 'FETCH_START' });
-    
     try {
-      const result = await fetchFunctionRef.current();
-      
-      // Only update state if component is still mounted
+      const result = await fetchFunctionRef.current(); // Always use the latest function
       if (isMounted.current) {
         dispatch({ type: 'FETCH_SUCCESS', payload: result });
         if (onSuccess) onSuccess(result);
       }
     } catch (err) {
-      // Only update state if component is still mounted
       if (isMounted.current) {
         const errorObject = err instanceof Error ? err : new Error('Failed to fetch data');
         dispatch({ type: 'FETCH_ERROR', payload: errorObject });
         if (onError) onError(errorObject);
-        console.error('Error in polling fetch:', errorObject);
+        console.error('Error during fetch:', errorObject);
       }
     }
-  }, [onSuccess, onError, respectVisibility]);
+  }, [onSuccess, onError]); // Depends only on the callbacks it uses
 
-  // Start polling
-  const startPolling = useCallback(() => {
-    if (isPollingEnabled.current) return;
-    
-    isPollingEnabled.current = true;
-    // Perform an immediate fetch when starting
-    fetchData();
-    
-    // Only set up interval if polling interval is positive
-    if (pollingInterval > 0) {
-      intervalId.current = window.setInterval(fetchData, pollingInterval);
-    }
-  }, [fetchData, pollingInterval]);
-
-  // Stop polling
+  // --- Polling Control Functions ---
   const stopPolling = useCallback(() => {
-    if (!isPollingEnabled.current) return;
-    
-    isPollingEnabled.current = false;
-    
     if (intervalId.current !== null) {
       window.clearInterval(intervalId.current);
       intervalId.current = null;
     }
+    isPollingActive.current = false;
   }, []);
 
-  // Effect to set up and clean up polling
-  useEffect(() => {
-    isMounted.current = true;
-    
-    // Initial fetch if enabled and fetchOnMount is true
-    if (fetchOnMount) {
-      fetchData();
+  const startPolling = useCallback(() => {
+    // Don't start if already active, interval is invalid, or hook disabled
+    if (isPollingActive.current || pollingInterval <= 0 || !enabled) {
+      return;
     }
-    
-    // Set up polling if enabled and interval is positive
-    if (enabled && pollingInterval > 0) {
-      isPollingEnabled.current = true;
-      intervalId.current = window.setInterval(fetchData, pollingInterval);
-    } else {
-      isPollingEnabled.current = false;
-    }
-    
-    // Clean up on unmount or when dependencies change
-    return () => {
-      isMounted.current = false;
-      if (intervalId.current !== null) {
-        window.clearInterval(intervalId.current);
-        intervalId.current = null;
+
+    isPollingActive.current = true;
+
+    // Function to perform a poll check respecting visibility
+    const performPollCheck = () => {
+      if (!isMounted.current) {
+        stopPolling(); // Stop if component unmounted
+        return;
+      }
+      const isVisible = !respectVisibility || document.visibilityState === 'visible';
+      if (isVisible) {
+        refetch();
       }
     };
-  }, [enabled, pollingInterval, fetchData, fetchOnMount]);
 
-  // Update polling interval or enabled state if options change
+    // Perform initial check immediately upon starting (if visible)
+    performPollCheck();
+
+    // Set up the interval
+    intervalId.current = window.setInterval(performPollCheck, pollingInterval);
+
+  }, [enabled, pollingInterval, refetch, respectVisibility, stopPolling]);
+
+
+  // --- setData Function ---
+  // Remains the same, dispatches DIRECT_SET_DATA
+  const setData = useCallback((updater: T | null | ((currentData: T | null) => T | null)) => {
+    dispatch({
+        type: 'DIRECT_SET_DATA',
+        payload: typeof updater === 'function'
+            ? (updater as (currentData: T | null) => T | null)(state.data)
+            : updater
+    });
+  }, [state.data]);
+
+  // --- Effects ---
+
+  // Effect for mounting and initial setup/cleanup
   useEffect(() => {
-    // If polling is enabled and the interval changed, restart the polling
-    if (isPollingEnabled.current && intervalId.current !== null && pollingInterval > 0) {
-      window.clearInterval(intervalId.current);
-      intervalId.current = window.setInterval(fetchData, pollingInterval);
-    }
-    
-    // Handle enabled state change
-    if (enabled !== isPollingEnabled.current) {
-      if (enabled && pollingInterval > 0) {
-        startPolling();
-      } else {
-        stopPolling();
-      }
-    }
-  }, [enabled, pollingInterval, fetchData, startPolling, stopPolling]);
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      stopPolling(); // Ensure polling stops on unmount
+    };
+  }, [stopPolling]); // Depends only on stopPolling for cleanup
 
+  useEffect(() => {
+    if (enabled) {
+      if (fetchOnMount && isMounted.current && !isPollingActive.current) {
+          const isVisible = !respectVisibility || document.visibilityState === 'visible';
+          if (isVisible) {
+             refetch();
+          }
+      }
+      startPolling(); // Start or restart polling if interval changed
+    } else {
+      stopPolling(); // Stop polling if disabled
+    }
+
+    // Cleanup within this effect scope if needed (handled by stopPolling call)
+  }, [enabled, pollingInterval, fetchOnMount, startPolling, stopPolling, refetch, respectVisibility]); // Re-evaluate polling when these change
+
+
+  // --- Return Value ---
   return {
     data: state.data,
     loading: state.loading,
     error: state.error,
-    refetch: fetchData,
+    refetch,
     stopPolling,
     startPolling,
-    fetchCount: state.fetchCount
+    fetchCount: state.fetchCount,
+    setData
   };
 }
 
