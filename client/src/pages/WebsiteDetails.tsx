@@ -11,18 +11,35 @@ import {
   Snackbar,
   Alert,
 } from "@mui/material";
-import { ErrorOutline as ErrorIcon, Refresh as RefreshIcon } from "@mui/icons-material";
+import {
+  ErrorOutline as ErrorIcon,
+  Refresh as RefreshIcon,
+} from "@mui/icons-material";
 
 // Chart.js registration... (remains the same)
 import {
-  Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement,
-  BarElement, Title, Tooltip as ChartTooltip, Legend, Filler
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+  Filler,
 } from "chart.js";
 ChartJS.register(
-    CategoryScale, LinearScale, PointElement, LineElement, BarElement,
-    Title, ChartTooltip, Legend, Filler
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  Filler,
 );
-
 
 // Import the hook
 import { useWebsiteDetail } from "../hooks/domain/useWebsiteDetail";
@@ -39,7 +56,9 @@ import WebsiteDetailsTabs from "../components/website-details/WebsiteDetailsTabs
 import { TimeRange } from "../types";
 
 // Helper function... (remains the same)
-const getAvailableTimeRanges = (tabIndex: number): TimeRange[] => { /* ... */ };
+const getAvailableTimeRanges = (tabIndex: number): TimeRange[] => {
+  /* ... */
+};
 
 const WebsiteDetails: React.FC = () => {
   const params = useParams<Record<string, string>>();
@@ -52,9 +71,9 @@ const WebsiteDetails: React.FC = () => {
   // Use the central hook
   const {
     userWebsite,
-    results,        // Filtered results based on timeRange
-    allResults,     // Underlying potentially larger dataset from fetch
-    loading,        // This reflects the underlying hook's loading state (true during polls)
+    results, // Filtered results based on timeRange
+    allResults, // Underlying potentially larger dataset from fetch
+    loading, // This reflects the underlying hook's loading state (true during polls)
     error,
     isChecking,
     handleCheckNow,
@@ -77,20 +96,25 @@ const WebsiteDetails: React.FC = () => {
     }
   }, [loading, userWebsite, allResults]);
 
-
   // Callback for tab changes... (remains the same)
-  const handleTabChange = useCallback((newTabIndex: number) => {
-    setActiveTabIndex(newTabIndex);
-    const newAvailableRanges = getAvailableTimeRanges(newTabIndex);
-    if (!newAvailableRanges.includes(timeRange)) {
-      setTimeRange(newAvailableRanges[0]);
-    }
-  }, [timeRange, setTimeRange]);
+  const handleTabChange = useCallback(
+    (newTabIndex: number) => {
+      setActiveTabIndex(newTabIndex);
+      const newAvailableRanges = getAvailableTimeRanges(newTabIndex);
+      if (!newAvailableRanges.includes(timeRange)) {
+        setTimeRange(newAvailableRanges[0]);
+      }
+    },
+    [timeRange, setTimeRange],
+  );
 
   // Callback for time range changes... (remains the same)
-  const handleTimeRangeChange = useCallback((newTimeRange: TimeRange) => {
-    setTimeRange(newTimeRange);
-  }, [setTimeRange]);
+  const handleTimeRangeChange = useCallback(
+    (newTimeRange: TimeRange) => {
+      setTimeRange(newTimeRange);
+    },
+    [setTimeRange],
+  );
 
   const handleSnackbarClose = () => setSnackbarOpen(false);
 
@@ -100,7 +124,12 @@ const WebsiteDetails: React.FC = () => {
   // Show full page loader only if loading AND the initial load hasn't completed yet
   if (loading && !initialLoadComplete.current) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="80vh"
+      >
         <CircularProgress />
       </Box>
     );
@@ -112,9 +141,18 @@ const WebsiteDetails: React.FC = () => {
       <Container maxWidth="lg" sx={{ mt: 4 }}>
         <Paper sx={{ p: 3, textAlign: "center" }}>
           <ErrorIcon color="error" sx={{ fontSize: 40, mb: 2 }} />
-          <Typography variant="h5" color="error">Error Loading Website Details</Typography>
-          <Typography variant="body1" sx={{ mt: 2 }}>{error.message}</Typography>
-          <Button variant="contained" onClick={() => refetch()} startIcon={<RefreshIcon />} sx={{ mt: 3 }}>
+          <Typography variant="h5" color="error">
+            Error Loading Website Details
+          </Typography>
+          <Typography variant="body1" sx={{ mt: 2 }}>
+            {error.message}
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={() => refetch()}
+            startIcon={<RefreshIcon />}
+            sx={{ mt: 3 }}
+          >
             Try Again
           </Button>
         </Paper>
@@ -123,7 +161,8 @@ const WebsiteDetails: React.FC = () => {
   }
 
   // Not Found / No Access State
-  if (!userWebsite && !loading) { // Check !loading to ensure it's not shown during transitions
+  if (!userWebsite && !loading) {
+    // Check !loading to ensure it's not shown during transitions
     return (
       <Container maxWidth="lg" sx={{ mt: 4 }}>
         <Paper sx={{ p: 3, textAlign: "center" }}>
@@ -141,7 +180,6 @@ const WebsiteDetails: React.FC = () => {
   // We use `allResults.length === 0` as a proxy for "no data yet"
   const showChartLoading = loading && allResults.length === 0 && !error;
 
-
   // Main Content Render
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -156,7 +194,9 @@ const WebsiteDetails: React.FC = () => {
       )}
 
       {/* Stats cards likely don't need a loading state if they show latest known data */}
-      <WebsiteStatsCards latestResult={allResults.length > 0 ? allResults[0] : null} />
+      <WebsiteStatsCards
+        latestResult={allResults.length > 0 ? allResults[0] : null}
+      />
 
       <TimeRangeSelector
         value={timeRange}
@@ -166,48 +206,55 @@ const WebsiteDetails: React.FC = () => {
 
       {/* Render Tabs and pass chart components */}
       <WebsiteDetailsTabs
-         onTabChange={handleTabChange}
-         responseTimeChart={
-            <ResponseTimeChart
-                results={results} // Pass currently filtered results
-                timeRange={timeRange}
-                // **MODIFIED** Pass loading only for the initial load phase
-                loading={showChartLoading && activeTabIndex === 0}
-                error={error && activeTabIndex === 0 ? error : null} // Show error if relevant
-             />
-         }
-         uptimeChart={
-             <UptimeChart
-                results={results}
-                timeRange={timeRange}
-                // **MODIFIED** Pass loading only for the initial load phase
-                loading={showChartLoading && activeTabIndex === 1}
-                error={error && activeTabIndex === 1 ? error : null}
-             />
-         }
-         downtimePatternChart={
-             <DowntimePatternChart
-                results={results}
-                timeRange={timeRange}
-                // **MODIFIED** Pass loading only for the initial load phase
-                loading={showChartLoading && activeTabIndex === 2}
-                error={error && activeTabIndex === 2 ? error : null}
-             />
-         }
-         resultsTable={
-             <ResultsTable
-                results={results} // Table uses filtered results
-                timeRange={timeRange}
-                // **MODIFIED** Pass loading only for the initial load phase
-                loading={showChartLoading && activeTabIndex === 3}
-                limit={20}
-            />
-         }
+        onTabChange={handleTabChange}
+        responseTimeChart={
+          <ResponseTimeChart
+            results={results} // Pass currently filtered results
+            timeRange={timeRange}
+            // **MODIFIED** Pass loading only for the initial load phase
+            loading={showChartLoading && activeTabIndex === 0}
+            error={error && activeTabIndex === 0 ? error : null} // Show error if relevant
+          />
+        }
+        uptimeChart={
+          <UptimeChart
+            results={results}
+            timeRange={timeRange}
+            // **MODIFIED** Pass loading only for the initial load phase
+            loading={showChartLoading && activeTabIndex === 1}
+            error={error && activeTabIndex === 1 ? error : null}
+          />
+        }
+        downtimePatternChart={
+          <DowntimePatternChart
+            results={results}
+            timeRange={timeRange}
+            // **MODIFIED** Pass loading only for the initial load phase
+            loading={showChartLoading && activeTabIndex === 2}
+            error={error && activeTabIndex === 2 ? error : null}
+          />
+        }
+        resultsTable={
+          <ResultsTable
+            results={results} // Table uses filtered results
+            timeRange={timeRange}
+            // **MODIFIED** Pass loading only for the initial load phase
+            loading={showChartLoading && activeTabIndex === 3}
+            limit={20}
+          />
+        }
       />
 
       {/* Feedback Snackbar */}
-      <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
-        <Alert onClose={handleSnackbarClose} severity="info">{snackbarMessage}</Alert>
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert onClose={handleSnackbarClose} severity="info">
+          {snackbarMessage}
+        </Alert>
       </Snackbar>
     </Container>
   );
