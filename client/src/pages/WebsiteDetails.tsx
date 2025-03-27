@@ -1,5 +1,5 @@
 // src/pages/WebsiteDetails.tsx
-import React, { useState, useCallback, useRef, useEffect } from "react"; // Import useRef, useEffect
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useParams } from "react-router";
 import {
   Container,
@@ -16,7 +16,7 @@ import {
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
 
-// Chart.js registration... (remains the same)
+// Chart.js registration
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -41,10 +41,14 @@ ChartJS.register(
   Filler,
 );
 
-// Import the hook
+// Import our hooks
 import { useWebsiteDetail } from "../hooks/domain/useWebsiteDetail";
+import { 
+  useTimeRangeSelection, 
+  useFilteredResults 
+} from "../hooks";
 
-// Component imports... (remains the same)
+// Component imports
 import WebsiteHeader from "../components/website-details/WebsiteHeader";
 import WebsiteStatsCards from "../components/website-details/WebsiteStatsCards";
 import ResponseTimeChart from "../components/website-details/ResponseTimeChart";
@@ -53,96 +57,58 @@ import DowntimePatternChart from "../components/website-details/DownTimePatternC
 import ResultsTable from "../components/website-details/ResultsTable";
 import TimeRangeSelector from "../components/website-details/TimeRangeSelector";
 import WebsiteDetailsTabs from "../components/website-details/WebsiteDetailsTabs";
-import { TimeRange } from "../types";
-
-// Helper function... (remains the same)
-const getAvailableTimeRanges = (tabIndex: number): TimeRange[] => {
-  switch (tabIndex) {
-    case 0: // Response Time
-    case 1: // Uptime Status
-    case 3: // Recent Checks
-      return ["1d", "7d", "30d", "365d", "all"];
-    case 2: // Downtime Patterns
-      return ["1d", "7d", "30d", "365d"]; // Adjust as needed, maybe 'all' is too much for patterns
-    default:
-      return ["1d", "7d", "30d", "365d", "all"];
-  }
-};
 
 const WebsiteDetails: React.FC = () => {
   const params = useParams<Record<string, string>>();
   const websiteId = parseInt(params.id || "0", 10);
 
+  // Tab state
   const [activeTabIndex, setActiveTabIndex] = useState(0);
+  
+  // Snackbar state
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>("");
 
-  // Use the central hook
+  // Use the central hook for website details
   const {
     userWebsite,
-    results, // Filtered results based on timeRange
-    allResults, // Underlying potentially larger dataset from fetch
-    loading, // This reflects the underlying hook's loading state (true during polls)
+    allResults, // Unfiltered data
+    loading,
     error,
     isChecking,
     handleCheckNow,
     currentStatus,
     statusColor,
     refetch,
-    timeRange,
-    setTimeRange,
   } = useWebsiteDetail(websiteId);
 
-  // Ref to track if the initial data load has ever completed
+  // Use our new time range selection hook
+  const { timeRange, setTimeRange, availableRanges } = useTimeRangeSelection("7d", activeTabIndex);
+
+  // Use our filtered results hook to filter results based on time range
+  const filteredResults = useFilteredResults(allResults, timeRange);
+
+  // Ref to track if the initial data load has completed
   const initialLoadComplete = useRef(false);
 
-  // Determine if initial load is truly complete
+  // Determine if initial load is complete
   useEffect(() => {
-    // Consider load complete if we are NOT currently loading AND we have website data
-    // OR if we are not loading and have some results (even if website data failed initially)
     if (!loading && (userWebsite || allResults.length > 0)) {
       initialLoadComplete.current = true;
     }
   }, [loading, userWebsite, allResults]);
 
-  // Callback for tab changes... (remains the same)
-  const handleTabChange = useCallback(
-    (newTabIndex: number) => {
-      setActiveTabIndex(newTabIndex);
-      const newAvailableRanges = getAvailableTimeRanges(newTabIndex);
-      if (!newAvailableRanges.includes(timeRange)) {
-        setTimeRange(newAvailableRanges[0]);
-      }
-    },
-    [timeRange, setTimeRange],
-  );
+  // Callback for tab changes
+  const handleTabChange = useCallback((newTabIndex: number) => {
+    setActiveTabIndex(newTabIndex);
+  }, []);
 
-  // Callback for time range changes... (remains the same)
-  const handleTimeRangeChange = useCallback(
-    (newTimeRange: TimeRange) => {
-      setTimeRange(newTimeRange);
-    },
-    [setTimeRange],
-  );
-
+  // Simple handler for closing snackbar
   const handleSnackbarClose = () => setSnackbarOpen(false);
 
-  // --- Render Logic ---
-
-  // **MODIFIED** Loading State (Initial Load Only)
-  // Show full page loader only if loading AND the initial load hasn't completed yet
-  if (loading && !initialLoadComplete.current) {
-    return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="80vh"
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
+  // Simplified loading states
+  const isInitialLoading = loading && !initialLoadComplete.current;
+  const showChartLoading = isInitialLoading && allResults.length === 0 && !error;
 
   // Error State (if website data fails critically on initial load)
   if (error && !userWebsite && !initialLoadComplete.current) {
@@ -171,7 +137,6 @@ const WebsiteDetails: React.FC = () => {
 
   // Not Found / No Access State
   if (!userWebsite && !loading) {
-    // Check !loading to ensure it's not shown during transitions
     return (
       <Container maxWidth="lg" sx={{ mt: 4 }}>
         <Paper sx={{ p: 3, textAlign: "center" }}>
@@ -185,9 +150,19 @@ const WebsiteDetails: React.FC = () => {
     );
   }
 
-  // Calculate loading state specific to charts (only true on initial load)
-  // We use `allResults.length === 0` as a proxy for "no data yet"
-  const showChartLoading = loading && allResults.length === 0 && !error;
+  // Loading State (Initial Load Only)
+  if (isInitialLoading) {
+    return (
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="80vh"
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   // Main Content Render
   return (
@@ -202,52 +177,49 @@ const WebsiteDetails: React.FC = () => {
         />
       )}
 
-      {/* Stats cards likely don't need a loading state if they show latest known data */}
+      {/* Stats cards */}
       <WebsiteStatsCards
         latestResult={allResults.length > 0 ? allResults[0] : null}
       />
 
+      {/* Time range selector with available ranges from our hook */}
       <TimeRangeSelector
         value={timeRange}
-        onChange={handleTimeRangeChange}
-        availableRanges={getAvailableTimeRanges(activeTabIndex)}
+        onChange={setTimeRange}
+        availableRanges={availableRanges}
       />
 
-      {/* Render Tabs and pass chart components */}
+      {/* Tabs with charts - passing filtered results to all chart components */}
       <WebsiteDetailsTabs
         onTabChange={handleTabChange}
         responseTimeChart={
           <ResponseTimeChart
-            results={results} // Pass currently filtered results
+            results={filteredResults}
             timeRange={timeRange}
-            // **MODIFIED** Pass loading only for the initial load phase
             loading={showChartLoading && activeTabIndex === 0}
-            error={error && activeTabIndex === 0 ? error : null} // Show error if relevant
+            error={error && activeTabIndex === 0 ? error : null}
           />
         }
         uptimeChart={
           <UptimeChart
-            results={results}
+            results={filteredResults}
             timeRange={timeRange}
-            // **MODIFIED** Pass loading only for the initial load phase
             loading={showChartLoading && activeTabIndex === 1}
             error={error && activeTabIndex === 1 ? error : null}
           />
         }
         downtimePatternChart={
           <DowntimePatternChart
-            results={results}
+            results={filteredResults}
             timeRange={timeRange}
-            // **MODIFIED** Pass loading only for the initial load phase
             loading={showChartLoading && activeTabIndex === 2}
             error={error && activeTabIndex === 2 ? error : null}
           />
         }
         resultsTable={
           <ResultsTable
-            results={results} // Table uses filtered results
+            results={filteredResults}
             timeRange={timeRange}
-            // **MODIFIED** Pass loading only for the initial load phase
             loading={showChartLoading && activeTabIndex === 3}
             limit={20}
           />

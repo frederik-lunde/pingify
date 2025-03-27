@@ -15,31 +15,30 @@ import {
 } from "@mui/material";
 import { MonitoringResult, TimeRange } from "../../types";
 import { formatResponseTime } from "../../utils/statusUtils";
-import { filterResultsByTimeRange } from "../../utils/charts/common";
 
 interface ResultsTableProps {
-  results: MonitoringResult[];
-  timeRange: TimeRange; // Add timeRange prop
+  results: MonitoringResult[]; // Already filtered results
+  timeRange: TimeRange;
   loading?: boolean;
   limit?: number;
 }
+
 const ResultsTable: React.FC<ResultsTableProps> = ({
   results,
-  timeRange,
+  timeRange, // Still need timeRange for context, even though we don't filter
   loading = false,
   limit = 10,
 }) => {
   const theme = useTheme();
 
+  // Sort results by date (newest first) and limit them
   const displayResults = useMemo(() => {
-    const filtered = filterResultsByTimeRange(results, timeRange);
-    const sorted = [...filtered].sort(
+    const sorted = [...results].sort(
       (a, b) =>
-        new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime(),
+        new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime()
     );
-
     return sorted.slice(0, limit);
-  }, [results, timeRange, limit]);
+  }, [results, limit]);
 
   const renderSkeletonRows = () => {
     return Array(limit)

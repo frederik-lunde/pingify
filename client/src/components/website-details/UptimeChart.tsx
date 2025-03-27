@@ -1,19 +1,14 @@
 // client/src/components/website-details/UptimeChart.tsx
-import React, { useMemo } from "react";
-import { useTheme } from "@mui/material";
+import React from "react";
 import { MonitoringResult, TimeRange } from "../../types";
-import {
-  prepareUptimeStatusData,
-  getUptimeStatusOptions,
-} from "../../utils/charts/uptimeChart";
 import BaseChart from "./BaseChart";
-import { ChartOptions } from "chart.js"; // Import types
+import { useUptimeChartData } from "../../hooks";
 
 interface UptimeChartProps {
-  results: MonitoringResult[];
+  results: MonitoringResult[]; // Already filtered results from parent
   timeRange: TimeRange;
   loading?: boolean;
-  error?: Error | null; // Add error prop
+  error?: Error | null;
   height?: number;
   title?: string;
 }
@@ -22,25 +17,12 @@ const UptimeChart: React.FC<UptimeChartProps> = ({
   results,
   timeRange,
   loading = false,
-  error = null, // Destructure error
+  error = null,
   height = 300,
   title = "Uptime Status",
 }) => {
-  const theme = useTheme();
-
-  const chartData = useMemo(() => {
-    // prepareUptimeStatusData expects unfiltered results if it does filtering internally,
-    // or filtered results if it doesn't. The hook now provides filtered results.
-    // Ensure prepareUptimeStatusData handles this correctly or adjust the hook/utility.
-    // Assuming prepareUptimeStatusData now works with the already filtered `results`.
-    if (!results || results.length === 0) return null;
-    return prepareUptimeStatusData(results, timeRange, theme);
-  }, [results, timeRange, theme]); // Depends on filtered results
-
-  const chartOptions = useMemo(
-    (): ChartOptions<"bar"> => getUptimeStatusOptions(),
-    [],
-  );
+  // Use our custom hook to prepare chart data
+  const { chartData, chartOptions } = useUptimeChartData(results, timeRange);
 
   return (
     <BaseChart
@@ -49,7 +31,7 @@ const UptimeChart: React.FC<UptimeChartProps> = ({
       data={chartData}
       options={chartOptions}
       loading={loading}
-      error={error} // Pass error
+      error={error}
       height={height}
     />
   );

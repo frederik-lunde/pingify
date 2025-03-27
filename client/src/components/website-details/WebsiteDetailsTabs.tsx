@@ -1,7 +1,6 @@
 // client/src/components/website-details/WebsiteDetailsTabs.tsx
 import React, { useState } from "react";
 import { Box, Tabs, Tab, Paper } from "@mui/material";
-import { TimeRange } from "../../types";
 
 interface TabPanelProps {
   children?: React.ReactNode;

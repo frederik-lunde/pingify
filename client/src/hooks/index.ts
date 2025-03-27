@@ -17,3 +17,4 @@ export * from "./domain/useAlertData";
 
 // UI hooks
 export * from "./ui/useForm";
+export * from "./ui/useChart";
