@@ -79,7 +79,7 @@ export interface OverallStats {
 }
 
 // Updated Alert types
-export type AlertType = 'down' | 'slow';
+export type AlertType = 'down' | 'slow' | 'recovered';
 
 export interface Alert {
   id: number;
