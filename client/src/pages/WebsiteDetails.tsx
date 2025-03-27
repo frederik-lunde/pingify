@@ -100,7 +100,7 @@ const WebsiteDetails: React.FC = () => {
       case 1: // Uptime Status tab
         return ['1d', '7d', '30d', '365d', 'all'];
       case 2: // Downtime Patterns tab
-        return ['1d', '7d']; // Only show day, week, month options for pattern analysis
+        return ['1d', '7d', '30d']; // Only show day, week, month options for pattern analysis
       case 3: // Recent Checks tab
         return ['1d', '7d', '30d', '365d', 'all'];
       default:
