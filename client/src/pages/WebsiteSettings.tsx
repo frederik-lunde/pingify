@@ -335,7 +335,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
               Confirm Removal
             </Typography>
             <Typography variant="body1" paragraph>
-              Are you sure you want to remove "{website.name}" from your
+              Are you sure you want to remove "{website?.name}" from your
               dashboard? This action cannot be undone.
             </Typography>
             <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
