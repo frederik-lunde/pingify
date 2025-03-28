@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
+import { Formik, Form, Field, FormikHelpers } from "formik";
+import * as Yup from "yup";
 import {
   Container,
   Paper,
@@ -26,36 +28,61 @@ import {
 } from "@mui/icons-material";
 import { useWebsite, useWebsiteCrud } from "../hooks"; // Import from the new hooks directory
 
+// Form values interface
+interface WebsiteSettingsFormValues {
+  name: string;
+  interval: number;
+  alertEnabled: boolean;
+  alertThreshold: string;
+  notifyEmail: string;
+}
+
+// Validation schema using Yup
+const WebsiteSettingsSchema = Yup.object().shape({
+  name: Yup.string().required("Website name is required"),
+  interval: Yup.number()
+    .min(60, "Interval must be at least 60 seconds")
+    .max(86400, "Interval must be at most 86400 seconds")
+    .required("Interval is required"),
+  alertEnabled: Yup.boolean(),
+  alertThreshold: Yup.string()
+    .when("alertEnabled", {
+      is: true,
+      then: (schema) => schema
+        .test(
+          "is-number",
+          "Threshold must be a valid number",
+          (value) => !value || !isNaN(Number(value))
+        )
+        .test(
+          "min",
+          "Threshold must be at least 100 milliseconds",
+          (value) => !value || Number(value) >= 100
+        ),
+    }),
+  notifyEmail: Yup.string()
+    .when("alertEnabled", {
+      is: true,
+      then: (schema) => schema.email("Please enter a valid email address"),
+    }),
+});
+
 interface WebsiteSettingsProps {
   websiteId: number; // Receive validated ID as a prop
 }
 
 const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
-  // Use the prop
-  // const { id } = useParams<{ id: string }>(); // No longer needed here
-  // const websiteId = parseInt(id || "0", 10); // No longer needed here
   const navigate = useNavigate();
 
-  // --- ADJUSTED HOOK CALL ---
-  // Use pollingInterval = 0 to disable polling timer.
-  // Use default enabled = true and fetchOnMount = true.
+  // Use the website data hook with polling disabled
   const {
     data: website,
     loading: websiteLoading,
     error: websiteError,
   } = useWebsite(websiteId, 0);
 
-  // Use our website CRUD hook
+  // Use website CRUD hook
   const { update, remove, loading: actionLoading } = useWebsiteCrud();
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: "",
-    interval: 300,
-    alertEnabled: false,
-    alertThreshold: "",
-    notifyEmail: "",
-  });
 
   // UI state
   const [success, setSuccess] = useState("");
@@ -67,10 +94,19 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
     "success" | "error" | "info"
   >("success");
 
-  // Initialize form when website data is loaded
+  // Initial form values
+  const [initialValues, setInitialValues] = useState<WebsiteSettingsFormValues>({
+    name: "",
+    interval: 300,
+    alertEnabled: false,
+    alertThreshold: "",
+    notifyEmail: "",
+  });
+
+  // Update initialValues when website data is loaded
   useEffect(() => {
     if (website) {
-      setFormData({
+      setInitialValues({
         name: website.name || "",
         interval: website.interval || 300,
         alertEnabled: website.alertEnabled,
@@ -82,31 +118,23 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
     }
   }, [website]);
 
-  // Handle form input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  // Submit form and update website
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Form submission handler
+  const handleSubmit = async (
+    values: WebsiteSettingsFormValues,
+    { setSubmitting }: FormikHelpers<WebsiteSettingsFormValues>
+  ) => {
     setSuccess("");
     setError("");
 
     try {
       await update(websiteId, {
-        name: formData.name,
-        interval: parseInt(formData.interval.toString()),
-        alertEnabled: formData.alertEnabled,
-        alertThreshold: formData.alertThreshold
-          ? parseInt(formData.alertThreshold)
+        name: values.name,
+        interval: parseInt(values.interval.toString()),
+        alertEnabled: values.alertEnabled,
+        alertThreshold: values.alertEnabled && values.alertThreshold
+          ? parseInt(values.alertThreshold)
           : null,
-        notifyEmail: formData.notifyEmail || null,
+        notifyEmail: values.alertEnabled ? values.notifyEmail || null : null,
       });
 
       showSnackbar("Settings saved successfully");
@@ -120,6 +148,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
           : "Failed to update website settings";
       setError(errorMessage);
       showSnackbar("Error: " + errorMessage, "error");
+      setSubmitting(false);
     }
   };
 
@@ -159,17 +188,6 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
   }
 
   // Error state
-  if (websiteLoading) {
-    // Show loading indicator *while* loading
-    return (
-      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-        <Box display="flex" justifyContent="center" my={4}>
-          <CircularProgress />
-        </Box>
-      </Container>
-    );
-  }
-
   if (websiteError || (!websiteLoading && !website)) {
     // Check !website only *after* loading is false
     const errorMessage =
@@ -224,109 +242,133 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit}>
-        <Paper sx={{ p: 3, mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            General Settings
-          </Typography>
-          <Divider sx={{ mb: 3 }} />
+      <Formik
+        initialValues={initialValues}
+        validationSchema={WebsiteSettingsSchema}
+        onSubmit={handleSubmit}
+        enableReinitialize={true} // Important: This makes Formik update when initialValues change
+      >
+        {({
+          errors,
+          touched,
+          values,
+          isSubmitting,
+        }) => (
+          <Form>
+            <Paper sx={{ p: 3, mb: 4 }}>
+              <Typography variant="h6" gutterBottom>
+                General Settings
+              </Typography>
+              <Divider sx={{ mb: 3 }} />
 
-          <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Website Name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                required
-              />
-            </Grid>
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Field
+                    as={TextField}
+                    fullWidth
+                    label="Website Name"
+                    name="name"
+                    error={touched.name && Boolean(errors.name)}
+                    helperText={touched.name && errors.name}
+                    required
+                  />
+                </Grid>
 
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Check Interval (seconds)"
-                name="interval"
-                type="number"
-                value={formData.interval}
-                onChange={handleChange}
-                required
-                InputProps={{ inputProps: { min: 60 } }}
-                helperText="Minimum 60 seconds"
-              />
-            </Grid>
-          </Grid>
-        </Paper>
-
-        <Paper sx={{ p: 3, mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Alert Settings
-          </Typography>
-          <Divider sx={{ mb: 3 }} />
-
-          <FormControlLabel
-            control={
-              <Switch
-                name="alertEnabled"
-                checked={formData.alertEnabled}
-                onChange={handleChange}
-              />
-            }
-            label="Enable Alerts"
-            sx={{ mb: 2 }}
-          />
-
-          {formData.alertEnabled && (
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Response Time Threshold (ms)"
-                  name="alertThreshold"
-                  type="number"
-                  value={formData.alertThreshold}
-                  onChange={handleChange}
-                  helperText="You'll receive alerts when response time exceeds this value"
-                  InputProps={{ inputProps: { min: 100 } }}
-                />
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Field
+                    as={TextField}
+                    fullWidth
+                    label="Check Interval (seconds)"
+                    name="interval"
+                    type="number"
+                    error={touched.interval && Boolean(errors.interval)}
+                    helperText={
+                      (touched.interval && errors.interval) || 
+                      "Minimum 60 seconds"
+                    }
+                    required
+                    InputProps={{ inputProps: { min: 60 } }}
+                  />
+                </Grid>
               </Grid>
+            </Paper>
 
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Notification Email"
-                  name="notifyEmail"
-                  type="email"
-                  value={formData.notifyEmail}
-                  onChange={handleChange}
-                  helperText="Email address to receive alert notifications"
-                />
-              </Grid>
-            </Grid>
-          )}
-        </Paper>
+            <Paper sx={{ p: 3, mb: 4 }}>
+              <Typography variant="h6" gutterBottom>
+                Alert Settings
+              </Typography>
+              <Divider sx={{ mb: 3 }} />
 
-        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 4 }}>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => setDeleteConfirm(true)}
-          >
-            Remove Website
-          </Button>
+              <FormControlLabel
+                control={
+                  <Field
+                    as={Switch}
+                    name="alertEnabled"
+                    checked={values.alertEnabled}
+                  />
+                }
+                label="Enable Alerts"
+                sx={{ mb: 2 }}
+              />
 
-          <Button
-            type="submit"
-            variant="contained"
-            startIcon={<SaveIcon />}
-            disabled={actionLoading}
-          >
-            {actionLoading ? "Saving..." : "Save Changes"}
-          </Button>
-        </Box>
-      </form>
+              {values.alertEnabled && (
+                <Grid container spacing={3}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      label="Response Time Threshold (ms)"
+                      name="alertThreshold"
+                      type="number"
+                      error={touched.alertThreshold && Boolean(errors.alertThreshold)}
+                      helperText={
+                        (touched.alertThreshold && errors.alertThreshold) ||
+                        "You'll receive alerts when response time exceeds this value"
+                      }
+                      InputProps={{ inputProps: { min: 100 } }}
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      label="Notification Email"
+                      name="notifyEmail"
+                      type="email"
+                      error={touched.notifyEmail && Boolean(errors.notifyEmail)}
+                      helperText={
+                        (touched.notifyEmail && errors.notifyEmail) ||
+                        "Email address to receive alert notifications"
+                      }
+                    />
+                  </Grid>
+                </Grid>
+              )}
+            </Paper>
+
+            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 4 }}>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => setDeleteConfirm(true)}
+              >
+                Remove Website
+              </Button>
+
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<SaveIcon />}
+                disabled={isSubmitting || actionLoading}
+              >
+                {isSubmitting || actionLoading ? "Saving..." : "Save Changes"}
+              </Button>
+            </Box>
+          </Form>
+        )}
+      </Formik>
 
       {deleteConfirm && (
         <Card sx={{ mb: 3, bgcolor: "error.light" }}>
