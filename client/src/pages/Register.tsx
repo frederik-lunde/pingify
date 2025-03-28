@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router";
+import { Formik, Form, Field, FormikHelpers } from "formik";
+import * as Yup from "yup";
 import {
   Container,
   Paper,
@@ -24,14 +26,28 @@ import {
   Login as LoginIcon,
 } from "@mui/icons-material";
 import { useAuth } from "../context/AuthContext";
-import { useForm } from "../hooks"; // Import from the new hooks directory
 
-//Should replace with useForm
-import {
-  validateRegistrationForm,
-  prepareRegistrationData,
-  RegisterFormData,
-} from "../utils/validation/registerValidation";
+// Registration form values interface
+interface RegisterFormValues {
+  email: string;
+  name: string;
+  password: string;
+  confirmPassword: string;
+}
+
+// Validation schema using Yup
+const RegisterSchema = Yup.object().shape({
+  email: Yup.string()
+    .email("Please enter a valid email address")
+    .required("Email is required"),
+  name: Yup.string().max(50, "Display name must be 50 characters or less"),
+  password: Yup.string()
+    .min(6, "Password must be at least 6 characters")
+    .required("Password is required"),
+  confirmPassword: Yup.string()
+    .oneOf([Yup.ref("password")], "Passwords must match")
+    .required("Confirm password is required"),
+});
 
 const Register: React.FC = () => {
   // UI state
@@ -43,46 +59,37 @@ const Register: React.FC = () => {
   const { register, loading, error: authError } = useAuth();
   const navigate = useNavigate();
 
-  // Use our new form hook
-  const {
-    values: formData,
-    errors,
-    handleChange,
-    handleSubmit,
-    setFieldValue, //look into
-  } = useForm<RegisterFormData>({
-    initialValues: {
-      email: "",
-      name: "",
-      password: "",
-      confirmPassword: "",
-    },
-    validator: validateRegistrationForm,
-    onSubmit: async (values) => {
-      try {
-        // Prepare and submit registration data
-        const registrationData = prepareRegistrationData(values);
-        await register(
-          registrationData.email,
-          registrationData.password,
-          registrationData.name,
-        );
+  // Initial form values
+  const initialValues: RegisterFormValues = {
+    email: "",
+    name: "",
+    password: "",
+    confirmPassword: "",
+  };
 
-        // Show success message
-        setSnackbarMessage(
-          "Registration successful! Redirecting to dashboard...",
-        );
-        setSnackbarOpen(true);
+  // Form submission handler
+  const handleSubmit = async (
+    values: RegisterFormValues,
+    { setSubmitting }: FormikHelpers<RegisterFormValues>
+  ) => {
+    try {
+      await register(values.email, values.password, values.name || undefined);
 
-        // Redirect after short delay
-        setTimeout(() => {
-          navigate("/");
-        }, 1500);
-      } catch (err) {
-        // Error will be handled by the auth context
-      }
-    },
-  });
+      // Show success message
+      setSnackbarMessage(
+        "Registration successful! Redirecting to dashboard..."
+      );
+      setSnackbarOpen(true);
+
+      // Redirect after short delay
+      setTimeout(() => {
+        navigate("/");
+      }, 1500);
+    } catch (err) {
+      // Error will be handled by the auth context
+      setSubmitting(false);
+    }
+  };
 
   // Toggle password visibility
   const togglePasswordVisibility = () => {
@@ -125,174 +132,192 @@ const Register: React.FC = () => {
           </Alert>
         )}
 
-        <Box component="form" onSubmit={handleSubmit}>
-          <Grid container spacing={2}>
-            {/* Email Address */}
-            <Grid size={12}>
-              <TextField
-                required
-                fullWidth
-                id="email"
-                name="email"
-                label="Email Address"
-                value={formData.email}
-                onChange={handleChange}
-                error={!!errors.email}
-                helperText={errors.email}
-                autoComplete="email"
-                autoFocus
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailIcon color="action" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Tooltip title="We'll never share your email with anyone else">
-                        <IconButton size="small" tabIndex={-1}>
-                          <HelpIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
+        <Formik
+          initialValues={initialValues}
+          validationSchema={RegisterSchema}
+          onSubmit={handleSubmit}
+        >
+          {({ errors, touched, handleChange, values, isSubmitting }) => (
+            <Form>
+              <Grid container spacing={2}>
+                {/* Email Address */}
+                <Grid size={12}>
+                  <Field
+                    as={TextField}
+                    required
+                    fullWidth
+                    id="email"
+                    name="email"
+                    label="Email Address"
+                    autoComplete="email"
+                    autoFocus
+                    error={touched.email && Boolean(errors.email)}
+                    helperText={touched.email && errors.email}
+                    onChange={handleChange}
+                    value={values.email}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <EmailIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Tooltip title="We'll never share your email with anyone else">
+                            <IconButton size="small" tabIndex={-1}>
+                              <HelpIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
 
-            {/* Display Name */}
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                id="name"
-                name="name"
-                label="Display Name (Optional)"
-                value={formData.name}
-                onChange={handleChange}
-                error={!!errors.name}
-                helperText={errors.name}
-                autoComplete="name"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <PersonIcon color="action" />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
+                {/* Display Name */}
+                <Grid size={12}>
+                  <Field
+                    as={TextField}
+                    fullWidth
+                    id="name"
+                    name="name"
+                    label="Display Name (Optional)"
+                    autoComplete="name"
+                    error={touched.name && Boolean(errors.name)}
+                    helperText={touched.name && errors.name}
+                    onChange={handleChange}
+                    value={values.name}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonIcon color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
 
-            {/* Password */}
-            <Grid size={12}>
-              <TextField
-                required
-                fullWidth
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                label="Password"
-                value={formData.password}
-                onChange={handleChange}
-                error={!!errors.password}
-                helperText={errors.password}
-                autoComplete="new-password"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockIcon color="action" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={togglePasswordVisibility}
-                        edge="end"
-                        aria-label="toggle password visibility"
-                      >
-                        {showPassword ? (
-                          <VisibilityOffIcon />
-                        ) : (
-                          <VisibilityIcon />
-                        )}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
+                {/* Password */}
+                <Grid size={12}>
+                  <Field
+                    as={TextField}
+                    required
+                    fullWidth
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    label="Password"
+                    autoComplete="new-password"
+                    error={touched.password && Boolean(errors.password)}
+                    helperText={touched.password && errors.password}
+                    onChange={handleChange}
+                    value={values.password}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={togglePasswordVisibility}
+                            edge="end"
+                            aria-label="toggle password visibility"
+                          >
+                            {showPassword ? (
+                              <VisibilityOffIcon />
+                            ) : (
+                              <VisibilityIcon />
+                            )}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
 
-            {/* Confirm Password */}
-            <Grid size={12}>
-              <TextField
-                required
-                fullWidth
-                id="confirmPassword"
-                name="confirmPassword"
-                type={showConfirmPassword ? "text" : "password"}
-                label="Confirm Password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                error={!!errors.confirmPassword}
-                helperText={errors.confirmPassword}
-                autoComplete="new-password"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockIcon color="action" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={toggleConfirmPasswordVisibility}
-                        edge="end"
-                        aria-label="toggle password visibility"
-                      >
-                        {showConfirmPassword ? (
-                          <VisibilityOffIcon />
-                        ) : (
-                          <VisibilityIcon />
-                        )}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
+                {/* Confirm Password */}
+                <Grid size={12}>
+                  <Field
+                    as={TextField}
+                    required
+                    fullWidth
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    label="Confirm Password"
+                    autoComplete="new-password"
+                    error={
+                      touched.confirmPassword && Boolean(errors.confirmPassword)
+                    }
+                    helperText={
+                      touched.confirmPassword && errors.confirmPassword
+                    }
+                    onChange={handleChange}
+                    value={values.confirmPassword}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={toggleConfirmPasswordVisibility}
+                            edge="end"
+                            aria-label="toggle password visibility"
+                          >
+                            {showConfirmPassword ? (
+                              <VisibilityOffIcon />
+                            ) : (
+                              <VisibilityIcon />
+                            )}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
 
-            {/* Submit Button */}
-            <Grid size={12} sx={{ mt: 2 }}>
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                size="large"
-                disabled={loading}
-                sx={{
-                  py: 1.5,
-                  borderRadius: 2,
-                  textTransform: "none",
-                  fontSize: "1rem",
-                }}
-              >
-                {loading ? "Creating Account..." : "Create Account"}
-              </Button>
-            </Grid>
+                {/* Submit Button */}
+                <Grid size={12} sx={{ mt: 2 }}>
+                  <Button
+                    type="submit"
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    disabled={isSubmitting || loading}
+                    sx={{
+                      py: 1.5,
+                      borderRadius: 2,
+                      textTransform: "none",
+                      fontSize: "1rem",
+                    }}
+                  >
+                    {loading || isSubmitting
+                      ? "Creating Account..."
+                      : "Create Account"}
+                  </Button>
+                </Grid>
 
-            {/* Sign In Link */}
-            <Grid size={12} sx={{ mt: 2, textAlign: "center" }}>
-              <Typography variant="body2" color="textSecondary">
-                Already have an account?{" "}
-                <Link
-                  to="/login"
-                  style={{ textDecoration: "none", color: "primary.main" }}
-                >
-                  Sign in
-                </Link>
-              </Typography>
-            </Grid>
-          </Grid>
-        </Box>
+                {/* Sign In Link */}
+                <Grid size={12} sx={{ mt: 2, textAlign: "center" }}>
+                  <Typography variant="body2" color="textSecondary">
+                    Already have an account?{" "}
+                    <Link
+                      to="/login"
+                      style={{ textDecoration: "none", color: "primary.main" }}
+                    >
+                      Sign in
+                    </Link>
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Form>
+          )}
+        </Formik>
       </Paper>
 
       {/* Success Snackbar */}

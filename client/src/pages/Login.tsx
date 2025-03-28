@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router";
+import { Formik, Form, Field, FormikHelpers } from "formik";
+import * as Yup from "yup";
 import {
   Container,
   Paper,
@@ -23,14 +25,22 @@ import {
   Login as LoginIcon,
 } from "@mui/icons-material";
 import { useAuth } from "../context/AuthContext";
-import { useForm } from "../hooks"; // Import from the new hooks directory
 
-//Should replace with useForm
-import {
-  validateLoginForm,
-  prepareLoginData,
-  LoginFormData,
-} from "../utils/validation/loginValidation";
+// Login form values interface
+interface LoginFormValues {
+  email: string;
+  password: string;
+  rememberMe: boolean;
+}
+
+// Validation schema using Yup
+const LoginSchema = Yup.object().shape({
+  email: Yup.string()
+    .email("Please enter a valid email address")
+    .required("Email is required"),
+  password: Yup.string().required("Password is required"),
+  rememberMe: Yup.boolean(),
+});
 
 const Login: React.FC = () => {
   // UI state
@@ -41,39 +51,34 @@ const Login: React.FC = () => {
   const { login, loading, error: authError } = useAuth();
   const navigate = useNavigate();
 
-  // Use our new form hook
-  const {
-    values: formData,
-    errors,
-    handleChange,
-    handleSubmit,
-    setFieldValue, //Look into
-  } = useForm<LoginFormData>({
-    initialValues: {
-      email: "",
-      password: "",
-      rememberMe: false,
-    },
-    validator: validateLoginForm,
-    onSubmit: async (values) => {
-      try {
-        // Prepare and submit login data
-        const loginData = prepareLoginData(values);
-        await login(loginData.email, loginData.password, loginData.rememberMe);
+  // Initial form values
+  const initialValues: LoginFormValues = {
+    email: "",
+    password: "",
+    rememberMe: false,
+  };
 
-        // Show success message
-        setSnackbarMessage("Login successful! Redirecting to dashboard...");
-        setSnackbarOpen(true);
+  // Form submission handler
+  const handleSubmit = async (
+    values: LoginFormValues,
+    { setSubmitting }: FormikHelpers<LoginFormValues>
+  ) => {
+    try {
+      await login(values.email, values.password, values.rememberMe);
 
-        // Redirect after short delay
-        setTimeout(() => {
-          navigate("/");
-        }, 1000);
-      } catch (err) {
-        // Error will be handled by the auth context
-      }
-    },
-  });
+      // Show success message
+      setSnackbarMessage("Login successful! Redirecting to dashboard...");
+      setSnackbarOpen(true);
+
+      // Redirect after short delay
+      setTimeout(() => {
+        navigate("/");
+      }, 1000);
+    } catch (err) {
+      // Error will be handled by the auth context
+      setSubmitting(false);
+    }
+  };
 
   // Toggle password visibility
   const togglePasswordVisibility = () => {
@@ -112,134 +117,145 @@ const Login: React.FC = () => {
           </Alert>
         )}
 
-        <Box component="form" onSubmit={handleSubmit}>
-          <Grid container spacing={2}>
-            {/* Email Address */}
-            <Grid size={12}>
-              <TextField
-                required
-                fullWidth
-                id="email"
-                name="email"
-                label="Email Address"
-                value={formData.email}
-                onChange={handleChange}
-                error={!!errors.email}
-                helperText={errors.email}
-                autoComplete="email"
-                autoFocus
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailIcon color="action" />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
+        <Formik
+          initialValues={initialValues}
+          validationSchema={LoginSchema}
+          onSubmit={handleSubmit}
+        >
+          {({ errors, touched, handleChange, values, isSubmitting }) => (
+            <Form>
+              <Grid container spacing={2}>
+                {/* Email Address */}
+                <Grid size={12}>
+                  <Field
+                    as={TextField}
+                    required
+                    fullWidth
+                    id="email"
+                    name="email"
+                    label="Email Address"
+                    autoComplete="email"
+                    autoFocus
+                    error={touched.email && Boolean(errors.email)}
+                    helperText={touched.email && errors.email}
+                    onChange={handleChange}
+                    value={values.email}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <EmailIcon color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
 
-            {/* Password */}
-            <Grid size={12}>
-              <TextField
-                required
-                fullWidth
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                label="Password"
-                value={formData.password}
-                onChange={handleChange}
-                error={!!errors.password}
-                helperText={errors.password}
-                autoComplete="current-password"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockIcon color="action" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={togglePasswordVisibility}
-                        edge="end"
-                        aria-label="toggle password visibility"
-                      >
-                        {showPassword ? (
-                          <VisibilityOffIcon />
-                        ) : (
-                          <VisibilityIcon />
-                        )}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
+                {/* Password */}
+                <Grid size={12}>
+                  <Field
+                    as={TextField}
+                    required
+                    fullWidth
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    label="Password"
+                    autoComplete="current-password"
+                    error={touched.password && Boolean(errors.password)}
+                    helperText={touched.password && errors.password}
+                    onChange={handleChange}
+                    value={values.password}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={togglePasswordVisibility}
+                            edge="end"
+                            aria-label="toggle password visibility"
+                          >
+                            {showPassword ? (
+                              <VisibilityOffIcon />
+                            ) : (
+                              <VisibilityIcon />
+                            )}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
 
-            {/* Remember Me Checkbox */}
-            <Grid size={12}>
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      name="rememberMe"
-                      color="primary"
-                      checked={formData.rememberMe}
-                      onChange={handleChange}
+                {/* Remember Me Checkbox */}
+                <Grid size={12}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Field
+                      as={FormControlLabel}
+                      control={
+                        <Checkbox
+                          name="rememberMe"
+                          color="primary"
+                          checked={values.rememberMe}
+                          onChange={handleChange}
+                        />
+                      }
+                      label="Remember me"
                     />
-                  }
-                  label="Remember me"
-                />
-                <Typography
-                  variant="body2"
-                  color="primary"
-                  sx={{ cursor: "pointer" }}
-                >
-                  Forgot password?
-                </Typography>
-              </Box>
-            </Grid>
+                    <Typography
+                      variant="body2"
+                      color="primary"
+                      sx={{ cursor: "pointer" }}
+                    >
+                      Forgot password?
+                    </Typography>
+                  </Box>
+                </Grid>
 
-            {/* Submit Button */}
-            <Grid size={12} sx={{ mt: 2 }}>
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                size="large"
-                disabled={loading}
-                sx={{
-                  py: 1.5,
-                  borderRadius: 2,
-                  textTransform: "none",
-                  fontSize: "1rem",
-                }}
-              >
-                {loading ? "Signing In..." : "Sign In"}
-              </Button>
-            </Grid>
+                {/* Submit Button */}
+                <Grid size={12} sx={{ mt: 2 }}>
+                  <Button
+                    type="submit"
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    disabled={isSubmitting || loading}
+                    sx={{
+                      py: 1.5,
+                      borderRadius: 2,
+                      textTransform: "none",
+                      fontSize: "1rem",
+                    }}
+                  >
+                    {loading || isSubmitting ? "Signing In..." : "Sign In"}
+                  </Button>
+                </Grid>
 
-            {/* Sign Up Link */}
-            <Grid size={12} sx={{ mt: 2, textAlign: "center" }}>
-              <Typography variant="body2" color="textSecondary">
-                Don't have an account?{" "}
-                <Link
-                  to="/register"
-                  style={{ textDecoration: "none", color: "primary.main" }}
-                >
-                  Create account
-                </Link>
-              </Typography>
-            </Grid>
-          </Grid>
-        </Box>
+                {/* Sign Up Link */}
+                <Grid size={12} sx={{ mt: 2, textAlign: "center" }}>
+                  <Typography variant="body2" color="textSecondary">
+                    Don't have an account?{" "}
+                    <Link
+                      to="/register"
+                      style={{ textDecoration: "none", color: "primary.main" }}
+                    >
+                      Create account
+                    </Link>
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Form>
+          )}
+        </Formik>
       </Paper>
 
       {/* Success Snackbar */}

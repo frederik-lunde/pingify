@@ -18,11 +18,13 @@
     "axios": "^1.8.3",
     "chart.js": "^4.4.8",
     "date-fns": "^4.1.0",
+    "formik": "^2.4.6",
     "lodash": "^4.17.21",
     "react": "^19.0.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.0.0",
-    "react-router": "^7.3.0"
+    "react-router": "^7.3.0",
+    "yup": "^1.6.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
