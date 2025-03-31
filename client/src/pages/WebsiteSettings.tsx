@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// client/src/pages/WebsiteSettings.tsx
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { Formik, Form, Field, FormikHelpers } from "formik";
 import * as Yup from "yup";
@@ -18,15 +19,20 @@ import {
   Tooltip,
   Card,
   CardContent,
-  Snackbar,
 } from "@mui/material";
-import Grid from "@mui/material/Grid2"; // Using Grid2 instead of legacy Grid
+import Grid from "@mui/material/Grid2";
 import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
   Delete as DeleteIcon,
 } from "@mui/icons-material";
-import { useWebsite, useWebsiteCrud } from "../hooks"; // Import from the new hooks directory
+import { useWebsite, useWebsiteCrud } from "../hooks";
+import FormNotification, { 
+  initialNotificationState,
+  FormNotificationState
+} from "../components/common/FormNotification";
+import { handleFormSubmit } from "../utils/formUtils";
+import { WebsiteUpdateDTO } from "../types";
 
 // Form values interface
 interface WebsiteSettingsFormValues {
@@ -73,26 +79,20 @@ interface WebsiteSettingsProps {
 
 const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
   const navigate = useNavigate();
+  
+  // UI state
+  const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
-  // Use the website data hook with polling disabled
+  // Fetch website data
   const {
     data: website,
     loading: websiteLoading,
     error: websiteError,
-  } = useWebsite(websiteId, 0);
+  } = useWebsite(websiteId, 0); // Polling disabled by setting interval to 0
 
-  // Use website CRUD hook
+  // Website CRUD operations
   const { update, remove, loading: actionLoading } = useWebsiteCrud();
-
-  // UI state
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState("");
-  const [snackbarSeverity, setSnackbarSeverity] = useState<
-    "success" | "error" | "info"
-  >("success");
 
   // Initial form values
   const [initialValues, setInitialValues] = useState<WebsiteSettingsFormValues>({
@@ -121,59 +121,69 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
   // Form submission handler
   const handleSubmit = async (
     values: WebsiteSettingsFormValues,
-    { setSubmitting }: FormikHelpers<WebsiteSettingsFormValues>
+    formikHelpers: FormikHelpers<WebsiteSettingsFormValues>
   ) => {
-    setSuccess("");
-    setError("");
+    await handleFormSubmit({
+      values,
+      formikHelpers,
+      submitFn: async (formValues) => {
+        // Prepare update data
+        const updateData: WebsiteUpdateDTO = {
+          name: formValues.name.trim(),
+          interval: parseInt(formValues.interval.toString()),
+          alertEnabled: formValues.alertEnabled,
+          alertThreshold: formValues.alertEnabled && formValues.alertThreshold
+            ? parseInt(formValues.alertThreshold)
+            : null,
+          notifyEmail: formValues.alertEnabled ? formValues.notifyEmail || null : null,
+        };
 
-    try {
-      await update(websiteId, {
-        name: values.name,
-        interval: parseInt(values.interval.toString()),
-        alertEnabled: values.alertEnabled,
-        alertThreshold: values.alertEnabled && values.alertThreshold
-          ? parseInt(values.alertThreshold)
-          : null,
-        notifyEmail: values.alertEnabled ? values.notifyEmail || null : null,
-      });
-
-      showSnackbar("Settings saved successfully");
-
-      // Short delay then navigate back to website details
-      setTimeout(() => navigate(`/website/${websiteId}`), 1000);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Failed to update website settings";
-      setError(errorMessage);
-      showSnackbar("Error: " + errorMessage, "error");
-      setSubmitting(false);
-    }
+        return await update(websiteId, updateData);
+      },
+      setNotification,
+      navigate,
+      redirectPath: `/website/${websiteId}`,
+      successMessage: "Settings saved successfully"
+    });
   };
 
-  // Delete website
-  const handleDelete = async () => {
+  // Delete website handler
+  const handleDelete = useCallback(async () => {
     try {
       await remove(websiteId);
-      showSnackbar("Website removed successfully");
-      setTimeout(() => navigate("/"), 1000);
+      
+      setNotification({
+        open: true,
+        message: "Website removed successfully",
+        severity: "success",
+      });
+      
+      // Redirect after a short delay
+      setTimeout(() => {
+        navigate("/");
+      }, 1500);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to delete website";
-      setError(errorMessage);
-      showSnackbar("Error: " + errorMessage, "error");
+      const errorMessage = err instanceof Error ? err.message : "Failed to delete website";
+      
+      setNotification({
+        open: true,
+        message: errorMessage,
+        severity: "error",
+      });
     }
-  };
+  }, [websiteId, remove, navigate]);
 
-  // Show snackbar helper
-  const showSnackbar = (
-    message: string,
-    severity: "success" | "error" | "info" = "success",
-  ) => {
-    setSnackbarMessage(message);
-    setSnackbarSeverity(severity);
-    setSnackbarOpen(true);
+  // Navigation handler
+  const handleBackClick = useCallback(() => {
+    navigate(`/website/${websiteId}`);
+  }, [navigate, websiteId]);
+
+  // Handle notification close
+  const handleNotificationClose = () => {
+    setNotification({
+      ...notification,
+      open: false
+    });
   };
 
   // Loading state
@@ -198,7 +208,11 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
         <Alert severity="error" sx={{ mb: 2 }}>
           {errorMessage}
         </Alert>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/")}>
+        <Button 
+          startIcon={<ArrowBackIcon />} 
+          onClick={() => navigate("/")}
+          data-testid="error-back-button"
+        >
           Return to Dashboard
         </Button>
       </Container>
@@ -218,8 +232,9 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
         <Box sx={{ display: "flex", alignItems: "center" }}>
           <Tooltip title="Back to Website Details">
             <IconButton
-              onClick={() => navigate(`/website/${websiteId}`)}
+              onClick={handleBackClick}
               sx={{ mr: 2 }}
+              aria-label="Back to website details"
             >
               <ArrowBackIcon />
             </IconButton>
@@ -229,18 +244,6 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
           </Typography>
         </Box>
       </Box>
-
-      {success && (
-        <Alert severity="success" sx={{ mb: 3 }}>
-          {success}
-        </Alert>
-      )}
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
 
       <Formik
         initialValues={initialValues}
@@ -253,8 +256,15 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
           touched,
           values,
           isSubmitting,
+          status
         }) => (
           <Form>
+            {status?.error && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {status.error}
+              </Alert>
+            )}
+            
             <Paper sx={{ p: 3, mb: 4 }}>
               <Typography variant="h6" gutterBottom>
                 General Settings
@@ -271,6 +281,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
                     error={touched.name && Boolean(errors.name)}
                     helperText={touched.name && errors.name}
                     required
+                    data-testid="website-name-input"
                   />
                 </Grid>
 
@@ -288,6 +299,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
                     }
                     required
                     InputProps={{ inputProps: { min: 60 } }}
+                    data-testid="interval-input"
                   />
                 </Grid>
               </Grid>
@@ -304,7 +316,8 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
                   <Field
                     as={Switch}
                     name="alertEnabled"
-                    checked={values.alertEnabled}
+                    color="primary"
+                    data-testid="alert-toggle"
                   />
                 }
                 label="Enable Alerts"
@@ -326,6 +339,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
                         "You'll receive alerts when response time exceeds this value"
                       }
                       InputProps={{ inputProps: { min: 100 } }}
+                      data-testid="threshold-input"
                     />
                   </Grid>
 
@@ -341,6 +355,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
                         (touched.notifyEmail && errors.notifyEmail) ||
                         "Email address to receive alert notifications"
                       }
+                      data-testid="email-input"
                     />
                   </Grid>
                 </Grid>
@@ -353,6 +368,8 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
                 color="error"
                 startIcon={<DeleteIcon />}
                 onClick={() => setDeleteConfirm(true)}
+                disabled={isSubmitting || actionLoading}
+                data-testid="delete-button"
               >
                 Remove Website
               </Button>
@@ -362,6 +379,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
                 variant="contained"
                 startIcon={<SaveIcon />}
                 disabled={isSubmitting || actionLoading}
+                data-testid="save-button"
               >
                 {isSubmitting || actionLoading ? "Saving..." : "Save Changes"}
               </Button>
@@ -370,6 +388,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
         )}
       </Formik>
 
+      {/* Delete Confirmation Dialog */}
       {deleteConfirm && (
         <Card sx={{ mb: 3, bgcolor: "error.light" }}>
           <CardContent>
@@ -384,6 +403,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
               <Button
                 variant="outlined"
                 onClick={() => setDeleteConfirm(false)}
+                data-testid="cancel-delete-button"
               >
                 Cancel
               </Button>
@@ -392,6 +412,7 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
                 color="error"
                 onClick={handleDelete}
                 disabled={actionLoading}
+                data-testid="confirm-delete-button"
               >
                 {actionLoading ? "Removing..." : "Yes, Remove Website"}
               </Button>
@@ -400,21 +421,11 @@ const WebsiteSettings: React.FC<WebsiteSettingsProps> = ({ websiteId }) => {
         </Card>
       )}
 
-      {/* Feedback Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={4000}
-        onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          onClose={() => setSnackbarOpen(false)}
-          severity={snackbarSeverity}
-          sx={{ width: "100%" }}
-        >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+      {/* Success/Error Notification */}
+      <FormNotification 
+        notification={notification}
+        onClose={handleNotificationClose}
+      />
     </Container>
   );
 };

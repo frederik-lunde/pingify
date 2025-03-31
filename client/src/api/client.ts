@@ -1,4 +1,4 @@
-// src/api/enhancedClient.ts
+// src/api/client.ts (or enhancedClient.ts)
 import axios, {
   AxiosInstance,
   AxiosRequestConfig,
@@ -46,10 +46,17 @@ class EnhancedApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
-        // Handle common errors (401, 403, etc.)
+        // Handle session expiration/auth errors
         if (error.response?.status === 401) {
-          // Trigger auth error event for AuthContext to handle
-          fireAuthErrorEvent();
+          // Only fire auth error event for token-related issues
+          // We don't want to log the user out for simple login failures
+          const isLoginEndpoint = error.config?.url?.includes('/auth/login') || 
+                                 error.config?.url?.includes('/auth/register');
+          
+          if (!isLoginEndpoint) {
+            // Trigger auth error event for AuthContext to handle
+            fireAuthErrorEvent();
+          }
         }
 
         // Extract error message safely handling various response formats
@@ -59,16 +66,32 @@ class EnhancedApiClient {
           errorMessage = error.message;
         }
 
-        // Check if response.data exists and has a message property
+        // Check if response.data exists and has a message/error property
         if (error.response?.data) {
-          // Type guard to check if data is an object with a message property
           const data = error.response.data as any;
-          if (typeof data === "object" && data !== null && "message" in data) {
-            errorMessage = data.message;
+          
+          // Handle different error response formats
+          if (typeof data === "object" && data !== null) {
+            if (data.error?.message) {
+              // Format: { error: { message: "..." } }
+              errorMessage = data.error.message;
+            } else if (data.message) {
+              // Format: { message: "..." }
+              errorMessage = data.message;
+            } else if (data.error && typeof data.error === "string") {
+              // Format: { error: "..." }
+              errorMessage = data.error;
+            }
           } else if (typeof data === "string") {
             // Handle case where the entire data is a string message
             errorMessage = data;
           }
+        }
+
+        // Customize error messages for user-friendly display
+        if (error.response?.status === 401 && 
+            errorMessage.includes("Invalid credentials")) {
+          errorMessage = "Invalid email or password";
         }
 
         // Enhance error with additional information for better debugging
@@ -81,6 +104,8 @@ class EnhancedApiClient {
           url: error.config?.url,
           method: error.config?.method?.toUpperCase(),
           data: error.response?.data,
+          isAuthError: error.response?.status === 401,
+          isNetworkError: error.message === 'Network Error'
         });
 
         return Promise.reject(enhancedError);

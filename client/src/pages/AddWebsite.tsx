@@ -1,3 +1,4 @@
+// client/src/pages/AddWebsite.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import { Formik, Form, Field, FormikHelpers } from "formik";
@@ -11,7 +12,6 @@ import {
   Box,
   Switch,
   FormControlLabel,
-  Snackbar,
   Alert,
   Tooltip,
   IconButton,
@@ -21,6 +21,11 @@ import { Add as AddIcon, HelpOutline as HelpIcon } from "@mui/icons-material";
 import { WebsiteCreateDTO, Website } from "../types";
 import WebsiteUrlSearch from "../components/WebsiteUrlSearch";
 import { useWebsiteCrud } from "../hooks";
+import FormNotification, { 
+  initialNotificationState,
+  FormNotificationState
+} from "../components/common/FormNotification";
+import { handleFormSubmit, ensureUrlProtocol } from "../utils/formUtils";
 
 // Form values interface
 interface AddWebsiteFormValues {
@@ -32,9 +37,10 @@ interface AddWebsiteFormValues {
   notifyEmail: string;
 }
 
-// Validation schema using Yup
+// URL validation regex
 const websiteUrlRegex = /^https?:\/\/.+\..+/;
 
+// Validation schema using Yup
 const AddWebsiteSchema = Yup.object().shape({
   name: Yup.string().required("Website name is required"),
   url: Yup.string()
@@ -64,12 +70,10 @@ const AddWebsiteSchema = Yup.object().shape({
 
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
-  const { create, loading, error: apiError } = useWebsiteCrud();
-
+  const { create, loading } = useWebsiteCrud();
+  
   // UI state
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState("");
-  const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">("success");
+  const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
 
   // Initial form values
   const initialValues: AddWebsiteFormValues = {
@@ -81,42 +85,40 @@ const AddWebsite: React.FC = () => {
     notifyEmail: "",
   };
 
-  // No longer need the handleWebsiteSelect function as it's handled directly
-  // in the onSelect callback of WebsiteUrlSearch
-
   // Form submission handler
   const handleSubmit = async (
     values: AddWebsiteFormValues,
-    { setSubmitting }: FormikHelpers<AddWebsiteFormValues>
+    formikHelpers: FormikHelpers<AddWebsiteFormValues>
   ) => {
-    try {
-      // Prepare website data
-      const websiteData: WebsiteCreateDTO = {
-        name: values.name.trim(),
-        url: values.url.trim(),
-        interval: values.interval,
-        alertEnabled: values.alertEnabled,
-        alertThreshold: values.alertEnabled ? values.alertThreshold : null,
-        notifyEmail: values.alertEnabled ? values.notifyEmail : null,
-      };
+    await handleFormSubmit({
+      values,
+      formikHelpers,
+      submitFn: async (formValues) => {
+        // Prepare website data
+        const websiteData: WebsiteCreateDTO = {
+          name: formValues.name.trim(),
+          url: ensureUrlProtocol(formValues.url.trim()),
+          interval: formValues.interval,
+          alertEnabled: formValues.alertEnabled,
+          alertThreshold: formValues.alertEnabled ? formValues.alertThreshold : null,
+          notifyEmail: formValues.alertEnabled ? formValues.notifyEmail : null,
+        };
 
-      await create(websiteData);
+        return await create(websiteData);
+      },
+      setNotification,
+      navigate,
+      redirectPath: "/",
+      successMessage: "Website added successfully!"
+    });
+  };
 
-      setSnackbarMessage("Website added successfully!");
-      setSnackbarSeverity("success");
-      setSnackbarOpen(true);
-
-      setTimeout(() => {
-        navigate("/");
-      }, 1500);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to add website";
-      setSnackbarMessage(errorMessage);
-      setSnackbarSeverity("error");
-      setSnackbarOpen(true);
-      setSubmitting(false);
-    }
+  // Handle notification close
+  const handleNotificationClose = () => {
+    setNotification({
+      ...notification,
+      open: false
+    });
   };
 
   return (
@@ -134,12 +136,18 @@ const AddWebsite: React.FC = () => {
           {({
             errors,
             touched,
-            handleChange,
             values,
             isSubmitting,
             setFieldValue,
+            status
           }) => (
             <Form>
+              {status?.error && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  {status.error}
+                </Alert>
+              )}
+              
               <Box sx={{ mt: 3 }}>
                 <Grid container spacing={3}>
                   {/* Website Name */}
@@ -161,16 +169,20 @@ const AddWebsite: React.FC = () => {
 
                   {/* Website URL with Search Component */}
                   <Grid size={12}>
-                    {/* Using WebsiteUrlSearch with Formik integration */}
                     <WebsiteUrlSearch
                       name="url"
                       onSelect={(website: Website | null) => {
                         if (website && !values.name) {
                           // Suggest a name based on the URL if name field is empty
-                          setFieldValue(
-                            "name",
-                            new URL(website.url).hostname.replace(/^www\./, "")
-                          );
+                          try {
+                            setFieldValue(
+                              "name",
+                              new URL(website.url).hostname.replace(/^www\./, "")
+                            );
+                          } catch (e) {
+                            // Handle invalid URL gracefully
+                            console.error("Invalid URL format:", e);
+                          }
                         }
                       }}
                       searchLimit={15}
@@ -203,9 +215,8 @@ const AddWebsite: React.FC = () => {
                       <Box sx={{ display: "flex", alignItems: "center" }}>
                         <FormControlLabel
                           control={
-                            <Switch
-                              checked={values.alertEnabled}
-                              onChange={handleChange}
+                            <Field
+                              as={Switch}
                               name="alertEnabled"
                               color="primary"
                             />
@@ -272,7 +283,11 @@ const AddWebsite: React.FC = () => {
                       gap: 2,
                     }}
                   >
-                    <Button variant="outlined" onClick={() => navigate("/")}>
+                    <Button 
+                      variant="outlined" 
+                      onClick={() => navigate("/")}
+                      disabled={isSubmitting || loading}
+                    >
                       Cancel
                     </Button>
                     <Button
@@ -291,21 +306,11 @@ const AddWebsite: React.FC = () => {
         </Formik>
       </Paper>
 
-      {/* Snackbar for feedback */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          onClose={() => setSnackbarOpen(false)}
-          severity={snackbarSeverity}
-          sx={{ width: "100%" }}
-        >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+      {/* Success/Error Notification */}
+      <FormNotification 
+        notification={notification}
+        onClose={handleNotificationClose}
+      />
     </Container>
   );
 };

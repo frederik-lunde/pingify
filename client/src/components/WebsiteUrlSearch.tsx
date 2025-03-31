@@ -1,5 +1,5 @@
-// client/src/components/WebsiteUrlSearch.tsx
-import React, { useState, useEffect } from "react";
+// Simplified WebsiteUrlSearch.tsx
+import React, {useEffect, useMemo } from "react";
 import {
   TextField,
   Autocomplete,
@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 import { Search as SearchIcon } from "@mui/icons-material";
 import { Website } from "../types";
-import { useWebsiteSearch } from "../hooks"; // Import from the hooks directory
+import { useWebsiteSearch } from "../hooks";
 import { debounce } from "lodash";
 import { useField, useFormikContext } from "formik";
 
@@ -20,7 +20,6 @@ export interface WebsiteUrlSearchProps {
   value?: string;
   onChange?: (url: string) => void;
   onSelect?: (website: Website | null) => void;
-  error?: string;
   label?: string;
   placeholder?: string;
   helperText?: string;
@@ -33,19 +32,20 @@ const WebsiteUrlSearch = ({
   value: externalValue,
   onChange: externalOnChange,
   onSelect,
-  error: externalError,
   label = "Website URL",
   placeholder = "https://example.com",
   helperText = "Full URL including http:// or https://",
   searchLimit = 10,
   disabled = false,
 }: WebsiteUrlSearchProps) => {
+  // Get Formik context if available
+  const formik = useFormikContext();
   const [field, meta, helpers] = useField(name);
-  const { setFieldValue, setFieldTouched } = useFormikContext();
   
   // Use values from Formik or from props if used outside of Formik
-  const fieldValue = field?.value !== undefined ? field.value : externalValue || "";
-  const fieldError = meta?.touched && meta?.error ? meta.error : externalError;
+  const isFormik = !!formik;
+  const fieldValue = isFormik ? field?.value : externalValue || "";
+  const fieldError = isFormik && meta?.touched ? meta.error : undefined;
   
   // Use our search hook
   const {
@@ -54,50 +54,34 @@ const WebsiteUrlSearch = ({
     search: searchWebsites,
   } = useWebsiteSearch("", searchLimit);
 
-  // Sync input value with parent value prop or Formik field
-  const [inputValue, setInputValue] = useState(fieldValue || "");
-
-  // Update inputValue when value prop or field value changes
-  useEffect(() => {
-    if (fieldValue !== inputValue) {
-      setInputValue(fieldValue || "");
-    }
-  }, [fieldValue, inputValue]);
-
   // Create debounced search function
-  const debouncedSearch = React.useMemo(
-    () =>
-      debounce((searchTerm: string) => {
-        searchWebsites(searchTerm);
-      }, 300),
+  const debouncedSearch = useMemo(
+    () => debounce((searchTerm: string) => {
+      searchWebsites(searchTerm);
+    }, 300),
     [searchWebsites],
   );
 
   // Load initial options on mount
   useEffect(() => {
     debouncedSearch("");
-
-    return () => {
-      debouncedSearch.cancel();
-    };
+    return () => debouncedSearch.cancel();
   }, [debouncedSearch]);
 
-  // Handle URL input change - Update parent state while typing
+  // Handle URL input change
   const handleInputChange = (
     _event: React.SyntheticEvent,
-    newInputValue: string,
+    newValue: string,
   ) => {
-    setInputValue(newInputValue);
-    
     // Update Formik field if within Formik context, otherwise use external handler
-    if (setFieldValue) {
-      setFieldValue(name, newInputValue);
-      setFieldTouched(name, true, false);
+    if (isFormik) {
+      helpers.setValue(newValue);
+      helpers.setTouched(true, false);
     } else if (externalOnChange) {
-      externalOnChange(newInputValue);
+      externalOnChange(newValue);
     }
     
-    debouncedSearch(newInputValue);
+    debouncedSearch(newValue);
   };
 
   // Handle URL autocomplete selection
@@ -107,31 +91,25 @@ const WebsiteUrlSearch = ({
     _reason: string,
   ) => {
     if (typeof newValue === "string") {
-      // For string input, update field value
-      if (setFieldValue) {
-        setFieldValue(name, newValue);
+      if (isFormik) {
+        helpers.setValue(newValue);
       } else if (externalOnChange) {
         externalOnChange(newValue);
       }
-      
       if (onSelect) onSelect(null);
     } else if (newValue === null) {
-      // For null (cleared selection)
-      if (setFieldValue) {
-        setFieldValue(name, "");
+      if (isFormik) {
+        helpers.setValue("");
       } else if (externalOnChange) {
         externalOnChange("");
       }
-      
       if (onSelect) onSelect(null);
     } else {
-      // For Website object selection
-      if (setFieldValue) {
-        setFieldValue(name, newValue.url);
+      if (isFormik) {
+        helpers.setValue(newValue.url);
       } else if (externalOnChange) {
         externalOnChange(newValue.url);
       }
-      
       if (onSelect) onSelect(newValue);
     }
   };
@@ -155,17 +133,16 @@ const WebsiteUrlSearch = ({
     const url = event.target.value.trim();
     
     // Mark field as touched in Formik
-    if (setFieldTouched) {
-      setFieldTouched(name, true, true);
+    if (isFormik) {
+      helpers.setTouched(true, true);
     }
     
     if (url && !url.match(/^https?:\/\//i)) {
       const newUrl = `https://${url}`;
-      setInputValue(newUrl);
       
       // Update Formik field or use external handler
-      if (setFieldValue) {
-        setFieldValue(name, newUrl);
+      if (isFormik) {
+        helpers.setValue(newUrl);
       } else if (externalOnChange) {
         externalOnChange(newUrl);
       }
@@ -179,9 +156,9 @@ const WebsiteUrlSearch = ({
       filterOptions={(x) => x} // Don't filter - we handle this server-side
       getOptionLabel={getOptionLabel}
       loading={loading}
-      onInputChange={handleInputChange}
+      onInputChange={(e, value) => handleInputChange(e, value)}
       onChange={handleUrlSelect}
-      inputValue={inputValue}
+      inputValue={fieldValue}
       value={convertValue()}
       disabled={disabled}
       renderInput={(params) => (
@@ -191,9 +168,9 @@ const WebsiteUrlSearch = ({
           required
           variant="outlined"
           placeholder={placeholder}
-          error={Boolean(fieldError)}
+          error={!!fieldError}
           helperText={fieldError || helperText}
-          onBlur={handleBlur} // Add protocol on blur if missing
+          onBlur={handleBlur}
           InputProps={{
             ...params.InputProps,
             endAdornment: (
@@ -216,7 +193,6 @@ const WebsiteUrlSearch = ({
       )}
       renderOption={(props, option) => {
         const url = typeof option === "string" ? option : option.url;
-
         return (
           <li {...props}>
             <Box component="span">{url}</Box>
