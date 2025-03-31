@@ -50,7 +50,7 @@ import {
 
 // Component imports
 import WebsiteHeader from "../components/website-details/WebsiteHeader";
-import WebsiteStatsCards from "../components/website-details/WebsiteStatsCards";
+import WebsiteStatsCards from "../components/WebsiteStatsCards";
 import ResponseTimeChart from "../components/website-details/ResponseTimeChart";
 import UptimeChart from "../components/website-details/UptimeChart";
 import DowntimePatternChart from "../components/website-details/DownTimePatternChart";

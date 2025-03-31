@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardContent, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid2"; // Using Grid2 instead of legacy Grid
-import { MonitoringResult } from "../../types";
+import { MonitoringResult } from "../types";
 
 interface WebsiteStatsCardsProps {
   latestResult: MonitoringResult | null;
