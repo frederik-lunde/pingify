@@ -1,3 +1,4 @@
+// client/src/pages/Register.tsx
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { Formik, Form, Field, FormikHelpers } from "formik";
@@ -13,9 +14,8 @@ import {
   InputAdornment,
   Tooltip,
   IconButton,
-  Snackbar,
 } from "@mui/material";
-import Grid from "@mui/material/Grid2"; // Using Grid2 instead of legacy Grid
+import Grid from "@mui/material/Grid2";
 import {
   Email as EmailIcon,
   Person as PersonIcon,
@@ -26,6 +26,11 @@ import {
   Login as LoginIcon,
 } from "@mui/icons-material";
 import { useAuth } from "../context/AuthContext";
+import FormNotification, { 
+  initialNotificationState,
+  FormNotificationState
+} from "../components/common/FormNotification";
+import { handleFormSubmit } from "../utils/formUtils";
 
 // Registration form values interface
 interface RegisterFormValues {
@@ -53,8 +58,7 @@ const Register: React.FC = () => {
   // UI state
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
 
   const { register, loading, error: authError } = useAuth();
   const navigate = useNavigate();
@@ -70,25 +74,19 @@ const Register: React.FC = () => {
   // Form submission handler
   const handleSubmit = async (
     values: RegisterFormValues,
-    { setSubmitting }: FormikHelpers<RegisterFormValues>
+    formikHelpers: FormikHelpers<RegisterFormValues>
   ) => {
-    try {
-      await register(values.email, values.password, values.name || undefined);
-
-      // Show success message
-      setSnackbarMessage(
-        "Registration successful! Redirecting to dashboard..."
-      );
-      setSnackbarOpen(true);
-
-      // Redirect after short delay
-      setTimeout(() => {
-        navigate("/");
-      }, 1500);
-    } catch (err) {
-      // Error will be handled by the auth context
-      setSubmitting(false);
-    }
+    await handleFormSubmit({
+      values,
+      formikHelpers,
+      submitFn: async (formValues) => {
+        await register(formValues.email, formValues.password, formValues.name || undefined);
+      },
+      setNotification,
+      navigate,
+      redirectPath: "/",
+      successMessage: "Registration successful! Redirecting to dashboard..."
+    });
   };
 
   // Toggle password visibility
@@ -100,9 +98,12 @@ const Register: React.FC = () => {
     setShowConfirmPassword((prev) => !prev);
   };
 
-  // Handle snackbar close
-  const handleSnackbarClose = () => {
-    setSnackbarOpen(false);
+  // Handle notification close
+  const handleNotificationClose = () => {
+    setNotification({
+      ...notification,
+      open: false
+    });
   };
 
   return (
@@ -137,8 +138,14 @@ const Register: React.FC = () => {
           validationSchema={RegisterSchema}
           onSubmit={handleSubmit}
         >
-          {({ errors, touched, handleChange, values, isSubmitting }) => (
+          {({ errors, touched, isSubmitting, status }) => (
             <Form>
+              {status?.error && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  {status.error}
+                </Alert>
+              )}
+              
               <Grid container spacing={2}>
                 {/* Email Address */}
                 <Grid size={12}>
@@ -153,8 +160,6 @@ const Register: React.FC = () => {
                     autoFocus
                     error={touched.email && Boolean(errors.email)}
                     helperText={touched.email && errors.email}
-                    onChange={handleChange}
-                    value={values.email}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -164,7 +169,7 @@ const Register: React.FC = () => {
                       endAdornment: (
                         <InputAdornment position="end">
                           <Tooltip title="We'll never share your email with anyone else">
-                            <IconButton size="small" tabIndex={-1}>
+                            <IconButton size="small" tabIndex={-1} aria-label="Email privacy info">
                               <HelpIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -185,8 +190,6 @@ const Register: React.FC = () => {
                     autoComplete="name"
                     error={touched.name && Boolean(errors.name)}
                     helperText={touched.name && errors.name}
-                    onChange={handleChange}
-                    value={values.name}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -210,8 +213,6 @@ const Register: React.FC = () => {
                     autoComplete="new-password"
                     error={touched.password && Boolean(errors.password)}
                     helperText={touched.password && errors.password}
-                    onChange={handleChange}
-                    value={values.password}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -254,8 +255,6 @@ const Register: React.FC = () => {
                     helperText={
                       touched.confirmPassword && errors.confirmPassword
                     }
-                    onChange={handleChange}
-                    value={values.confirmPassword}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -267,7 +266,7 @@ const Register: React.FC = () => {
                           <IconButton
                             onClick={toggleConfirmPasswordVisibility}
                             edge="end"
-                            aria-label="toggle password visibility"
+                            aria-label="toggle confirm password visibility"
                           >
                             {showConfirmPassword ? (
                               <VisibilityOffIcon />
@@ -295,6 +294,7 @@ const Register: React.FC = () => {
                       textTransform: "none",
                       fontSize: "1rem",
                     }}
+                    data-testid="register-button"
                   >
                     {loading || isSubmitting
                       ? "Creating Account..."
@@ -320,21 +320,11 @@ const Register: React.FC = () => {
         </Formik>
       </Paper>
 
-      {/* Success Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          onClose={handleSnackbarClose}
-          severity="success"
-          sx={{ width: "100%" }}
-        >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+      {/* Success/Error Notification */}
+      <FormNotification 
+        notification={notification}
+        onClose={handleNotificationClose}
+      />
     </Container>
   );
 };

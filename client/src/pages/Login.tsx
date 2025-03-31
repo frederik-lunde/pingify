@@ -1,3 +1,4 @@
+// client/src/pages/Login.tsx
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { Formik, Form, Field, FormikHelpers } from "formik";
@@ -14,9 +15,8 @@ import {
   FormControlLabel,
   InputAdornment,
   IconButton,
-  Snackbar,
 } from "@mui/material";
-import Grid from "@mui/material/Grid2"; // Using Grid2 instead of legacy Grid
+import Grid from "@mui/material/Grid2";
 import {
   Email as EmailIcon,
   Lock as LockIcon,
@@ -45,9 +45,8 @@ const LoginSchema = Yup.object().shape({
 const Login: React.FC = () => {
   // UI state
   const [showPassword, setShowPassword] = useState(false);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState("");
-
+  
+  // Auth context
   const { login, loading, error: authError } = useAuth();
   const navigate = useNavigate();
 
@@ -61,33 +60,27 @@ const Login: React.FC = () => {
   // Form submission handler
   const handleSubmit = async (
     values: LoginFormValues,
-    { setSubmitting }: FormikHelpers<LoginFormValues>
+    formikHelpers: FormikHelpers<LoginFormValues>
   ) => {
     try {
       await login(values.email, values.password, values.rememberMe);
-
-      // Show success message
-      setSnackbarMessage("Login successful! Redirecting to dashboard...");
-      setSnackbarOpen(true);
-
-      // Redirect after short delay
-      setTimeout(() => {
-        navigate("/");
-      }, 1000);
+      
+      // On success, navigate to the dashboard
+      navigate("/");
     } catch (err) {
-      // Error will be handled by the auth context
-      setSubmitting(false);
+      // Extract the error message and set it in Formik's status
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : "Login failed. Please try again.";
+      
+      formikHelpers.setStatus({ error: errorMessage });
+      formikHelpers.setSubmitting(false);
     }
   };
 
   // Toggle password visibility
   const togglePasswordVisibility = () => {
     setShowPassword((prev) => !prev);
-  };
-
-  // Handle snackbar close
-  const handleSnackbarClose = () => {
-    setSnackbarOpen(false);
   };
 
   return (
@@ -111,19 +104,20 @@ const Login: React.FC = () => {
           </Typography>
         </Box>
 
-        {authError && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {authError}
-          </Alert>
-        )}
-
         <Formik
           initialValues={initialValues}
           validationSchema={LoginSchema}
           onSubmit={handleSubmit}
         >
-          {({ errors, touched, handleChange, values, isSubmitting }) => (
+          {({ errors, touched, isSubmitting, status }) => (
             <Form>
+              {/* Display form-level errors - this is the ONLY error display we keep */}
+              {(status?.error || authError) && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  {status?.error || authError}
+                </Alert>
+              )}
+              
               <Grid container spacing={2}>
                 {/* Email Address */}
                 <Grid size={12}>
@@ -138,8 +132,6 @@ const Login: React.FC = () => {
                     autoFocus
                     error={touched.email && Boolean(errors.email)}
                     helperText={touched.email && errors.email}
-                    onChange={handleChange}
-                    value={values.email}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -163,8 +155,6 @@ const Login: React.FC = () => {
                     autoComplete="current-password"
                     error={touched.password && Boolean(errors.password)}
                     helperText={touched.password && errors.password}
-                    onChange={handleChange}
-                    value={values.password}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -205,8 +195,6 @@ const Login: React.FC = () => {
                         <Checkbox
                           name="rememberMe"
                           color="primary"
-                          checked={values.rememberMe}
-                          onChange={handleChange}
                         />
                       }
                       label="Remember me"
@@ -258,21 +246,6 @@ const Login: React.FC = () => {
         </Formik>
       </Paper>
 
-      {/* Success Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          onClose={handleSnackbarClose}
-          severity="success"
-          sx={{ width: "100%" }}
-        >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
     </Container>
   );
 };
