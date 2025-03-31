@@ -1,3 +1,4 @@
+//client\src\App.tsx
 import {
   BrowserRouter as Router,
   Routes,
@@ -14,6 +15,7 @@ import Register from "./pages/Register";
 import { CssBaseline } from "@mui/material";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Alert from "@mui/material/Alert";
 
 function WebsiteDetailsWrapper() {
   const { id } = useParams<{ id: string }>();

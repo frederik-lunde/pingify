@@ -1,4 +1,4 @@
-// client/src/utils/authTokenUtils.ts
+// src/utils/authTokenUtils.ts
 // Central location for token management utilities
 
 /**
@@ -36,10 +36,12 @@ export const removeAuthToken = (): void => {
 };
 
 /**
- * Custom event for auth errors
+ * Custom event used by the API client interceptor to signal an authentication error
+ * that requires global handling (e.g., logout and redirect).
  */
 export const fireAuthErrorEvent = (): void => {
+  console.debug("Firing auth-error event"); // Optional: for debugging
   window.dispatchEvent(
-    new CustomEvent("auth-error", { detail: "Unauthorized access" }),
+    new CustomEvent("auth-error", { detail: "Unauthorized API access detected" }),
   );
 };

@@ -1,3 +1,4 @@
+//client\src\components\Navbar.tsx
 import * as React from "react";
 import { useCallback } from "react";
 import AppBar from "@mui/material/AppBar";

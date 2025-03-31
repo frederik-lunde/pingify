@@ -1,22 +1,34 @@
-// src/api/client.ts (or enhancedClient.ts)
+// src/api/client.ts
 import axios, {
   AxiosInstance,
   AxiosRequestConfig,
   AxiosResponse,
   AxiosError,
+  InternalAxiosRequestConfig // Import for request interceptor type
 } from "axios";
-import { API_BASE_URL } from "./config";
-import { getAuthToken, fireAuthErrorEvent } from "../utils/authTokenUtils";
+import { API_BASE_URL } from "./config"; // Adjust the path as needed
+import { getAuthToken, fireAuthErrorEvent } from "../utils/authTokenUtils"; // Adjust the path as needed
 
 /**
- * API response type with proper typing
+ * Custom Error type for API errors, extending the base Error object
+ * with additional context from the API response.
  */
-export type ApiResponse<T> = Promise<T>;
+export interface ApiError extends Error {
+  name: string;
+  status?: number;
+  statusText?: string;
+  url?: string;
+  method?: string;
+  data?: any;
+  isAuthError?: boolean;
+  isNetworkError?: boolean;
+}
 
 /**
- * Enhanced API client with stronger typing and better error handling
+ * Enhanced API client using Axios with interceptors for authentication
+ * and centralized error handling.
  */
-class EnhancedApiClient {
+class ApiClient {
   private client: AxiosInstance;
 
   constructor() {
@@ -24,154 +36,148 @@ class EnhancedApiClient {
       baseURL: API_BASE_URL,
       headers: {
         "Content-Type": "application/json",
+        "Accept": "application/json", // Good practice to include Accept header
       },
+      timeout: 20000, // Set a reasonable request timeout (e.g., 20 seconds)
     });
 
-    // Add request interceptor for authentication
+    // --- Request Interceptor ---
+    // Automatically attaches the Authorization header to outgoing requests.
     this.client.interceptors.request.use(
-      (config) => {
-        // Get auth token using the centralized utility
-        const token = getAuthToken();
-        if (token) {
+      (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
+        const token = getAuthToken(); // Fetch token using the utility
+        if (token && config.headers) { // Ensure headers object exists
           config.headers["Authorization"] = `Bearer ${token}`;
         }
         return config;
       },
-      (error) => {
+      (error: AxiosError) => {
+        // Handle rare request setup errors
+        console.error("Axios Request Setup Error:", error);
         return Promise.reject(error);
       },
     );
 
-    // Add response interceptor for error handling
+    // --- Response Interceptor ---
+    // Handles successful responses and processes errors centrally.
     this.client.interceptors.response.use(
-      (response) => response,
+      (response: AxiosResponse) => response, // Pass through successful responses directly
       (error: AxiosError) => {
-        // Handle session expiration/auth errors
-        if (error.response?.status === 401) {
-          // Only fire auth error event for token-related issues
-          // We don't want to log the user out for simple login failures
-          const isLoginEndpoint = error.config?.url?.includes('/auth/login') || 
-                                 error.config?.url?.includes('/auth/register');
-          
-          if (!isLoginEndpoint) {
-            // Trigger auth error event for AuthContext to handle
+        // --- Centralized Error Processing ---
+        const { response, config, code, message: axiosMessage } = error;
+
+        // 1. Handle 401 Unauthorized (Session Expired / Invalid Token) Globally
+        if (response?.status === 401) {
+          const endpoint = config?.url ?? '';
+          // Avoid global logout for direct login/register attempts that fail authentication
+          const isLoginOrRegister = endpoint.includes('/auth/login') || endpoint.includes('/auth/register');
+
+          if (!isLoginOrRegister) {
+            // This is likely an expired/invalid token on a protected route
+            console.warn(`Authentication Error (401) on ${endpoint}. Signaling global handler.`);
+            // Signal the AuthContext (via useAuth listener) to handle logout/redirect
             fireAuthErrorEvent();
           }
+          // Note: We don't clear tokens here; the event listener in useAuth handles that.
         }
 
-        // Extract error message safely handling various response formats
-        let errorMessage = "Unknown API error";
+        // 2. Determine the User-Facing Error Message (Trusting Backend Middleware)
+        let userMessage = "An unexpected error occurred. Please try again later."; // Sensible default
+        
 
-        if (error.message) {
-          errorMessage = error.message;
+        if (code === 'ECONNABORTED') {
+          userMessage = "The request timed out. Please check your connection and try again.";
+        } else if (!response) {
+           // Network error (server unreachable, CORS issue, etc.)
+           userMessage = "Network error. Unable to reach the server. Please check your internet connection.";
+        } else if (response.data) {
+           // Attempt to extract message from backend response structure { error: { message: ... } }
+           const responseData = response.data as any; // Use 'any' for flexible checking
+           if (typeof responseData === "object" && responseData !== null && responseData.error?.message) {
+               userMessage = responseData.error.message;
+           }
+           // Fallback: Check for { message: ... } structure
+           else if (typeof responseData === "object" && responseData !== null && responseData.message) {
+               userMessage = responseData.message;
+           }
+           // Fallback: If the entire response data is a string
+           else if (typeof responseData === "string" && responseData.length > 0) {
+               userMessage = responseData;
+           }
+           // Add more checks here if your backend has other error formats
+        } else if (axiosMessage) {
+            // Fallback to the generic Axios error message if no specific message found
+            userMessage = axiosMessage;
         }
 
-        // Check if response.data exists and has a message/error property
-        if (error.response?.data) {
-          const data = error.response.data as any;
-          
-          // Handle different error response formats
-          if (typeof data === "object" && data !== null) {
-            if (data.error?.message) {
-              // Format: { error: { message: "..." } }
-              errorMessage = data.error.message;
-            } else if (data.message) {
-              // Format: { message: "..." }
-              errorMessage = data.message;
-            } else if (data.error && typeof data.error === "string") {
-              // Format: { error: "..." }
-              errorMessage = data.error;
-            }
-          } else if (typeof data === "string") {
-            // Handle case where the entire data is a string message
-            errorMessage = data;
-          }
-        }
+        // 3. Construct the Structured ApiError Object
+        const apiError: ApiError = new Error(userMessage);
+        apiError.status = response?.status;
+        apiError.statusText = response?.statusText;
+        apiError.url = config?.url;
+        apiError.method = config?.method?.toUpperCase();
+        apiError.data = response?.data;
+        apiError.isAuthError = response?.status === 401;
+        apiError.isNetworkError = !response && axiosMessage === 'Network Error';
 
-        // Customize error messages for user-friendly display
-        if (error.response?.status === 401 && 
-            errorMessage.includes("Invalid credentials")) {
-          errorMessage = "Invalid email or password";
-        }
+        // 4. Log the Processed Error for Debugging
+        // Avoid logging expected 401s on login as "errors" if they are just bad credentials
+        const logMethod = (apiError.isAuthError && (config?.url?.includes('/auth/login') || config?.url?.includes('/auth/register')))
+            ? console.warn // Log failed login/register attempts as warnings
+            : console.error; // Log other errors as errors
 
-        // Enhance error with additional information for better debugging
-        const enhancedError = new Error(errorMessage);
+        logMethod(
+            `API Error: ${apiError.status ?? (apiError.isNetworkError ? 'Network' : 'Unknown')} on ${apiError.method || 'N/A'} ${apiError.url || 'N/A'}`,
+            `\n  Message: ${apiError.message}`,
+            // Optionally log the raw data only if it's not a simple string or if needed
+             (apiError.data && typeof apiError.data !== 'string') ? `\n  Data: ${JSON.stringify(apiError.data)}` : ''
+        );
 
-        // Add additional context to the error
-        Object.assign(enhancedError, {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          url: error.config?.url,
-          method: error.config?.method?.toUpperCase(),
-          data: error.response?.data,
-          isAuthError: error.response?.status === 401,
-          isNetworkError: error.message === 'Network Error'
-        });
 
-        return Promise.reject(enhancedError);
+        // 5. Reject the Promise with the structured ApiError
+        // This allows calling code (.catch blocks) to receive the processed error.
+        return Promise.reject(apiError);
       },
     );
   }
 
-  /**
-   * Generic GET request
-   * @param url - API endpoint
-   * @param config - Axios request config
-   * @returns Promise with the response data
-   */
-  async get<T>(url: string, config?: AxiosRequestConfig): ApiResponse<T> {
+  // --- Standard HTTP Method Wrappers ---
+  // These provide a cleaner interface and automatically handle response data extraction.
+
+  /** Generic GET request */
+  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response: AxiosResponse<T> = await this.client.get(url, config);
     return response.data;
   }
 
-  /**
-   * Generic POST request
-   * @param url - API endpoint
-   * @param data - Request payload
-   * @param config - Axios request config
-   * @returns Promise with the response data
-   */
+  /** Generic POST request */
   async post<T, D = any>(
     url: string,
     data?: D,
     config?: AxiosRequestConfig,
-  ): ApiResponse<T> {
-    const response: AxiosResponse<T> = await this.client.post(
-      url,
-      data,
-      config,
-    );
+  ): Promise<T> {
+    const response: AxiosResponse<T> = await this.client.post(url, data, config);
     return response.data;
   }
 
-  /**
-   * Generic PUT request
-   * @param url - API endpoint
-   * @param data - Request payload
-   * @param config - Axios request config
-   * @returns Promise with the response data
-   */
+  /** Generic PUT request */
   async put<T, D = any>(
     url: string,
     data?: D,
     config?: AxiosRequestConfig,
-  ): ApiResponse<T> {
+  ): Promise<T> {
     const response: AxiosResponse<T> = await this.client.put(url, data, config);
     return response.data;
   }
 
-  /**
-   * Generic DELETE request
-   * @param url - API endpoint
-   * @param config - Axios request config
-   * @returns Promise with the response data
-   */
-  async delete<T>(url: string, config?: AxiosRequestConfig): ApiResponse<T> {
+  /** Generic DELETE request */
+  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response: AxiosResponse<T> = await this.client.delete(url, config);
     return response.data;
   }
 }
 
-// Create a singleton instance
-const apiClient = new EnhancedApiClient();
+// --- Singleton Instance ---
+// Create and export a single instance of the client for use throughout the application.
+const apiClient = new ApiClient();
 export default apiClient;

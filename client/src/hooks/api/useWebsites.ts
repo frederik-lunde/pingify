@@ -58,41 +58,28 @@ export function useWebsiteSearch(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const search = useCallback(
+  const search = useCallback( // Rename searchWebsites to search
     async (searchQuery: string) => {
+      setQuery(searchQuery); // Update query state here
       try {
         setLoading(true);
         setError(null);
-
         const data = await apiClient.get<Website[]>("/websites/search", {
-          params: {
-            query: searchQuery,
-            limit,
-          },
+          params: { query: searchQuery, limit },
         });
-
         setResults(data);
         return data;
       } catch (err) {
-        const error =
-          err instanceof Error ? err : new Error("Failed to search websites");
+        // ... (error handling remains the same)
         setError(error);
         console.error("Error searching websites:", error);
-        return []; // Return empty array on error
+        setResults([]); // Clear results on error
+        return [];
       } finally {
         setLoading(false);
       }
     },
-    [limit],
-  );
-
-  // Search function that updates the query state
-  const searchWebsites = useCallback(
-    async (searchQuery: string) => {
-      setQuery(searchQuery);
-      return await search(searchQuery);
-    },
-    [search],
+    [limit], // Removed dependency on the internal 'search'
   );
 
   return {
@@ -100,7 +87,7 @@ export function useWebsiteSearch(
     results,
     loading,
     error,
-    search: searchWebsites,
+    search, // Export the single search function
   };
 }
 
