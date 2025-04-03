@@ -1,21 +1,19 @@
 // src/types.ts
-
-// Basic data types
+// --- Core Monitoring & Website Types ---
 export interface MonitoringResult {
   id: number;
   websiteId: number;
-  checkedAt: string;
-  responseTime: number | null;
+  checkedAt: string; // ISO 8601 date string
+  responseTime: number | null; // Milliseconds
   isAvailable: boolean;
   statusCode: number | null;
   errorMessage: string | null;
-  website?: {
+  website?: { // Optional relation
     url: string;
-    websiteUsers?: Array<{ name: string }>;
+    websiteUsers?: Array<{ name: string | null }>;
   };
 }
 
-// Core Website entity (without user-specific settings)
 export interface Website {
   id: number;
   url: string;
@@ -26,45 +24,44 @@ export interface Website {
   updatedAt?: string;
 }
 
-// Website with user-specific settings
 export interface UserWebsite {
   id: number;
   userId: number;
   websiteId: number;
-  name: string;
-  interval: number;
+  name: string; // Changed: Assume name is generally required or defaulted server-side
+  interval: number; // Changed: Assume interval has a default server-side
   alertEnabled: boolean;
   alertThreshold: number | null;
   notifyEmail: string | null;
   createdAt: string;
-  website: Website;
+  website: Website; // Nested base Website object is expected
 }
 
-// DTOs for creating/updating websites
+// --- DTOs ---
 export interface WebsiteCreateDTO {
   url: string;
-  name: string;
-  interval: number;
-  alertEnabled?: boolean;
+  name: string; // Make name required in DTO for clarity
+  interval: number; // Make interval required
+  alertEnabled?: boolean; // Optional fields default server-side
   alertThreshold?: number | null;
   notifyEmail?: string | null;
 }
 
 export interface WebsiteUpdateDTO {
-  name?: string;
+  name?: string; // All fields optional for update
   interval?: number;
   alertEnabled?: boolean;
   alertThreshold?: number | null;
   notifyEmail?: string | null;
 }
 
-// Stats types
+// --- Statistics Types ---
 export interface WebsiteStats {
   websiteId: number;
   websiteName: string;
   url: string;
-  uptime: number;
-  averageResponseTime: number;
+  uptime: number; // Percentage (0-100)
+  averageResponseTime: number; // Milliseconds
   totalChecks: number;
   lastCheck: string | null;
   consecutiveFailures: number;
@@ -73,44 +70,42 @@ export interface WebsiteStats {
 export interface OverallStats {
   totalWebsites: number;
   activeWebsites: number;
-  websiteStats: WebsiteStats[];
-  overallUptime: number;
-  overallResponseTime: number;
+  websiteStats: WebsiteStats[]; // May not be present depending on endpoint
+  overallUptime: number; // Calculated for the period/context
+  overallResponseTime: number; // Calculated for the period/context
 }
 
-// Updated Alert types
-export type AlertType = "down" | "slow" | "recovered";
+// --- Alert Types ---
+export type AlertType = "down" | "slow" | "recovered" | "ssl" | "dns"; // Added common types
 
 export interface Alert {
   id: number;
   websiteId: number;
   type: AlertType;
   message: string;
-  isRead: boolean;
   isResolved: boolean;
   resolvedAt: string | null;
   createdAt: string;
-  website?: {
+  website?: { // Optional relation
     url: string;
-    websiteUsers?: Array<{ name: string }>;
+    websiteUsers?: Array<{ name: string | null }>;
   };
 }
 
-// New interface for user-specific alert status
 export interface AlertUser {
   id: number;
   userId: number;
   alertId: number;
   isRead: boolean;
   createdAt: string;
-  alert: Alert;
+  alert: Alert; // Nested Alert object
 }
 
 export interface AlertStats {
   totalAlerts: number;
   resolvedAlerts: number;
   unresolvedAlerts: number;
-  byType: Record<AlertType, number>;
+  byType: Partial<Record<AlertType, number>>; // Use Partial as not all types might exist
   byWebsite: Array<{
     websiteId: number;
     websiteName: string;
@@ -124,77 +119,73 @@ export interface AlertQueryOptions {
   from?: Date;
   to?: Date;
   isResolved?: boolean;
+  isRead?: boolean; // Filter by user's read status (for AlertUser endpoints)
+  websiteId?: number; // Added for filtering by website
 }
 
-export interface EmailAlertOptions {
-  to: string;
-  subject: string;
-  body: string;
-}
-
-// User types
+// --- User and Auth Types ---
 export interface User {
   id: number;
   email: string;
-  name?: string;
+  name?: string | null;
 }
 
+// Type provided by AuthContext (via useAuthCore)
 export interface AuthContextType {
   user: User | null;
   token: string | null;
-  loading: boolean;
-  error: string | null;
-  login: (
-    email: string,
-    password: string,
-    rememberMe?: boolean,
-  ) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
+  loading: boolean; // Initial auth check loading
+  error: string | null; // Error during initial check
   logout: () => void;
+  // Login/Register are handled by mutation hooks, not directly in context
+  // login: (credentials: LoginCredentials & { rememberMe?: boolean }) => Promise<void>;
+  // register: (data: RegistrationData) => Promise<void>;
 }
 
-// Time range type for chart filtering
-export type TimeRange = "1d" | "7d" | "30d" | "365d" | "all";
-
-// Time grouping type for data aggregation
-export type TimeGrouping = "hour" | "day" | "week" | "month";
-
-// Grouped data result type
-export interface GroupedTimeData {
-  period: string;
-  total: number;
-  available: number;
-  unavailable: number;
-  uptimePercentage: number;
-  averageResponseTime: number;
+export interface LoginCredentials {
+    email: string;
+    password: string;
 }
 
-// Downtime heatmap data point
-export interface DowntimeHeatmapPoint {
-  day: string;
-  hour: string;
-  value: number | null;
-  total: number;
-  downtime: number;
+export interface RegistrationData {
+    email: string;
+    password: string;
+    name?: string; // Optional name during registration
 }
 
-// Enhanced WebsiteDetail hook return type
-export interface EnhancedWebsiteDetailData {
-  userWebsite: UserWebsite | null;
-  results: MonitoringResult[];
-  allResults: MonitoringResult[];
-  latestResult: MonitoringResult | null;
-  timeRange: TimeRange;
-  setTimeRange: (range: TimeRange) => void;
-  currentStatus: string;
-  statusColor: "success" | "error" | "info";
-  uptime: number;
-  avgResponseTime: number;
-  loading: boolean;
-  isChecking: boolean;
-  error: Error | null;
-  handleCheckNow: () => Promise<void>;
-  refetch: () => Promise<void>;
-  stopPolling: () => void;
-  startPolling: () => void;
+export interface AuthResponse {
+    token: string;
+    user: User;
+}
+
+
+// --- Time & Data Types ---
+export type TimeframeKey = 'hour' | 'day' | 'week' | 'month' | 'year';
+
+// Data structure returned by the `/monitoring/website/{id}/details` endpoint
+// Matches the structure expected by useWebsiteDetailsQuery hook
+export interface WebsiteDetailsData {
+    websiteId: number;
+    name: string; // User's custom name or URL
+    url: string;
+    // Latest result snapshot for header display
+    latestResult: Pick<MonitoringResult, 'checkedAt' | 'isAvailable' | 'statusCode' | 'responseTime'> | null;
+    // Results within the selected timeframe for charts
+    chartData: Pick<MonitoringResult, 'checkedAt' | 'isAvailable' | 'responseTime' | 'statusCode'>[];
+    uptimePercent: number; // Calculated uptime for the timeframe
+    // Recent checks list (limited) with specific fields
+    recentChecks: Pick<MonitoringResult, 'id' | 'checkedAt' | 'isAvailable' | 'statusCode' | 'responseTime'>[];
+}
+
+// --- Error Type ---
+// Standardized API Error structure used by the ApiClient and hooks
+export interface ApiError extends Error {
+  name: string; // Added name property for standard Error compatibility
+  status?: number;
+  statusText?: string;
+  url?: string;
+  method?: string;
+  data?: any; // Raw response data
+  isAuthError?: boolean;
+  isNetworkError?: boolean;
 }

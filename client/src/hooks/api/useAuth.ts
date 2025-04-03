@@ -1,195 +1,195 @@
 // src/hooks/api/useAuth.ts
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getAuthToken,
   storeAuthToken,
   removeAuthToken,
-} from "../../utils/authTokenUtils";
-import { User, AuthContextType } from "../../types";
-import apiClient, {ApiError} from "../../api/client";
+  fireAuthErrorEvent,
+} from "../../utils/authTokenUtils"; // Adjust path
+import { User, AuthContextType, ApiError } from "../../types"; // Adjust path
+import {
+    fetchCurrentUser,
+    loginUser,
+    registerUser,
+    AuthResponse,
+    LoginCredentials,
+    RegistrationData
+} from "../../api/authApi"; // Adjust path
+
+// Query Keys
+export const authQueryKeys = {
+    me: ['auth', 'me'] as const, // Key for the current user query
+};
 
 /**
- * Interface for login credentials
+ * Hook managing core authentication state (token, user data via query) and logout.
+ * Login and Register are handled via separate mutation hooks.
+ * Intended for use by AuthContext provider.
  */
-export interface LoginCredentials {
-  email: string;
-  password: string;
-  rememberMe?: boolean;
-}
-
-/**
- * Interface for registration data
- */
-export interface RegistrationData {
-  email: string;
-  password: string;
-  name?: string;
-}
-
-/**
- * Hook for authentication operations
- */
-export function useAuth(): AuthContextType {
+export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(getAuthToken());
-  // loading starts true to handle initial user load check
-  const [loading, setLoading] = useState<boolean>(true);
-  // error state specifically for non-form-related auth issues (e.g., initial load)
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  // Effect to handle global auth errors signaled by the API client interceptor
+  // Token State from storage
+  const [token, setToken] = useState<string | null>(getAuthToken);
+
+  // Initial Auth Check State
+  const [isInitialCheckComplete, setIsInitialCheckComplete] = useState(false);
+
+  // Query for Current User Data
+  const {
+      data: userData,
+      isLoading: isUserQueryLoading,
+      isSuccess: isUserQuerySuccess,
+      isError: isUserQueryError,
+      error: userQueryErrorData, // Rename for clarity
+      isFetching: isUserQueryFetching, // Indicates background fetching
+  } = useQuery<{ user: User }, ApiError>({
+      queryKey: authQueryKeys.me,
+      queryFn: fetchCurrentUser,
+      enabled: !!token, // Only run if token exists
+      staleTime: 1000 * 60 * 30, // 30 minutes
+      gcTime: 1000 * 60 * 60,    // 1 hour
+      retry: (failureCount, error) => {
+         if (error?.status === 401 || error?.status === 403) return false; // No retry on auth errors for /me
+         return failureCount < 1; // Retry once for other errors
+      },
+      refetchOnWindowFocus: true,
+  });
+
+  // Derived State for Context
+  const user = userData?.user || null;
+
+  // Determine completion of the initial auth check
+  useEffect(() => {
+    if (isInitialCheckComplete) return;
+    if (!token) {
+      setIsInitialCheckComplete(true); // No token, check complete
+    } else if (isUserQuerySuccess || isUserQueryError) {
+      setIsInitialCheckComplete(true); // Token existed, query finished
+    }
+    // Otherwise, still loading the initial user query
+  }, [token, isUserQuerySuccess, isUserQueryError, isInitialCheckComplete]);
+
+  // Loading state for ProtectedRoute: True until initial check is done.
+  const loading = !isInitialCheckComplete;
+
+  // Error state: Report error only if check is complete, token existed, and query failed.
+  const error = (isInitialCheckComplete && token && isUserQueryError)
+      ? (userQueryErrorData?.message || "Failed to load user data.")
+      : null;
+
+  // Global Auth Error Listener (handles 401s from *other* API calls)
   useEffect(() => {
     const handleGlobalAuthError = () => {
-      console.debug("useAuth handling auth-error event");
-      // Clear local auth state
+      console.debug("useAuthCore handling auth-error event (likely 401 from non-auth endpoint)");
       removeAuthToken();
       setToken(null);
-      setUser(null);
-      setError("Your session has expired. Please log in again."); // Set an informative error
-      setLoading(false); // Ensure loading is stopped
-
-      // Redirect to login, replacing history
+      queryClient.setQueryData(authQueryKeys.me, null); // Clear user cache immediately
+      queryClient.removeQueries({ queryKey: authQueryKeys.me }); // Remove query to prevent retries
+      setIsInitialCheckComplete(true); // Mark check as complete (failed auth)
       navigate("/login", { replace: true });
     };
-
-    // Listen for the custom event fired by the interceptor
     window.addEventListener("auth-error", handleGlobalAuthError);
+    return () => window.removeEventListener("auth-error", handleGlobalAuthError);
+  }, [navigate, queryClient]);
 
-    // Cleanup listener on unmount
-    return () => {
-      window.removeEventListener("auth-error", handleGlobalAuthError);
-    };
-  }, [navigate]); // Dependency: navigate function
-
-  // Effect to load user data on initial mount or when token changes (e.g., after login)
+  // Token Synchronization Listener (for multi-tab consistency)
   useEffect(() => {
-    const loadUser = async () => {
-      // Don't try to load if there's no token
-      if (!token) {
-        setLoading(false);
-        setUser(null); // Ensure user is null if no token
-        return;
-      }
-
-      setLoading(true); // Set loading true for the /auth/me call
-      setError(null); // Clear previous errors
-
-      try {
-        // This call will now go through the interceptors
-        const data = await apiClient.get<{ user: User }>("/auth/me");
-        setUser(data.user);
-        setError(null);
-      } catch (err) {
-        // The interceptor might have already fired 'auth-error' if it was a 401.
-        // This catch handles the specific error from *this* request.
-        // It's okay if cleanup runs twice (here and in event listener) - it's idempotent.
-        const apiError = err as ApiError;
-        console.error("Failed to load user:", apiError.message, apiError);
-
-        // If it wasn't a 401 handled globally, or if we need to ensure state is cleared
-        if (!apiError.isAuthError) {
-           removeAuthToken(); // Ensure cleanup even if not 401
-           setToken(null);
-           setUser(null);
+    const syncToken = (event: StorageEvent) => {
+        // Check if the 'authToken' key changed in localStorage or sessionStorage
+        if (event.key === "authToken" || (event.storageArea === sessionStorage && event.key === null)) {
+             // Re-read token from storage
+             const currentToken = getAuthToken();
+             // Only update state if the token actually changed
+             if (token !== currentToken) {
+                 setToken(currentToken);
+                 // If token was removed, clear user data immediately
+                 if (!currentToken) {
+                    queryClient.setQueryData(authQueryKeys.me, null);
+                 }
+                 // Invalidate the 'me' query to refetch user data if a token now exists
+                 queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
+             }
         }
-        // Set a specific error for the user load failure
-        setError(apiError.message || "Failed to verify session. Please log in again.");
-      } finally {
-        setLoading(false); // Ensure loading is always stopped
-      }
     };
+    window.addEventListener('storage', syncToken);
+    return () => window.removeEventListener('storage', syncToken);
+  }, [queryClient, token]); // Depend on queryClient and token
 
-    loadUser();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]); // Rerun only when the token state changes
-
-  /**
-   * Login user. Errors are now primarily handled by the calling component (Formik status)
-   * based on the enhanced error thrown from here.
-   */
-  const login = useCallback(
-    async (email: string, password: string, rememberMe: boolean = false) => {
-      setLoading(true);
-      setError(null); // Clear hook-level errors on new attempt
-      try {
-        const response = await apiClient.post<{ token: string; user: User }>(
-          "/auth/login",
-          { email, password },
-        );
-        const { token: authToken, user: userData } = response;
-
-        storeAuthToken(authToken, rememberMe);
-        setToken(authToken); // This triggers the useEffect to load user data again if needed
-        setUser(userData); // Optimistically set user, useEffect will verify
-        // No need to setError here on success
-      } catch (err) {
-        // Interceptor provides enhanced error with a user-friendly message
-        const apiError = err as ApiError;
-        throw apiError; // Throw the enhanced error
-      } finally {
-        setLoading(false);
-      }
-    },
-    [], // No dependencies needed for login logic itself
-  );
-
-  /**
-   * Register user. Errors handled similarly to login.
-   */
-  const register = useCallback(
-    async (email: string, password: string, name?: string) => {
-      setLoading(true);
-      setError(null); // Clear hook-level errors
-      try {
-        const response = await apiClient.post<{ token: string; user: User }>(
-          "/auth/register",
-          { email, password, name },
-        );
-        const { token: authToken, user: userData } = response;
-
-        // For registration, we'll use sessionStorage by default
-        storeAuthToken(authToken, false);
-        setToken(authToken); // Triggers user load/verification
-        setUser(userData); // Optimistic update
-      } catch (err) {
-        const apiError = err as ApiError;
-        console.error("Registration failed:", apiError);
-        // Re-throw for the form handler
-        throw apiError;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
-
-  /**
-   * Logout the current user.
-   */
+  // Logout Function
   const logout = useCallback(() => {
-    // Optionally call a backend logout endpoint if it exists
-    // apiClient.post('/auth/logout').catch(err => console.error("Logout API call failed", err));
-
     removeAuthToken();
     setToken(null);
-    setUser(null);
-    setError(null); // Clear any lingering errors
-    navigate("/login", { replace: true }); // Use replace to prevent back button going to protected route
-  }, [navigate]);
+    queryClient.setQueryData(authQueryKeys.me, null); // Clear user data immediately
+    queryClient.removeQueries({ queryKey: authQueryKeys.me }); // Remove the query
+    setIsInitialCheckComplete(true); // Check is complete (no user)
+    // Consider resetting other queries if needed: queryClient.resetQueries();
+    navigate("/login", { replace: true });
+  }, [navigate, queryClient]);
 
+  // Return Value for Context Provider
   return {
     user,
     token,
-    // Provide loading state reflecting initial load and login/register attempts
-    loading,
-    // Provide hook-level error state primarily for initial load issues
-    error,
-    login,
-    register,
+    loading, // Crucial state for initial load indication
+    error,   // Error state primarily from the user fetch query
     logout,
   };
 }
 
-export default useAuth;
+
+// --- MUTATION HOOKS ---
+
+/**
+ * Hook providing a mutation for user login.
+ * Handles API call, token storage, and cache invalidation upon success.
+ */
+export function useLoginMutation() {
+    const queryClient = useQueryClient();
+    const navigate = useNavigate(); // To redirect after login
+
+    return useMutation<AuthResponse, ApiError, LoginCredentials & { rememberMe?: boolean }>({
+        mutationFn: (credentials) => loginUser(credentials),
+        onSuccess: (data, variables) => {
+            storeAuthToken(data.token, variables.rememberMe || false);
+            // Set user data in cache immediately for faster UI update
+            queryClient.setQueryData(authQueryKeys.me, { user: data.user });
+            // Invalidate to ensure it fetches fresh data if needed or confirms the cached data
+            queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
+            console.log("Login successful via mutation hook");
+            // Navigate after state update seems likely
+            navigate("/"); // Redirect to dashboard on successful login
+        },
+        onError: (error) => {
+             console.error("Login mutation failed:", error.message);
+             // Error is returned by the hook for the component to display
+        }
+    });
+}
+
+/**
+ * Hook providing a mutation for user registration.
+ * Handles API call, token storage, and cache invalidation upon success.
+ */
+export function useRegisterMutation() {
+    const queryClient = useQueryClient();
+    const navigate = useNavigate(); // To redirect after registration
+
+    return useMutation<AuthResponse, ApiError, RegistrationData>({
+        mutationFn: registerUser,
+        onSuccess: (data) => {
+            storeAuthToken(data.token, false); // Session only for registration
+            queryClient.setQueryData(authQueryKeys.me, { user: data.user });
+            queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
+            console.log("Registration successful via mutation hook");
+            navigate("/"); // Redirect to dashboard
+        },
+        onError: (error) => {
+            console.error("Registration mutation failed:", error.message);
+            // Error is returned by the hook for the component to display
+        }
+    });
+}

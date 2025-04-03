@@ -1,204 +1,187 @@
-// Simplified WebsiteUrlSearch.tsx
-import React, {useEffect, useMemo } from "react";
+// src/components/WebsiteUrlSearch.tsx
+import React, { useMemo, useCallback } from "react"; // Added useCallback
 import {
   TextField,
   Autocomplete,
   CircularProgress,
-  InputAdornment,
-  Tooltip,
-  IconButton,
-  Box,
+  debounce, // Use debounce directly from MUI or import lodash.debounce
 } from "@mui/material";
-import { Search as SearchIcon } from "@mui/icons-material";
-import { Website } from "../types";
-import { useWebsiteSearch } from "../hooks";
-import { debounce } from "lodash";
+import { Website } from "../types"; // Ensure ApiError is available if needed
+// Use the refactored hook
+import { useWebsiteSearch } from "../hooks/api/useWebsites"; // Corrected import path
 import { useField, useFormikContext } from "formik";
 
 export interface WebsiteUrlSearchProps {
   name: string; // Field name for Formik
-  value?: string;
-  onChange?: (url: string) => void;
-  onSelect?: (website: Website | null) => void;
   label?: string;
   placeholder?: string;
   helperText?: string;
   searchLimit?: number;
   disabled?: boolean;
+  // Optional callbacks if used outside Formik
+  value?: string;
+  onChange?: (url: string) => void;
+  onSelect?: (website: Website | null) => void;
 }
 
 const WebsiteUrlSearch = ({
   name,
-  value: externalValue,
-  onChange: externalOnChange,
-  onSelect,
   label = "Website URL",
   placeholder = "https://example.com",
-  helperText = "Full URL including http:// or https://",
+  helperText = "Enter full URL (e.g., https://example.com)",
   searchLimit = 10,
   disabled = false,
+  value: externalValue, // Value prop if not using Formik
+  onChange: externalOnChange, // onChange prop if not using Formik
+  onSelect: externalOnSelect, // onSelect prop if not using Formik
 }: WebsiteUrlSearchProps) => {
-  // Get Formik context if available
-  const formik = useFormikContext();
-  const [field, meta, helpers] = useField(name);
-  
-  // Use values from Formik or from props if used outside of Formik
-  const isFormik = !!formik;
-  const fieldValue = isFormik ? field?.value : externalValue || "";
+  // Formik integration
+  const { setFieldValue, setFieldTouched } = useFormikContext() || {}; // Use Formik context if available
+  const [field, meta] = useField(name); // Use field hook to get value/error/touched status
+
+  // Determine if used within Formik
+  const isFormik = !!setFieldValue;
+
+  // Get current value and error state from Formik field or props
+  const currentValue = isFormik ? field?.value : externalValue || "";
   const fieldError = isFormik && meta?.touched ? meta.error : undefined;
-  
-  // Use our search hook
+
+  // Use the website search hook (which manages its own state)
   const {
     results: options,
     loading,
-    search: searchWebsites,
-  } = useWebsiteSearch("", searchLimit);
+    search: searchWebsites, // The function to trigger a search
+  } = useWebsiteSearch(searchLimit);
 
-  // Create debounced search function
+  // Debounced search function
   const debouncedSearch = useMemo(
-    () => debounce((searchTerm: string) => {
-      searchWebsites(searchTerm);
-    }, 300),
-    [searchWebsites],
+    () =>
+      debounce((searchTerm: string) => {
+        searchWebsites(searchTerm); // Call the search function from the hook
+      }, 400), // Debounce time (e.g., 400ms)
+    [searchWebsites] // Recreate debounce function if searchWebsites changes (should be stable)
   );
 
-  // Load initial options on mount
-  useEffect(() => {
-    debouncedSearch("");
-    return () => debouncedSearch.cancel();
-  }, [debouncedSearch]);
-
-  // Handle URL input change
-  const handleInputChange = (
-    _event: React.SyntheticEvent,
-    newValue: string,
-  ) => {
-    // Update Formik field if within Formik context, otherwise use external handler
-    if (isFormik) {
-      helpers.setValue(newValue);
-      helpers.setTouched(true, false);
-    } else if (externalOnChange) {
-      externalOnChange(newValue);
-    }
-    
-    debouncedSearch(newValue);
-  };
-
-  // Handle URL autocomplete selection
-  const handleUrlSelect = (
-    _event: React.SyntheticEvent<Element, Event>,
-    newValue: string | Website | null,
-    _reason: string,
-  ) => {
-    if (typeof newValue === "string") {
+  // Handle input changes in the Autocomplete field
+  const handleInputChange = useCallback(
+    (_event: React.SyntheticEvent, newValue: string) => {
+      // Update Formik field or call external onChange
       if (isFormik) {
-        helpers.setValue(newValue);
+        setFieldValue(name, newValue); // Update Formik state
       } else if (externalOnChange) {
-        externalOnChange(newValue);
+        externalOnChange(newValue); // Call external handler
       }
-      if (onSelect) onSelect(null);
-    } else if (newValue === null) {
-      if (isFormik) {
-        helpers.setValue("");
-      } else if (externalOnChange) {
-        externalOnChange("");
-      }
-      if (onSelect) onSelect(null);
-    } else {
-      if (isFormik) {
-        helpers.setValue(newValue.url);
-      } else if (externalOnChange) {
-        externalOnChange(newValue.url);
-      }
-      if (onSelect) onSelect(newValue);
-    }
-  };
+      // Trigger debounced search based on the new input value
+      debouncedSearch(newValue);
+    },
+    [isFormik, setFieldValue, name, externalOnChange, debouncedSearch]
+  );
 
-  // Get URL from option (string or Website)
-  const getOptionLabel = (option: string | Website): string => {
-    return typeof option === "string" ? option : option.url;
-  };
+  // Handle selection of an item from the Autocomplete dropdown
+  const handleSelection = useCallback(
+    (
+      _event: React.SyntheticEvent,
+      selectedValue: string | Website | null, // Can be a string (freeSolo) or a Website object
+    ) => {
+      let finalUrl = "";
+      let selectedWebsite: Website | null = null;
 
-  // Convert string value to Website object if found in options
-  const convertValue = () => {
-    if (fieldValue) {
-      const matchingWebsite = options.find((opt) => opt.url === fieldValue);
-      return matchingWebsite || fieldValue;
-    }
-    return null;
-  };
-
-  // Helper to automatically add protocol if missing
-  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-    const url = event.target.value.trim();
-    
-    // Mark field as touched in Formik
-    if (isFormik) {
-      helpers.setTouched(true, true);
-    }
-    
-    if (url && !url.match(/^https?:\/\//i)) {
-      const newUrl = `https://${url}`;
-      
-      // Update Formik field or use external handler
-      if (isFormik) {
-        helpers.setValue(newUrl);
-      } else if (externalOnChange) {
-        externalOnChange(newUrl);
+      if (typeof selectedValue === "string") {
+        finalUrl = selectedValue; // User typed text or selected the typed text
+      } else if (selectedValue) {
+        finalUrl = selectedValue.url; // User selected a Website object
+        selectedWebsite = selectedValue;
       }
-    }
-  };
+
+      // Update Formik field or call external onChange with the URL
+      if (isFormik) {
+        setFieldValue(name, finalUrl);
+        setFieldTouched(name, true, false); // Mark as touched after selection
+      } else if (externalOnChange) {
+        externalOnChange(finalUrl);
+      }
+
+      // Call external onSelect callback with the selected Website object (or null)
+      if (externalOnSelect) {
+        externalOnSelect(selectedWebsite);
+      }
+    },
+    [isFormik, setFieldValue, setFieldTouched, name, externalOnChange, externalOnSelect]
+  );
+
+  // Handle blur event to auto-format URL (e.g., add https://)
+   const handleBlur = useCallback((event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => { // Type fix for TextField's onBlur
+        if (isFormik) {
+            field.onBlur(event); // Trigger Formik's default onBlur
+             setFieldTouched(name, true); // Ensure field is marked touched
+        }
+
+        const url = event.target.value.trim();
+        if (url && !url.match(/^https?:\/\//i)) {
+            const newUrl = `https://${url}`;
+             if (isFormik) {
+                setFieldValue(name, newUrl);
+            } else if (externalOnChange) {
+                externalOnChange(newUrl);
+            }
+        }
+    }, [isFormik, field, setFieldTouched, name, setFieldValue, externalOnChange]);
+
 
   return (
     <Autocomplete
-      freeSolo
-      options={options}
-      filterOptions={(x) => x} // Don't filter - we handle this server-side
-      getOptionLabel={getOptionLabel}
-      loading={loading}
-      onInputChange={(e, value) => handleInputChange(e, value)}
-      onChange={handleUrlSelect}
-      inputValue={fieldValue}
-      value={convertValue()}
+      freeSolo // Allows typing custom values not in the options
+      options={options} // Suggestions from the search hook
+      filterOptions={(x) => x} // Let the hook/API handle filtering
+      getOptionLabel={(option) => (typeof option === "string" ? option : option.url)}
+      // Render option to display only URL but keep the object structure
+      renderOption={(props, option) => (
+        <li {...props} key={typeof option === 'string' ? option : option.id}>
+          {typeof option === "string" ? option : option.url}
+        </li>
+      )}
+      // Handle input value changes (triggers debounced search)
+      onInputChange={handleInputChange}
+      // Handle selection changes (updates form value, calls onSelect)
+      onChange={handleSelection}
+      // Value currently displayed in the input (controlled)
+      inputValue={currentValue}
+      // The value prop for Autocomplete needs careful handling for freeSolo
+      // It's often simpler to control via inputValue and handle selection/input changes
+      value={options.find(opt => opt.url === currentValue) || currentValue || null}
+      loading={loading} // Show loading indicator from the search hook
       disabled={disabled}
+      // Render the input TextField component
       renderInput={(params) => (
         <TextField
           {...params}
+          name={name} // Pass name for Formik association
           label={label}
-          required
           variant="outlined"
           placeholder={placeholder}
-          error={!!fieldError}
-          helperText={fieldError || helperText}
-          onBlur={handleBlur}
+          required // Reflect Formik schema requirement if applicable
+          error={!!fieldError} // Show error state based on Formik meta
+          helperText={fieldError || helperText} // Show Formik error or default helper text
+          onBlur={handleBlur} // Handle URL formatting on blur
           InputProps={{
             ...params.InputProps,
             endAdornment: (
               <>
-                {loading ? (
-                  <CircularProgress color="inherit" size={20} />
-                ) : null}
+                {loading ? <CircularProgress color="inherit" size={20} sx={{ mr: 1 }} /> : null}
                 {params.InputProps.endAdornment}
-                <InputAdornment position="end">
-                  <Tooltip title="Search for existing websites">
-                    <IconButton size="small">
+                {/* Optional: Icon to indicate search functionality */}
+                {/* <InputAdornment position="end">
+                  <Tooltip title="Search existing websites">
+                    <IconButton size="small" edge="end">
                       <SearchIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                </InputAdornment>
+                </InputAdornment> */}
               </>
             ),
           }}
         />
       )}
-      renderOption={(props, option) => {
-        const url = typeof option === "string" ? option : option.url;
-        return (
-          <li {...props}>
-            <Box component="span">{url}</Box>
-          </li>
-        );
-      }}
     />
   );
 };

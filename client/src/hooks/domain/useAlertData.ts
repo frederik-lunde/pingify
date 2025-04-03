@@ -1,13 +1,13 @@
 // src/hooks/domain/useAlertData.ts
 import { useMemo, useCallback } from "react";
 import {
-  useUserAlerts,
-  useUserUnreadAlerts,
-  useAlertStats,
-} from "../api/useAlerts";
-import { useWebsites } from "../api/useWebsites";
-import { Alert, AlertUser, AlertStats } from "../../types";
-import { DEFAULT_POLLING_INTERVAL } from "../../api/config";
+    useUserAlertsQuery,
+    useUserUnreadAlertsQuery,
+    useAlertStatsQuery,
+    useAlertReadMutations
+} from "../api/useAlerts"; // Use the refactored API hooks
+import { useUserWebsitesQuery } from "../api/useWebsites"; // Use the refactored API hook
+import { Alert, AlertUser, AlertStats, ApiError, } from "../../types"; // Adjust path
 
 export interface AlertSummary {
   stats: AlertStats | null;
@@ -16,114 +16,123 @@ export interface AlertSummary {
   resolvedAlerts: Alert[];
   unreadAlerts: AlertUser[];
   websiteAlertCounts: Map<number, number>;
-  loading: boolean;
-  error: string | null;
-  markAsRead: (alertId: number) => Promise<void>;
-  markAllAsRead: () => Promise<void>;
-  refetch: () => void;
+  isLoading: boolean; // Changed from 'loading'
+  error: ApiError | null;
+  markAsRead: (alertId: number) => void;
+  markAllAsRead: () => void;
+  refetch: () => Promise<any>;
+  isMarkingRead: boolean;
 }
 
 /**
- * Hook to provide comprehensive alert data for the dashboard
+ * Hook to provide comprehensive alert data using TanStack Query hooks.
  */
 export function useAlertData(
   days = 7,
   limit = 50,
-  pollingInterval = DEFAULT_POLLING_INTERVAL,
+  refetchInterval?: number | false,
 ): AlertSummary {
-  // Fetch alert statistics
+
+  // Query Options
+  const listQueryOptions = useMemo(() => ({ limit }), [limit]);
+  const unreadQueryOptions = useMemo(() => ({ limit, isResolved: false }), [limit]); // Ensure we only fetch unresolved for unread count typically
+  const statsQueryOptions = useMemo(() => ({ days }), [days]);
+  const queryConfig = useMemo(() => ({ refetchInterval }), [refetchInterval]);
+
+  // Fetch Data using TanStack Query Hooks
   const {
     data: stats,
-    loading: statsLoading,
+    isLoading: statsLoading,
     error: statsError,
     refetch: refetchStats,
-  } = useAlertStats(days, pollingInterval);
+  } = useAlertStatsQuery(statsQueryOptions.days, queryConfig);
 
-  // Fetch all alerts (resolved and unresolved)
   const {
     data: allAlerts = [],
-    loading: allAlertsLoading,
+    isLoading: allAlertsLoading,
     error: allAlertsError,
     refetch: refetchAllAlerts,
-  } = useUserAlerts({ limit }, pollingInterval);
+  } = useUserAlertsQuery(listQueryOptions, queryConfig);
 
-  // Fetch unread alerts with mark as read functionality
   const {
-    unreadAlerts = [],
-    loading: unreadLoading,
+    data: unreadAlerts = [],
+    isLoading: unreadLoading,
     error: unreadError,
-    markAsRead,
-    markAllAsRead,
     refetch: refetchUnread,
-  } = useUserUnreadAlerts({ limit }, pollingInterval);
+  } = useUserUnreadAlertsQuery(unreadQueryOptions, queryConfig);
 
-  // Fetch websites for context
-  const { data: userWebsites = [], loading: websitesLoading } = useWebsites(
-    pollingInterval,
-    { enabled: true },
-  );
+  // Fetch websites for context (needed for websiteAlertCounts map)
+  const {
+    data: userWebsites = [],
+    isLoading: websitesLoading,
+    error: websitesError,
+    refetch: refetchWebsites,
+  } = useUserWebsitesQuery(); // No interval needed here, fetched once or on invalidation
 
-  // Split alerts into resolved and unresolved
+  // Use Mutation Hook
+  const {
+      markAsRead,
+      markAllAsRead,
+      isMarkingOne,
+      isMarkingAll,
+      errorMarkingOne,
+      errorMarkingAll,
+  } = useAlertReadMutations();
+
+  // Derived Data Calculations
   const { unresolvedAlerts, resolvedAlerts } = useMemo(() => {
-    const alerts = allAlerts || [];
     return {
-      unresolvedAlerts: alerts.filter((alert) => !alert.isResolved),
-      resolvedAlerts: alerts.filter((alert) => alert.isResolved),
+      unresolvedAlerts: allAlerts.filter((alert) => !alert.isResolved),
+      resolvedAlerts: allAlerts.filter((alert) => alert.isResolved),
     };
   }, [allAlerts]);
 
-  // Create map of website IDs to their alert counts
   const websiteAlertCounts = useMemo(() => {
     const counts = new Map<number, number>();
-
-    // Initialize with all websites at 0
-    (userWebsites || []).forEach((website) => {
+    // Initialize counts for all user websites
+    userWebsites.forEach((website) => {
       counts.set(website.websiteId, 0);
     });
-
     // Count unresolved alerts per website
     unresolvedAlerts.forEach((alert) => {
-      const currentCount = counts.get(alert.websiteId) || 0;
-      counts.set(alert.websiteId, currentCount + 1);
+       if (alert.websiteId) { // Check if websiteId exists
+        counts.set(alert.websiteId, (counts.get(alert.websiteId) || 0) + 1);
+       }
     });
-
     return counts;
   }, [userWebsites, unresolvedAlerts]);
 
-  // Compile all errors
-  const error = useMemo(() => {
-    const errors = [statsError, allAlertsError, unreadError]
-      .filter(Boolean)
-      .map((err) => err?.message || "Unknown error");
+  // Consolidate Loading and Error States
+  const isLoading = statsLoading || allAlertsLoading || unreadLoading || websitesLoading;
+  const error = statsError || allAlertsError || unreadError || websitesError || errorMarkingOne || errorMarkingAll || null;
 
-    return errors.length > 0 ? errors.join(", ") : null;
-  }, [statsError, allAlertsError, unreadError]);
+  // Refetch Function
+  const refetch = useCallback(async () => {
+    // Refetch all relevant queries concurrently
+    await Promise.all([
+        refetchStats(),
+        refetchAllAlerts(),
+        refetchUnread(),
+        // refetchWebsites(), // Only refetch websites if absolutely necessary
+    ]);
+  }, [refetchStats, refetchAllAlerts, refetchUnread/*, refetchWebsites*/]);
 
-  // Loading state
-  const loading =
-    statsLoading || allAlertsLoading || unreadLoading || websitesLoading;
-
-  // Helper function to refetch all data
-  const refetch = useCallback(() => {
-    refetchStats();
-    refetchAllAlerts();
-    refetchUnread();
-  }, [refetchStats, refetchAllAlerts, refetchUnread]);
-
-  // Return the alert summary with non-null arrays
+  // Return Value
   return {
     stats: stats || null,
-    allAlerts: allAlerts || [],
+    allAlerts,
     unresolvedAlerts,
     resolvedAlerts,
-    unreadAlerts: unreadAlerts || [],
+    unreadAlerts, // Use the directly fetched unreadAlerts
     websiteAlertCounts,
-    loading,
+    isLoading, // Use TanStack Query's isLoading
     error,
     markAsRead,
     markAllAsRead,
     refetch,
+    isMarkingRead: isMarkingOne || isMarkingAll,
   };
 }
 
+// Default export might not be needed if always used as named import
 export default useAlertData;

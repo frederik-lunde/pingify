@@ -105,20 +105,25 @@ export class ResultsManager {
    * Saves the monitoring result to the database
    */
   static async saveResult(
-    websiteId: number, 
+    websiteId: number,
     result: MonitoringResponse
   ): Promise<MonitoringResult> {
     const { responseTime, isAvailable, statusCode, errorMessage } = result;
-    
-    // Update website's lastChecked timestamp
-    await prisma.website.update({
-      where: { id: websiteId },
-      data: { lastChecked: new Date() }
-    });
-    
-    // Create the monitoring result
-    return prisma.monitoringResult.create({
-      data: { websiteId, responseTime, isAvailable, statusCode, errorMessage }
+  
+    // Use Prisma Transaction
+    return prisma.$transaction(async (tx) => {
+      // Update website's lastChecked timestamp
+      await tx.website.update({
+        where: { id: websiteId },
+        data: { lastChecked: new Date() },
+      });
+  
+      // Create the monitoring result
+      const monitoringResult = await tx.monitoringResult.create({
+        data: { websiteId, responseTime, isAvailable, statusCode, errorMessage },
+      });
+  
+      return monitoringResult; // Return the created result
     });
   }
 
@@ -243,25 +248,55 @@ export class ResultsManager {
 // Statistics and Analysis
 export class StatsCalculator {
   /**
-   * Calculate uptime percentage for a given period
+   * Calculate uptime percentage for a given period using efficient database counts.
+   *
+   * @param websiteId The ID of the website to calculate uptime for.
+   * @param days The number of past days to include in the calculation (default: 7).
+   * @returns A promise that resolves to the uptime percentage (0-100).
    */
-  static async calculateUptime(websiteId: number, days = 7): Promise<number> {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    
-    const results = await prisma.monitoringResult.findMany({
-      where: {
-        websiteId,
-        checkedAt: { gte: startDate }
+static async calculateUptime(websiteId: number, days = 7): Promise<number> {
+  // Calculate the start date for the query range
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  startDate.setHours(0, 0, 0, 0); // Optional: Start from the beginning of the day 'days' ago
+
+  // --- Query 1: Get the total number of checks in the period ---
+  const totalChecks = await prisma.monitoringResult.count({
+    where: {
+      websiteId: websiteId,
+      checkedAt: {
+        gte: startDate, // Greater than or equal to the start date
       },
-      select: { isAvailable: true }
-    });
-    
-    if (results.length === 0) return 0;
-    
-    const successfulChecks = results.filter(r => r.isAvailable).length;
-    return (successfulChecks / results.length) * 100;
+    },
+  });
+
+  // Handle the edge case where there are no checks in the period
+  if (totalChecks === 0) {
+    // You might return 100 if you consider "no checks" to mean "no failures",
+    // but 0 is often safer, meaning "no successful checks recorded".
+    // Choose based on your application's definition of uptime in this case.
+    console.warn(`No monitoring results found for website ID ${websiteId} in the last ${days} days. Returning 0% uptime.`);
+    return 0;
   }
+
+  // --- Query 2: Get the number of successful checks (isAvailable = true) in the period ---
+  const successfulChecks = await prisma.monitoringResult.count({
+    where: {
+      websiteId: websiteId,
+      checkedAt: {
+        gte: startDate,
+      },
+      isAvailable: true, // Filter only for successful checks
+    },
+  });
+
+  // --- Calculate the percentage ---
+  const uptimePercentage = (successfulChecks / totalChecks) * 100;
+
+
+  return uptimePercentage;
+}
+
 
   /**
    * Get average response time for a website

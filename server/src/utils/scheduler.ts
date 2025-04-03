@@ -22,19 +22,11 @@ function isWebsiteDueForCheck(website: Website): boolean {
  * Retrieves all active websites from the database
  */
 async function getActiveWebsites(): Promise<Website[]> {
+  // Simply get all websites marked as active.
+  // The isWebsiteDueForCheck function will handle the time logic.
   return prisma.website.findMany({
-    where: { 
+    where: {
       isActive: true,
-      OR: [
-        // Include websites that have never been checked
-        { lastChecked: null },
-        // Include websites whose interval has passed since last check
-        {
-          lastChecked: {
-            lt: new Date(Date.now() - 1000) // Ensure at least 1 second has passed
-          }
-        }
-      ]
     },
   });
 }
@@ -83,34 +75,37 @@ export async function checkDueWebsites(): Promise<void> {
  */
 export async function cleanupUnusedWebsites(): Promise<void> {
   console.log('Checking for websites without any users...');
-  
   try {
-    // Find websites that are active but have no users
+    const whereClause = {
+      isActive: true,
+      websiteUsers: {
+        none: {},
+      },
+    };
+
+    // First, optionally find them if you need to log URLs (or count first)
     const unusedWebsites = await prisma.website.findMany({
-      where: {
-        isActive: true,
-        websiteUsers: {
-          none: {}
-        }
-      }
+      where: whereClause,
+      select: { id: true, url: true } // Select only needed fields
     });
-    
+
     if (unusedWebsites.length === 0) {
       console.log('No unused websites found');
       return;
     }
-    
+
     console.log(`Found ${unusedWebsites.length} websites without users. Deactivating...`);
-    
-    // Deactivate unused websites
-    for (const website of unusedWebsites) {
-      await prisma.website.update({
-        where: { id: website.id },
-        data: { isActive: false }
-      });
-      console.log(`Deactivated website ID: ${website.id}, URL: ${website.url}`);
-    }
-    
+    // Log URLs before deactivation if needed
+    unusedWebsites.forEach(w => console.log(`Found unused: ID: ${w.id}, URL: ${w.url}`));
+
+
+    // Deactivate all found websites in one go
+    const updateResult = await prisma.website.updateMany({
+      where: whereClause, // Use the same criteria to ensure atomicity
+      data: { isActive: false },
+    });
+
+    console.log(`Deactivated ${updateResult.count} unused websites.`); // updateMany returns a count
     console.log('Unused website cleanup complete');
   } catch (error) {
     console.error('Failed to cleanup unused websites:', error);
@@ -170,7 +165,7 @@ export async function purgeOldMonitoringResults(resultsToKeep = 1000): Promise<v
  */
 export function scheduleMonitoring(): void {
   // Run monitoring check every 10 seconds
-  cron.schedule('*/10 * * * * *', checkDueWebsites);
+  cron.schedule('*/30 * * * * *', checkDueWebsites);
   console.log('Website monitoring scheduler started - checking every 10 seconds for due websites');
   
   // Run website cleanup hourly
