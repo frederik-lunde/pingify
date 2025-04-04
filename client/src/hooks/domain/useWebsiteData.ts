@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from "react";
-import { UserWebsite, MonitoringResult, ApiError, OverallStats } from "../../types"; // Adjust path
+import { WebsiteUser, MonitoringResult, ApiError, OverallStats } from "../../types"; // Adjust path
 import { useUserWebsitesQuery } from "../api/useWebsites";
 import { useUserMonitoringResultsQuery } from "../api/useMonitoring"; // Hook to fetch all results
 import { useUserStatsQuery } from "../api/useMonitoring"; // Hook to fetch user stats
@@ -7,7 +7,7 @@ import { useUserStatsQuery } from "../api/useMonitoring"; // Hook to fetch user 
 const RECENT_RESULTS_LIMIT_FOR_CARD = 20;
 
 export interface WebsiteWithResults {
-  userWebsite: UserWebsite;
+  userWebsite: WebsiteUser;
   latestResult?: MonitoringResult;
   recentResults: MonitoringResult[];
 }

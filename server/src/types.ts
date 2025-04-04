@@ -1,4 +1,4 @@
-// src/types/index.ts or server/src/types/index.ts (adjust path as needed)
+// /types/index.ts (Shared location)
 
 import {
   Website as PrismaWebsite,
@@ -9,22 +9,110 @@ import {
   AlertUser as PrismaAlertUser
 } from '@prisma/client';
 
-// --- Re-export Prisma types for convenience across the application ---
-// These are the direct types generated from your schema
-export type Website = PrismaWebsite;
-export type MonitoringResult = PrismaMonitoringResult;
-export type Alert = PrismaAlert;
-export type User = PrismaUser;
-export type WebsiteUser = PrismaWebsiteUser;
-export type AlertUser = PrismaAlertUser;
+// --- SECTION 1: Core Prisma Type Re-exports ---
+// Re-exporting Prisma's generated types for direct use when the full model is needed.
+// Note: Be mindful of Date objects potentially being serialized to strings over API boundaries.
 
-// --- API Error Type ---
+export type WebsitePrisma = PrismaWebsite;
+export type MonitoringResultPrisma = PrismaMonitoringResult;
+export type AlertPrisma = PrismaAlert;
+export type UserPrisma = PrismaUser;
+export type WebsiteUserPrisma = PrismaWebsiteUser;
+export type AlertUserPrisma = PrismaAlertUser;
+
+
+// --- SECTION 2: Manually Defined Core Types (Reflecting API Payloads) ---
+// Define core types manually if the exact shape transferred via API
+// (e.g., Date as string) differs from the direct Prisma types.
+
+export interface MonitoringResult {
+  id: number;
+  websiteId: number;
+  checkedAt: string; // ISO 8601 date string (as it likely comes via JSON)
+  responseTime: number | null; // Milliseconds
+  isAvailable: boolean;
+  statusCode: number | null;
+  errorMessage: string | null;
+   // Optional nested data depending on the query that fetched this result
+  website?: {
+    url: string;
+    websiteUsers?: Array<{ name?: string | null }>;
+  };
+}
+
+export interface Website {
+  id: number;
+  url: string;
+  isActive: boolean;
+  lastChecked: string | null; // ISO 8601 date string
+  globalInterval: number;
+  createdAt?: string; // ISO 8601 date string
+  updatedAt?: string; // ISO 8601 date string
+}
+
+export interface User {
+  id: number;
+  email: string;
+  name?: string | null;
+  // Add other fields as needed (e.g., emailVerified, roles)
+}
+
+export interface WebsiteUser {
+    id: number;
+    userId: number;
+    websiteId: number;
+    name: string | null; // Allow null based on backend DTO
+    interval: number | null; // Allow null based on backend DTO
+    alertEnabled: boolean;
+    alertThreshold: number | null;
+    notifyEmail: string | null;
+    createdAt: string; // ISO 8601 date string
+    //updatedAt: string; // ISO 8601 date string
+     // Nested Website is commonly included when fetching a user's websites
+    website?: Website;
+}
+
+export type AlertType = "down" | "slow" | "recovered" | "ssl" | "dns"; // Define allowed alert types
+
+export interface Alert {
+    id: number;
+    websiteId: number;
+    type: AlertType;
+    message: string;
+    isResolved: boolean;
+    resolvedAt: string | null; // ISO 8601 date string
+    createdAt: string; // ISO 8601 date string
+    // Optional nested data
+    website?: {
+        url: string;
+        websiteUsers?: Array<{ name: string | null }>;
+    };
+}
+
+export interface AlertUser {
+    id: number;
+    userId: number;
+    alertId: number;
+    isRead: boolean;
+    createdAt: string; // ISO 8601 date string
+     // Nested Alert object is often included
+    alert?: Alert;
+}
+
+
+// --- SECTION 3: Utility & Shared Enum Types ---
+
+/**
+* Defines the standard keys used for selecting timeframes in the UI and API requests.
+*/
+export type TimeframeKey = 'hour' | 'day' | 'week' | 'month' | 'year';
+
 /**
 * Standardized structure for API errors, extending the base Error class.
 * Used for communicating errors between backend and frontend.
 */
 export interface ApiError extends Error {
-  name: string;        // e.g., 'ApiError', 'ValidationError'
+  name: string;        // e.g., 'ApiError', 'ValidationError', or Error name
   status?: number;    // HTTP status code (e.g., 404, 500)
   statusText?: string;// HTTP status text (e.g., 'Not Found')
   url?: string;       // API endpoint URL requested
@@ -34,178 +122,39 @@ export interface ApiError extends Error {
   isNetworkError?: boolean; // True if due to a network issue
 }
 
-// --- Website-related DTOs (Data Transfer Objects) ---
+
+// --- SECTION 4: API DTOs (Data Transfer Objects) ---
+// Define the shapes expected for specific API requests (POST, PUT).
 
 /**
-* DTO for creating the core Website entity.
-* Typically used internally or by admin functions.
+* DTO for creating the core Website entity (backend internal/admin).
 */
 export interface CreateWebsiteDTO {
   url: string;
-  interval?: number; // Optional initial globalInterval suggestion
+  interval?: number;
 }
 
 /**
-* DTO for adding a website TO A USER's dashboard.
-* Contains the URL (to find/create the Website) and the user's specific settings.
-* Fields match the optionality in the WebsiteUser schema model.
+* DTO for adding a website TO A USER's dashboard (sent from frontend).
 */
-export interface WebsiteUserDTO {
-  url: string;                 // Required to identify the website
-  name?: string | null;        // User's custom name (optional)
-  interval?: number | null;    // User's preferred check interval (optional)
-  alertThreshold?: number | null; // User's failure threshold for alerts (optional)
-  alertEnabled?: boolean | null; // User wants alerts? (optional, defaults false in schema)
-  notifyEmail?: string | null; // Specific email override (optional)
+export interface AddWebsiteUserDTO {
+  url: string;                 // Required to find/create the website
+  name?: string | null;
+  interval?: number | null;
+  alertThreshold?: number | null;
+  alertEnabled?: boolean;      // Frontend might send boolean directly
+  notifyEmail?: string | null;
 }
 
 /**
-* DTO for UPDATING a user's settings for a website they already monitor.
-* Does NOT include URL. Contains only user-modifiable WebsiteUser fields.
+* DTO for UPDATING a user's settings for a website (sent from frontend).
 */
-export interface WebsiteUpdateDTO {
+export interface UpdateWebsiteUserDTO {
   name?: string | null;
   interval?: number | null;
   alertThreshold?: number | null;
   alertEnabled?: boolean | null;
   notifyEmail?: string | null;
-}
-
-// --- Frontend Specific Combined/ViewModel Types ---
-
-/**
-* Represents a WebsiteUser record JOINED with its corresponding Website record.
-* This is the typical structure returned when fetching a user's monitored websites.
-*/
-export interface UserWebsite extends WebsiteUser {
-  // Inherits all fields from WebsiteUser (Prisma type)
-  // Includes the nested Website object from the relation/include query
-  website: Website;
-}
-
-/**
-* Data structure for the detailed view of a single website.
-* Contains various pieces of information fetched for that specific page.
-*/
-export interface WebsiteDetailsData {
-  websiteId: number;
-  name: string;                      // User's custom name or the URL
-  url: string;
-  latestResult: MonitoringResult | null; // The single most recent monitoring result
-  chartData: MonitoringResult[];     // Results within the selected timeframe (time-sorted ASC for charts)
-  recentChecks: MonitoringResult[];  // Limited list of recent results (sorted by user preference)
-  uptimePercent: number;             // Calculated uptime for the selected timeframe
-}
-
-/**
-* Represents the overall statistics summary for the user's dashboard.
-*/
-export interface OverallStats {
-  totalWebsites: number;      // Total websites the user monitors
-  activeWebsites?: number;     // Count of currently active websites (backend might not always provide)
-  websiteStats: WebsiteStatsData[]; // Array of stats for each individual website
-  overallUptime: number;      // Average uptime across user's sites for the period
-  overallResponseTime: number; // Average response time across user's sites for the period
-}
-
-
-// --- Monitoring Service & API Response Types ---
-
-/**
-* Represents the raw outcome of a single website check performed by the monitoring service.
-*/
-export interface MonitoringResponse {
-  responseTime: number | null;
-  isAvailable: boolean;
-  statusCode: number | null;
-  errorMessage: string | null;
-}
-
-/**
-* Options for filtering API queries that retrieve lists of monitoring results.
-*/
-export interface ResultsQueryOptions {
-  limit?: number;
-  from?: Date;
-  to?: Date;
-  websiteId?: number; // Optional: Filter by specific website
-  userId?: number;    // Optional: Filter by specific user (for admin views)
-}
-
-/**
-* Structure for aggregated statistics calculated for a single website over a defined period.
-*/
-export interface WebsiteStatsData {
-  websiteId: number;
-  websiteName: string;         // User's custom name or URL
-  url: string;
-  uptime: number;              // Uptime percentage (0-100)
-  averageResponseTime: number; // Avg response time (ms) for successful checks
-  totalChecks: number;         // Total checks performed in the period
-  lastCheck: Date | string | null; // Timestamp of the most recent check (Date or ISO string)
-  consecutiveFailures: number; // Current count of consecutive failed checks
-}
-
-
-// --- Alerting Types ---
-
-/**
-* Defines the allowed classifications for alert types.
-*/
-export type AlertType = 'down' | 'slow'; // Add more if needed (e.g., 'ssl_expiry')
-
-/**
-* Options for filtering API queries that retrieve lists of alerts.
-*/
-export interface AlertQueryOptions {
-  limit?: number;
-  type?: AlertType;   // Filter by type ('down' or 'slow')
-  from?: Date;
-  to?: Date;
-  isResolved?: boolean; // Filter by resolved status
-  userId?: number;      // Filter alerts associated with a specific user
-  websiteId?: number;   // Filter alerts for a specific website
-}
-
-/**
-* Defines the necessary information for constructing and sending an email alert notification.
-*/
-export interface EmailAlertOptions {
-  to: string;
-  subject: string;
-  body: string; // Often HTML content
-}
-
-/**
-* Extended Prisma Alert type including nested Website information.
-* Useful when displaying alert lists with context.
-*/
-export interface AlertWithWebsite extends Alert {
-  website: {
-      url: string;
-      // Include user-specific name if the query fetches it via WebsiteUser relation
-      websiteUsers?: { name?: string | null }[];
-  };
-}
-
-/**
-* Extended Prisma AlertUser type including the nested AlertWithWebsite.
-* Represents a user's specific notification record for an alert.
-*/
-export interface AlertUserWithAlert extends AlertUser {
-  alert: AlertWithWebsite;
-}
-
-
-// --- Authentication/User Types ---
-
-/**
-* Data required for the user registration API endpoint.
-*/
-export interface RegisterUserData {
-  email: string;
-  password: string;
-  name?: string; // Optional display name
 }
 
 /**
@@ -216,13 +165,167 @@ export interface LoginCredentials {
   password: string;
 }
 
+/**
+* Data required for the user registration API endpoint.
+*/
+export interface RegisterUserData {
+  email: string;
+  password: string;
+  name?: string; // Optional display name
+}
 
-// --- Utility Types ---
+
+// --- SECTION 5: API Query Options ---
 
 /**
-* Defines the standard keys used for selecting timeframes in the UI and API requests.
+* Options for filtering API queries that retrieve lists of monitoring results.
 */
-export type TimeframeKey = 'hour' | 'day' | 'week' | 'month' | 'year';
+export interface ResultsQueryOptions {
+  limit?: number;
+  from?: Date;         // Backend service methods often use Date
+  to?: Date;           // Backend service methods often use Date
+  websiteId?: number;
+  userId?: number;
+}
 
-// Note: Removed the duplicate/incorrect 'MonitoringResults' interface.
-// Note: Removed basic 'CustomError' as 'ApiError' is more comprehensive.
+/**
+* Options for filtering API queries that retrieve lists of alerts.
+*/
+export interface AlertQueryOptions {
+  limit?: number;
+  type?: AlertType;
+  from?: Date;         // Use Date for backend service methods
+  to?: Date;           // Use Date for backend service methods
+  isResolved?: boolean;
+  isRead?: boolean;    // Added from frontend needs
+  userId?: number;
+  websiteId?: number;
+}
+
+
+// --- SECTION 6: API Response Shapes & ViewModels ---
+// Define the shapes of complex data returned by specific API endpoints.
+
+/**
+* Represents the raw outcome of a single website check performed by the monitoring service.
+* (Primarily used internally in backend service).
+*/
+export interface MonitoringResponse {
+  responseTime: number | null;
+  isAvailable: boolean;
+  statusCode: number | null;
+  errorMessage: string | null;
+}
+
+/**
+* Structure for aggregated statistics calculated for a single website over a defined period.
+* Returned by stats endpoints.
+*/
+export interface WebsiteStatsData {
+  websiteId: number;
+  websiteName: string;         // User's custom name or URL
+  url: string;
+  uptime: number;              // Uptime percentage (0-100)
+  averageResponseTime: number | null; // Avg response time (ms) - CAN BE NULL
+  totalChecks: number;         // Total checks performed in the period
+  lastCheck: string | null;    // Timestamp of the most recent check (ISO string)
+  consecutiveFailures: number; // Current count of consecutive failed checks
+}
+
+/**
+* Represents the overall statistics summary for the user's dashboard.
+*/
+export interface OverallStats {
+  totalWebsites: number;
+  activeWebsites: number;
+  websiteStats: WebsiteStatsData[];
+  overallUptime: number;
+  overallResponseTime: number | null; // CAN BE NULL
+}
+
+/**
+* Represents the data specifically formatted or aggregated for chart display.
+* Returned within WebsiteDetailsData.
+*/
+export interface ChartDataPoint {
+    label: string;
+    timestamp: number; // Unix timestamp (seconds)
+    avgResponseTime: number | null; // Actual or Average (ms)
+    uptimeRatio: number; // 0.0 to 1.0
+    checkCount: number; // 1 for raw, N for aggregated
+}
+
+/**
+* Data structure for the detailed view of a single website.
+* Returned by the `/monitoring/website/{id}` endpoint.
+* This is the definitive structure matching the refactored backend.
+*/
+export interface WebsiteDetailsData {
+  websiteId: number;
+  name: string;                      // User's custom name or the URL
+  url: string;
+  latestResult: MonitoringResult | null; // Full MonitoringResult shape
+  chartData: ChartDataPoint[];       // Array of points formatted for charts
+  recentChecks: MonitoringResult[];  // Array of full MonitoringResult shapes
+  uptimePercent: number;             // Calculated uptime for the selected timeframe
+}
+
+/**
+* Authentication response containing token and user details.
+*/
+export interface AuthResponse {
+    token: string;
+    user: User; // Uses the shared User type
+}
+
+/**
+* Alert statistics summary.
+*/
+export interface AlertStats {
+  totalAlerts: number;
+  resolvedAlerts: number;
+  unresolvedAlerts: number;
+  byType: Partial<Record<AlertType, number>>;
+  byWebsite: Array<{
+    websiteId: number;
+    websiteName: string; // Requires joining/fetching name
+    count: number;
+  }>;
+}
+
+
+// --- SECTION 7: Frontend Specific Context/Hook Types ---
+// Types used exclusively within the frontend application state/logic.
+
+/**
+ * Type provided by AuthContext (e.g., via useAuth hook).
+ */
+export interface AuthContextType {
+  user: User | null; // Uses the shared User type
+  token: string | null;
+  loading: boolean; // Initial auth check loading state
+  error: string | null; // Error during initial auth check
+  logout: () => void;
+  // Login/Register likely trigger mutations, not direct context methods
+}
+
+/**
+ * Combined data structure often used for displaying website cards on a dashboard.
+ */
+export interface WebsiteWithResults {
+  userWebsite: WebsiteUser; // Uses the shared WebsiteUser type
+  latestResult?: MonitoringResult; // Uses the shared MonitoringResult type
+  recentResults: MonitoringResult[]; // Uses the shared MonitoringResult type
+}
+
+/**
+ * Structure returned by the `useWebsiteData` hook (likely for a dashboard view).
+ */
+export interface WebsiteDataSummary {
+    websitesWithResults: WebsiteWithResults[];
+    overallStats: OverallStats | null; // Uses the shared OverallStats type
+    isLoading: boolean;
+    isFetching: boolean;
+    error: ApiError | null; // Uses the shared ApiError type
+    refetch: () => Promise<any>;
+}

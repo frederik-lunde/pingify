@@ -1,7 +1,7 @@
 // server/src/controllers/websiteController.ts
 import { Request, Response, NextFunction } from 'express';
 import * as websiteService from '../services/websiteService';
-import { WebsiteUserDTO } from '../types';
+import { AddWebsiteUserDTO } from '../types';
 
 /**
  * Get all websites (admin function)
@@ -143,7 +143,7 @@ export const updateUserWebsite = async (
     const userWebsite = await websiteService.updateUserWebsite(
       userId, 
       websiteId, 
-      req.body as Partial<WebsiteUserDTO>
+      req.body as Partial<AddWebsiteUserDTO>
     );
     
     res.json(userWebsite);
@@ -197,7 +197,7 @@ export const addWebsiteToUser = async (
 ): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const websiteData = req.body as WebsiteUserDTO;
+    const websiteData = req.body as AddWebsiteUserDTO;
     
     const websiteUser = await websiteService.addWebsiteToUser(userId, websiteData);
     res.status(201).json(websiteUser);

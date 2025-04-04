@@ -15,7 +15,7 @@ import {
 import {
     WebsiteDetailsData,
     OverallStats,
-    WebsiteStats,
+    WebsiteStatsData,
     MonitoringResult,
     ApiError,
     TimeframeKey
@@ -86,8 +86,8 @@ export function useUserStatsQuery(period: TimeframeKey | string = 'week', option
 /**
  * Hook to fetch statistics for a specific website.
  */
-export function useWebsiteStatsQuery(websiteId: number | undefined, period: TimeframeKey | string = 'week', options?: CustomQueryOptions<WebsiteStats>) {
-    return useQuery<WebsiteStats, ApiError>({
+export function useWebsiteStatsQuery(websiteId: number | undefined, period: TimeframeKey | string = 'week', options?: CustomQueryOptions<WebsiteStatsData>) {
+    return useQuery<WebsiteStatsData, ApiError>({
         queryKey: monitoringQueryKeys.websiteStats(websiteId!, period),
         queryFn: () => fetchWebsiteStats(websiteId!, period),
         enabled: options?.enabled ?? (!!websiteId && websiteId > 0),

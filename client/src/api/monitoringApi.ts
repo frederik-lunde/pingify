@@ -1,6 +1,6 @@
 // src/api/monitoringApi.ts
 import apiClient from './client';
-import { OverallStats, WebsiteStats, TimeframeKey, WebsiteDetailsData, MonitoringResult } from '../types'; // Adjust path as needed, added ApiError
+import { OverallStats, WebsiteStatsData, TimeframeKey, WebsiteDetailsData, MonitoringResult } from '../types'; // Adjust path as needed, added ApiError
 
 export interface FetchWebsiteDetailsParams {
     websiteId: number;
@@ -42,11 +42,11 @@ export const fetchUserStats = async (period: TimeframeKey | string = 'week'): Pr
  * Fetches statistics for a specific website.
  * Endpoint: GET /monitoring/website/:websiteId/stats
  */
-export const fetchWebsiteStats = async (websiteId: number, period: TimeframeKey | string = 'week'): Promise<WebsiteStats> => {
+export const fetchWebsiteStats = async (websiteId: number, period: TimeframeKey | string = 'week'): Promise<WebsiteStatsData> => {
      if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
        throw new Error("Invalid website ID provided for fetching stats.");
     }
-    return apiClient.get<WebsiteStats>(`/monitoring/website/${websiteId}/stats`, { params: { period } });
+    return apiClient.get<WebsiteStatsData>(`/monitoring/website/${websiteId}/stats`, { params: { period } });
 };
 
 /**

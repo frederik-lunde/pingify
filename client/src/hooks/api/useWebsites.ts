@@ -14,9 +14,9 @@ import {
     deleteWebsite,
 } from '../../api/websitesApi'; // Adjust path
 import {
-    UserWebsite,
-    WebsiteCreateDTO,
-    WebsiteUpdateDTO,
+    WebsiteUser,        
+    AddWebsiteUserDTO,  
+    UpdateWebsiteUserDTO,
     Website,
     ApiError,
 } from "../../types"; // Adjust path
@@ -39,8 +39,8 @@ type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
 /**
  * Hook for fetching the user's list of websites.
  */
-export function useUserWebsitesQuery(options?: CustomQueryOptions<UserWebsite[]>) {
-    return useQuery<UserWebsite[], ApiError>({
+export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>) {
+    return useQuery<WebsiteUser[], ApiError>({
         queryKey: websiteQueryKeys.lists(),
         queryFn: fetchUserWebsites,
         // NO initialData should be passed or set here by default
@@ -51,8 +51,8 @@ export function useUserWebsitesQuery(options?: CustomQueryOptions<UserWebsite[]>
 /**
  * Hook for fetching a single user website by ID.
  */
-export function useUserWebsiteQuery(websiteId: number | undefined, options?: CustomQueryOptions<UserWebsite>) {
-    return useQuery<UserWebsite, ApiError>({
+export function useUserWebsiteQuery(websiteId: number | undefined, options?: CustomQueryOptions<WebsiteUser>) {
+    return useQuery<WebsiteUser, ApiError>({
         queryKey: websiteQueryKeys.detail(websiteId),
         queryFn: () => fetchUserWebsite(websiteId!),
         enabled: options?.enabled ?? (!!websiteId && websiteId > 0),
@@ -102,7 +102,7 @@ export function useWebsiteMutations() {
     const queryClient = useQueryClient();
 
     // CREATE Mutation
-    const createMutation = useMutation<UserWebsite, ApiError, WebsiteCreateDTO>({
+    const createMutation = useMutation<WebsiteUser, ApiError, AddWebsiteUserDTO>({
         mutationFn: createWebsite,
         onSuccess: (newWebsite) => {
             queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
@@ -114,7 +114,7 @@ export function useWebsiteMutations() {
     });
 
     // UPDATE Mutation
-    const updateMutation = useMutation<UserWebsite, ApiError, { websiteId: number, websiteData: WebsiteUpdateDTO }>({
+    const updateMutation = useMutation<WebsiteUser, ApiError, { websiteId: number, websiteData: UpdateWebsiteUserDTO }>({
         mutationFn: updateWebsite,
         onSuccess: (updatedWebsite, variables) => {
             queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
@@ -140,7 +140,7 @@ export function useWebsiteMutations() {
     });
 
      // Utility mutation for toggling alerts (uses the update mutation)
-     const toggleAlertEnabledMutation = useMutation<UserWebsite, ApiError, { websiteId: number, currentStatus: boolean }>({
+     const toggleAlertEnabledMutation = useMutation<WebsiteUser, ApiError, { websiteId: number, currentStatus: boolean }>({
         mutationFn: ({ websiteId, currentStatus }) => updateWebsite({ websiteId, websiteData: { alertEnabled: !currentStatus } }),
          onSuccess: (updatedWebsite, variables) => {
             queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });

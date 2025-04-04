@@ -16,7 +16,7 @@ import { useUserWebsiteQuery, useWebsiteMutations } from "../hooks/api/useWebsit
 import FormNotification, {
   initialNotificationState, FormNotificationState
 } from "../components/common/FormNotification";
-import { WebsiteUpdateDTO, ApiError } from "../types";
+import { UpdateWebsiteUserDTO, ApiError } from "../types";
 
 // Form values interface
 interface WebsiteSettingsFormValues {
@@ -107,7 +107,7 @@ const WebsiteSettings: React.FC = () => {
          return;
      }
 
-     const updateData: WebsiteUpdateDTO = {
+     const updateData: UpdateWebsiteUserDTO = {
         name: values.name.trim(),
         interval: Number(values.interval),
         alertEnabled: values.alertEnabled,
