@@ -1,12 +1,19 @@
 // server.ts (or index.ts, main.ts, etc.)
+import dotenv from 'dotenv';
+dotenv.config(); // <<< Perfect: Load .env variables FIRST
 
 import app from './app';
+// Import config AFTER dotenv.config() so process.env is populated
 import { config } from './config/config';
 import prisma from './prisma/prismaClient'; // Adjust path if needed
 
-const PORT = config.port || 5000;
+// Use config.port which is already parsed and has a default
+const PORT = config.port;
 
 async function startServer() {
+  // The config file will have already thrown an error if JWT_SECRET etc. were missing
+  console.log(`Starting server in ${config.nodeEnv} mode...`); // Use config value
+
   try {
     console.log('Connecting to database...');
     await prisma.$connect();
@@ -16,14 +23,13 @@ async function startServer() {
       console.log(`Server is running on port ${PORT}`);
     });
 
-   
     process.on('SIGINT', gracefulShutdown); // Handle Ctrl+C
     process.on('SIGTERM', gracefulShutdown); // Handle kill commands
 
   } catch (error) {
-    console.error('Failed to connect to the database:', error);
-    // Exit the process if the database connection fails on startup
-    process.exit(1);
+    // This catch block now primarily handles database connection errors
+    console.error('Failed to start server:', error);
+    process.exit(1); // Exit if database connection fails
   }
 }
 

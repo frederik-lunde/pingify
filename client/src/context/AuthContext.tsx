@@ -27,5 +27,3 @@ export const useAuth = (): CoreAuthContextType => {
   return context;
 };
 
-// Exporting AuthProvider as default might be convention, but named exports are fine too
-// export default AuthProvider;
