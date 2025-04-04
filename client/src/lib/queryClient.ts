@@ -4,7 +4,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'; // Optional
 import { ApiError } from '../types'; // Import your ApiError type
 
 // Create a client
-export const queryClient = new QueryClient({
+const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       // Default staleTime: How long data is considered fresh (0 means always stale)
@@ -42,3 +42,5 @@ export const queryClient = new QueryClient({
 export const ReactQueryDevtoolsProduction = process.env.NODE_ENV === 'production'
   ? () => null
   : ReactQueryDevtools;
+
+  export default queryClient; // Export the instance for use in your app

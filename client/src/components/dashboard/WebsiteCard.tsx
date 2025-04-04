@@ -3,111 +3,101 @@ import React, { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
   Card, CardContent, Typography, Box, Chip, IconButton,
-  Tooltip, useTheme, CircularProgress, Skeleton, // Added Skeleton
+  Tooltip, useTheme, CircularProgress, Skeleton,
 } from "@mui/material";
 import {
   CheckCircleOutline as CheckIcon,
   ErrorOutline as ErrorIcon,
   Settings as SettingsIcon,
-  ShowChart as ChartIcon, // Example icon for uptime chip
+  ShowChart as ChartIcon,
 } from "@mui/icons-material";
-import { Line } from "react-chartjs-2";
+import { Line } from "react-chartjs-2"; // Keep chart component import
 import { MonitoringResult, UserWebsite } from "../../types"; // Correct types
 import {
-  getStatusColor, // Calculates color based on uptime %
-  getResponseTimeColor, // Calculates color based on response time value
-  formatResponseTime, // Formats response time (e.g., "123 ms")
-  formatUptime, // Formats uptime percentage (e.g., "99.95%")
-} from "../../utils/statusUtils";
-// Use the specific hook for card charts
-import { useCardChartData } from "../../hooks/"; // Corrected import path
+  getStatusColor,
+  getResponseTimeColor,
+  formatResponseTime,
+  formatUptime,
+} from "../../utils/statusUtils"; // Correct path if needed
+import { useCardChartData } from "../../hooks/"; // Corrected import path if needed
 
-// Import and register Chart.js components (ensure this happens, maybe in App.tsx or a central config)
-import {
-  Chart as ChartJS, Filler, CategoryScale, LinearScale, PointElement, LineElement, Tooltip as ChartTooltip,
-} from "chart.js";
-ChartJS.register( Filler, CategoryScale, LinearScale, PointElement, LineElement, ChartTooltip );
+// Import ONLY Chart.js types needed for configuration/callbacks
+// REMOVE ChartJS import and registration call from here
 
 interface WebsiteCardProps {
   userWebsite: UserWebsite;
-  latestResult?: MonitoringResult; // The single most recent result
-  results: MonitoringResult[]; // Array of recent results (e.g., last 20) for chart/uptime
-  loading?: boolean; // Indicates if the parent grid is loading
+  latestResult?: MonitoringResult;
+  results: MonitoringResult[]; // Expects `recentResults` from parent
+  loading?: boolean;
 }
 
-// Memoized chart component to prevent re-renders if data/options haven't changed
+// Memoized chart component
 const ResponseTimeChart = React.memo(
   ({ data, options }: { data: any; options: any }) => {
-    // Add a check for null data before rendering
-    if (!data) {
+    // Ensure data is valid before rendering
+    if (!data || !data.datasets || data.datasets.length === 0 || data.datasets[0].data.length === 0) {
       return (
            <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-               {/* Optionally show a placeholder or nothing */}
+               {/* Placeholder for empty/loading chart state handled in parent */}
            </Box>
        );
     }
     return <Line data={data} options={options} />;
   },
 );
-ResponseTimeChart.displayName = 'ResponseTimeChart'; // Add display name
+ResponseTimeChart.displayName = 'ResponseTimeChart';
 
 const WebsiteCard = React.memo(
   ({
     userWebsite,
     latestResult,
-    results, // This now receives the `recentResults` from the parent
+    results,
     loading = false,
   }: WebsiteCardProps) => {
     const navigate = useNavigate();
     const theme = useTheme();
 
-    // Calculate uptime percentage based on the provided 'results' array
+    // Calculate uptime based on provided 'results'
     const uptime = useMemo(() => {
-      // Use the potentially limited 'results' array for calculation
-      if (!results || results.length === 0) return 100; // Assume 100% if no recent results provided
+      if (!results || results.length === 0) return 100;
       const total = results.length;
       const available = results.filter((r) => r.isAvailable).length;
-      // Prevent division by zero
       return total > 0 ? (available / total) * 100 : 100;
-    }, [results]); // Dependency is the 'results' array
+    }, [results]);
 
-    // Determine color for the uptime chip
     const uptimeColor = getStatusColor(uptime);
 
-    // Use the chart hook with the provided 'results' array
-    // Limit data points directly in the hook call if needed, or rely on hook's internal limit
-    const { chartData, chartOptions } = useCardChartData(results, 10); // Use results array, limit to 10 points
+    // Get chart data/options using the hook
+    const { chartData, chartOptions } = useCardChartData(results, 10);
 
-    // Determine loading status for UI elements
-    // Show skeleton if parent is loading AND we don't have any results yet to display
-    const showSkeleton = loading && !latestResult && results.length === 0;
-    // Show chart if we are not showing the skeleton AND we have chart data prepared
-    const showChart = !showSkeleton && chartData && results.length > 0;
+    // UI States
+    const showSkeleton = loading && !latestResult && (!results || results.length === 0);
+    // Check chartData itself and ensure it has points
+    const showChart = !showSkeleton && chartData?.datasets?.[0]?.data?.length > 0;
 
-    // Memoize event handlers
+    // Memoized handlers
     const handleClick = useCallback(() => {
       navigate(`/website/${userWebsite.websiteId}`);
     }, [navigate, userWebsite.websiteId]);
 
     const handleSettingsClick = useCallback(
       (e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent card click
+        e.stopPropagation();
         navigate(`/website/${userWebsite.websiteId}/settings`);
       },
       [navigate, userWebsite.websiteId],
     );
 
-    // Calculate status information from the latestResult
+    // Derived status info
     const isOnline = useMemo(() => latestResult?.isAvailable ?? false, [latestResult]);
-    const statusColor = isOnline ? "success" : "error";
-    const responseTime = latestResult?.responseTime ?? null; // Use null if undefined
+    const statusChipColor = isOnline ? "success" : "error"; // Renamed to avoid conflict
+    const responseTime = latestResult?.responseTime ?? null;
     const responseTimeColor = responseTime !== null ? getResponseTimeColor(responseTime) : "default";
     const statusCode = latestResult?.statusCode;
 
     // --- Render Logic ---
-
-    // Show Skeleton Card if loading and no data available yet
     if (showSkeleton) {
+        // Skeleton rendering code... (kept as is)
         return (
             <Card sx={{ height: "100%" }}>
                 <CardContent>
@@ -125,46 +115,51 @@ const WebsiteCard = React.memo(
         );
     }
 
-    // Render the actual card content
     return (
       <Card
         sx={{
           cursor: "pointer",
-          height: "100%", // Ensure card takes full height of grid item
+          height: "100%",
           display: "flex",
           flexDirection: "column",
           transition: "transform 0.2s, box-shadow 0.2s",
           "&:hover": { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
         }}
         onClick={handleClick}
-        aria-label={`View details for ${userWebsite.name}`}
+        aria-label={`View details for ${userWebsite.name || userWebsite.website.url}`} // Improved label
       >
-        <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", p: 2 }}> {/* Reduced padding */}
+        <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", p: 2 }}>
           {/* Header */}
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
-            <Tooltip title={userWebsite.name} placement="top-start">
-                 <Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)' }}> {/* Limit width */}
-                    {userWebsite.name}
+            <Tooltip title={userWebsite.name || userWebsite.website.url} placement="top-start">
+                 <Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)' }}>
+                    {userWebsite.name || userWebsite.website.url} {/* Display URL if name is missing */}
                  </Typography>
             </Tooltip>
             <Tooltip title="Website Settings">
-              <IconButton size="small" onClick={handleSettingsClick} aria-label={`Settings for ${userWebsite.name}`}>
+              <IconButton size="small" onClick={handleSettingsClick} aria-label={`Settings for ${userWebsite.name || userWebsite.website.url}`}>
                 <SettingsIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
 
-          {/* URL */}
-          <Tooltip title={userWebsite.website.url} placement="bottom-start">
-            <Typography variant="body2" color="textSecondary" noWrap sx={{ mb: 1.5 }}>
-                {userWebsite.website.url}
-            </Typography>
-          </Tooltip>
+          {/* URL (only if name exists) */}
+          {userWebsite.name && (
+              <Tooltip title={userWebsite.website.url} placement="bottom-start">
+                <Typography variant="body2" color="textSecondary" noWrap sx={{ mb: 1.5 }}>
+                    {userWebsite.website.url}
+                </Typography>
+              </Tooltip>
+          )}
+          {/* Adjust margin if URL isn't shown */}
+          {!userWebsite.name && <Box sx={{ mb: 1.5 }} />}
+
 
           {/* Status Chips */}
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5 }}> {/* Reduced gap/margin */}
-            <Tooltip title={isOnline ? "Website is online" : "Website is offline"}>
-                 <Chip size="small" icon={isOnline ? <CheckIcon fontSize="inherit"/> : <ErrorIcon fontSize="inherit"/>} label={isOnline ? "Online" : "Offline"} color={statusColor} sx={{ fontWeight: 500 }}/>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5 }}>
+             {/* ... Chips ... (kept as is) */}
+             <Tooltip title={isOnline ? "Website is online" : "Website is offline"}>
+                 <Chip size="small" icon={isOnline ? <CheckIcon fontSize="inherit"/> : <ErrorIcon fontSize="inherit"/>} label={isOnline ? "Online" : "Offline"} color={statusChipColor} sx={{ fontWeight: 500 }}/>
             </Tooltip>
             {statusCode && (
                  <Tooltip title={`Last HTTP Status: ${statusCode}`}>
@@ -176,7 +171,6 @@ const WebsiteCard = React.memo(
                     <Chip size="small" label={formatResponseTime(responseTime)} color={responseTimeColor} variant="outlined" />
                  </Tooltip>
             )}
-             {/* Only show uptime if results were provided */}
              {results.length > 0 && (
                 <Tooltip title={`Uptime (last ${results.length} checks): ${formatUptime(uptime)}`}>
                     <Chip size="small" icon={<ChartIcon fontSize="inherit" />} label={formatUptime(uptime)} color={uptimeColor} variant="outlined" />
@@ -185,13 +179,14 @@ const WebsiteCard = React.memo(
           </Box>
 
           {/* Response time chart area */}
-          <Box sx={{ flexGrow: 1, minHeight: 60, maxHeight: 80, mt: "auto" }}> {/* Adjusted height */}
+          <Box sx={{ flexGrow: 1, minHeight: 60, maxHeight: 80, mt: "auto" }}>
              {showChart ? (
                  <ResponseTimeChart data={chartData} options={chartOptions} key={`chart-${userWebsite.websiteId}`} />
              ) : (
                  <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Typography variant="caption" color="textSecondary">
-                       {loading ? <CircularProgress size={20} /> : "No recent data"}
+                       {/* Show loading only if parent indicated loading, otherwise 'No data' */}
+                       {loading && !latestResult ? <CircularProgress size={20} /> : "No recent data"}
                     </Typography>
                  </Box>
              )}
@@ -201,6 +196,6 @@ const WebsiteCard = React.memo(
     );
   },
 );
-WebsiteCard.displayName = 'WebsiteCard'; // Add display name
+WebsiteCard.displayName = 'WebsiteCard';
 
 export default WebsiteCard;

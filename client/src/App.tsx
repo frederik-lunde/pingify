@@ -1,22 +1,26 @@
 // client/src/App.tsx
-import { BrowserRouter as Router, Routes, Route, useParams } from "react-router"; 
-import { CssBaseline, Box, CircularProgress, Alert } from "@mui/material"; // MUI components
-import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'; // Use non-production import directly
+
+// Import necessary routing components from react-router
+import { Routes, Route, useParams } from "react-router";
+// Import MUI components
+import { CssBaseline, Box, Alert } from "@mui/material";
+// NOTE: QueryClientProvider is removed as it should be in main.tsx
+// NOTE: ReactQueryDevtools can be kept here OR moved entirely to main.tsx
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 // Core Components & Pages
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute"; // Handles auth check
 import Dashboard from "./pages/Dashboard";
-import WebsiteDetails from "./pages/WebsiteDetails"; // Component, not page
-import WebsiteSettings from "./pages/WebsiteSettings"; // Page
-import AddWebsite from "./pages/AddWebsite"; // Page
-import Login from "./pages/Login"; // Page
-import Register from "./pages/Register"; // Page
+import WebsiteDetails from "./pages/WebsiteDetails";
+import WebsiteSettings from "./pages/WebsiteSettings";
+import AddWebsite from "./pages/AddWebsite";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 
-// Context & Query Client
+// Context
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { queryClient } from './lib/queryClient'; // Import configured QueryClient
+// NOTE: queryClient import is removed as the Provider handles providing it
 
 // Wrapper for Website Details Route
 // No longer strictly needed as the component itself uses useParams, but kept for structure if preferred
@@ -42,20 +46,13 @@ function WebsiteSettingsWrapper() {
 
 // Component containing Navbar and Routes, conditionally rendered based on auth state
 function AppContent() {
-  const { user, loading } = useAuth(); // Get user and initial loading state
-
-  // Show loading screen while initial auth check is in progress
-  // Note: ProtectedRoute also shows a loading screen, so this might be redundant
-  // if Navbar isn't essential during that initial check. Consider simplifying.
-  // if (loading) {
-  //   return <LoadingScreen />; // Or just return null if ProtectedRoute handles loading UI
-  // }
+  const { user } = useAuth(); // Get user state (loading state might be handled within ProtectedRoute/useAuth)
 
   return (
     <>
       {/* Render Navbar only if user is authenticated */}
       {user && <Navbar />}
-      {/* Define application routes */}
+      {/* Define application routes - These Routes need a Router context provided higher up (in main.tsx) */}
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -70,8 +67,8 @@ function AppContent() {
 
         {/* Fallback for unknown routes (Optional) */}
         <Route path="*" element={
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-                <Alert severity="warning">Page Not Found</Alert>
+            <Box sx={{ p: 4, mt: 8, textAlign: 'center' }}> {/* Added margin top */}
+                <Alert severity="warning">Page Not Found (404)</Alert>
             </Box>
         } />
       </Routes>
@@ -79,20 +76,18 @@ function AppContent() {
   );
 }
 
-// Main App component - Sets up providers
+// Main App component - Sets up providers (excluding Router and QueryClientProvider)
 function App() {
   return (
-    <Router>
-      <QueryClientProvider client={queryClient}>
-          <CssBaseline />
-          <AuthProvider>
-            {/* AppContent includes Navbar (conditional) and Routes */}
-            <AppContent />
-          </AuthProvider>
-          {/* React Query DevTools (only renders in development) */}
-          {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
-      </QueryClientProvider>
-    </Router>
+    // No <Router> or <QueryClientProvider> needed here - they are in main.tsx
+    <> {/* Using React Fragment as a wrapper */}
+      <CssBaseline /> {/* Apply baseline styles */}
+      <AuthProvider> {/* Provide Authentication context */}
+        {/* AppContent includes Navbar (conditional) and Routes */}
+        <AppContent />
+      </AuthProvider>   
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+    </>
   );
 }
 
