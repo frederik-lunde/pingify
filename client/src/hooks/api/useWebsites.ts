@@ -1,6 +1,10 @@
-// src/hooks/api/useWebsites.ts
 import { useState, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+    useQuery,
+    useMutation,
+    useQueryClient,
+    UseQueryOptions // <-- Import UseQueryOptions
+} from '@tanstack/react-query';
 import {
     fetchUserWebsites,
     fetchUserWebsite,
@@ -26,33 +30,39 @@ export const websiteQueryKeys = {
     search: (query: string) => [...websiteQueryKeys.all, 'search', query] as const, // For search results (if using useQuery for search)
 };
 
+// Define a type for standard query options, omitting keys set internally
+type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
+    UseQueryOptions<TQueryFnData, TError>,
+    'queryKey' | 'queryFn' // Omit keys that are defined within the hook
+>;
+
 /**
  * Hook for fetching the user's list of websites.
  */
-export function useUserWebsitesQuery(options?: { enabled?: boolean, refetchInterval?: number | false }) {
+export function useUserWebsitesQuery(options?: CustomQueryOptions<UserWebsite[]>) {
     return useQuery<UserWebsite[], ApiError>({
         queryKey: websiteQueryKeys.lists(),
         queryFn: fetchUserWebsites,
-        enabled: options?.enabled,
-        refetchInterval: options?.refetchInterval,
-        // staleTime: 1000 * 60 * 2, // List might not change frequently (2 min)
+        // NO initialData should be passed or set here by default
+        ...options,
     });
 }
 
 /**
  * Hook for fetching a single user website by ID.
  */
-export function useUserWebsiteQuery(websiteId: number | undefined, options?: { enabled?: boolean }) {
+export function useUserWebsiteQuery(websiteId: number | undefined, options?: CustomQueryOptions<UserWebsite>) {
     return useQuery<UserWebsite, ApiError>({
         queryKey: websiteQueryKeys.detail(websiteId),
-        queryFn: () => fetchUserWebsite(websiteId!), // Assert non-null handled by enabled
-        enabled: options?.enabled ?? (!!websiteId && websiteId > 0), // Enable only if websiteId is valid
+        queryFn: () => fetchUserWebsite(websiteId!),
+        enabled: options?.enabled ?? (!!websiteId && websiteId > 0),
+        // NO initialData here either unless explicitly needed and handled
+        ...options,
     });
 }
 
 /**
  * Hook for searching websites (manual trigger).
- * Uses local state for simplicity as it's not automatically refetched/cached like useQuery.
  */
 export function useWebsiteSearch(limit: number = 10) {
     const [query, setQuery] = useState('');
@@ -95,10 +105,7 @@ export function useWebsiteMutations() {
     const createMutation = useMutation<UserWebsite, ApiError, WebsiteCreateDTO>({
         mutationFn: createWebsite,
         onSuccess: (newWebsite) => {
-            // Invalidate list to refetch
             queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
-            // Optionally pre-populate cache
-            // queryClient.setQueryData<UserWebsite[]>(websiteQueryKeys.lists(), (old) => [...(old ?? []), newWebsite]);
             console.log('Website created:', newWebsite);
         },
         onError: (error) => {
@@ -110,12 +117,8 @@ export function useWebsiteMutations() {
     const updateMutation = useMutation<UserWebsite, ApiError, { websiteId: number, websiteData: WebsiteUpdateDTO }>({
         mutationFn: updateWebsite,
         onSuccess: (updatedWebsite, variables) => {
-            // Invalidate list and specific detail queries
             queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
             queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(variables.websiteId) });
-            // Optionally update caches directly
-            // queryClient.setQueryData<UserWebsite[]>(websiteQueryKeys.lists(), (old) => old?.map(w => w.websiteId === variables.websiteId ? updatedWebsite : w));
-            // queryClient.setQueryData<UserWebsite>(websiteQueryKeys.detail(variables.websiteId), updatedWebsite);
             console.log('Website updated:', updatedWebsite);
         },
         onError: (error, variables) => {
@@ -127,12 +130,8 @@ export function useWebsiteMutations() {
     const deleteMutation = useMutation<void, ApiError, number>({ // Variable is websiteId (number)
         mutationFn: deleteWebsite,
         onSuccess: (_, websiteId) => {
-            // Invalidate list
             queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
-            // Remove the specific detail query from cache
             queryClient.removeQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
-            // Optionally update list cache directly
-            // queryClient.setQueryData<UserWebsite[]>(websiteQueryKeys.lists(), (old) => old?.filter(w => w.websiteId !== websiteId));
             console.log(`Website deleted: ${websiteId}`);
         },
         onError: (error, websiteId) => {
@@ -144,7 +143,6 @@ export function useWebsiteMutations() {
      const toggleAlertEnabledMutation = useMutation<UserWebsite, ApiError, { websiteId: number, currentStatus: boolean }>({
         mutationFn: ({ websiteId, currentStatus }) => updateWebsite({ websiteId, websiteData: { alertEnabled: !currentStatus } }),
          onSuccess: (updatedWebsite, variables) => {
-            // Invalidate list and specific detail queries like regular update
             queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
             queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(variables.websiteId) });
              console.log('Website alert status toggled:', updatedWebsite);
@@ -163,7 +161,6 @@ export function useWebsiteMutations() {
         isUpdating: updateMutation.isPending,
         isDeleting: deleteMutation.isPending,
         isTogglingAlert: toggleAlertEnabledMutation.isPending,
-        // Consolidate errors if needed, or let components access individual errors
         errorCreating: createMutation.error,
         errorUpdating: updateMutation.error,
         errorDeleting: deleteMutation.error,

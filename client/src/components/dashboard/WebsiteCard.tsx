@@ -3,7 +3,7 @@ import React, { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
   Card, CardContent, Typography, Box, Chip, IconButton,
-  Tooltip, useTheme, CircularProgress, Skeleton,
+  Tooltip, useTheme, Skeleton, // Keep Skeleton import
 } from "@mui/material";
 import {
   CheckCircleOutline as CheckIcon,
@@ -21,24 +21,20 @@ import {
 } from "../../utils/statusUtils"; // Correct path if needed
 import { useCardChartData } from "../../hooks/"; // Corrected import path if needed
 
-// Import ONLY Chart.js types needed for configuration/callbacks
-// REMOVE ChartJS import and registration call from here
-
 interface WebsiteCardProps {
   userWebsite: UserWebsite;
-  latestResult?: MonitoringResult;
-  results: MonitoringResult[]; // Expects `recentResults` from parent
-  loading?: boolean;
+  latestResult?: MonitoringResult; // Received from useWebsiteData processing
+  results: MonitoringResult[];     // Received from useWebsiteData (recentResults)
+  // REMOVED loading prop: State derived internally from received data
 }
 
-// Memoized chart component
+// Memoized chart component (keep as is)
 const ResponseTimeChart = React.memo(
   ({ data, options }: { data: any; options: any }) => {
-    // Ensure data is valid before rendering
     if (!data || !data.datasets || data.datasets.length === 0 || data.datasets[0].data.length === 0) {
       return (
            <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-               {/* Placeholder for empty/loading chart state handled in parent */}
+               {/* Placeholder handled in parent */}
            </Box>
        );
     }
@@ -51,31 +47,38 @@ const WebsiteCard = React.memo(
   ({
     userWebsite,
     latestResult,
-    results,
-    loading = false,
+    results, // This is the recentResults array
   }: WebsiteCardProps) => {
     const navigate = useNavigate();
     const theme = useTheme();
 
-    // Calculate uptime based on provided 'results'
+    // --- Internal State Determination ---
+    // Determine if the essential monitoring data for THIS card is truly missing.
+    // This is the case if the parent hook processed this website
+    // but found no corresponding results in the fetched batch.
+    const isMonitoringDataMissing = !latestResult && (!results || results.length === 0);
+
+    // Calculate uptime based on the 'results' array passed in
     const uptime = useMemo(() => {
-      if (!results || results.length === 0) return 100;
+      if (!results || results.length === 0) return null; // Return null if no data for calculation
       const total = results.length;
       const available = results.filter((r) => r.isAvailable).length;
-      return total > 0 ? (available / total) * 100 : 100;
+      return total > 0 ? (available / total) * 100 : null; // Return null if total is somehow 0
     }, [results]);
 
-    const uptimeColor = getStatusColor(uptime);
+    // Only calculate uptimeColor if uptime is not null
+    const uptimeColor = uptime !== null ? getStatusColor(uptime) : "default";
 
-    // Get chart data/options using the hook
-    const { chartData, chartOptions } = useCardChartData(results, 10);
+    // Get chart data/options using the hook based on 'results'
+    const { chartData, chartOptions } = useCardChartData(results, 10); // Pass the recent results
 
     // UI States
-    const showSkeleton = loading && !latestResult && (!results || results.length === 0);
-    // Check chartData itself and ensure it has points
-    const showChart = !showSkeleton && chartData?.datasets?.[0]?.data?.length > 0;
+    // Show skeleton ONLY if the monitoring data is determined to be missing for this specific card.
+    const showSkeleton = isMonitoringDataMissing;
+    // Show chart only if not showing skeleton AND chart hook provided valid data
+    const showChart = !showSkeleton && (chartData?.datasets?.[0]?.data?.length ?? 0) > 0;
 
-    // Memoized handlers
+    // Memoized handlers (keep as is)
     const handleClick = useCallback(() => {
       navigate(`/website/${userWebsite.websiteId}`);
     }, [navigate, userWebsite.websiteId]);
@@ -88,33 +91,59 @@ const WebsiteCard = React.memo(
       [navigate, userWebsite.websiteId],
     );
 
-    // Derived status info
-    const isOnline = useMemo(() => latestResult?.isAvailable ?? false, [latestResult]);
-    const statusChipColor = isOnline ? "success" : "error"; // Renamed to avoid conflict
+    // Derived status info (use defaults/fallbacks if latestResult is missing)
+    const isOnline = useMemo(() => latestResult?.isAvailable ?? false, [latestResult]); // Default to offline if no data
+    const statusChipColor = isOnline ? "success" : "error";
     const responseTime = latestResult?.responseTime ?? null;
     const responseTimeColor = responseTime !== null ? getResponseTimeColor(responseTime) : "default";
-    const statusCode = latestResult?.statusCode;
+    const statusCode = latestResult?.statusCode; // Will be undefined if latestResult is missing
 
     // --- Render Logic ---
+
+    // 1. Render Skeleton if monitoring data is missing
     if (showSkeleton) {
-        // Skeleton rendering code... (kept as is)
+        // Render skeleton, but include basic info available from userWebsite
         return (
             <Card sx={{ height: "100%" }}>
-                <CardContent>
-                    <Skeleton variant="text" width="60%" height={32} />
-                    <Skeleton variant="text" width="80%" height={20} sx={{ mt: 1, mb: 2 }} />
+                <CardContent sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                     {/* Header is always known */}
+                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                         <Tooltip title={userWebsite.name || userWebsite.website.url} placement="top-start">
+                             <Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)' }}>
+                                {userWebsite.name || userWebsite.website.url}
+                             </Typography>
+                         </Tooltip>
+                         <Tooltip title="Website Settings">
+                           <IconButton size="small" onClick={handleSettingsClick} aria-label={`Settings for ${userWebsite.name || userWebsite.website.url}`}>
+                             <SettingsIcon fontSize="small" />
+                           </IconButton>
+                         </Tooltip>
+                     </Box>
+                    {/* URL (only if name exists) */}
+                    {userWebsite.name && (
+                         <Tooltip title={userWebsite.website.url} placement="bottom-start">
+                             <Typography variant="body2" color="textSecondary" noWrap sx={{ mb: 1.5 }}>
+                                {userWebsite.website.url}
+                             </Typography>
+                         </Tooltip>
+                    )}
+                    {!userWebsite.name && <Box sx={{ mb: 1.5 }} />}
+
+                    {/* Skeletons for the parts that depend on monitoring results */}
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
                         <Skeleton variant="rounded" width={70} height={24} />
                         <Skeleton variant="rounded" width={50} height={24} />
                         <Skeleton variant="rounded" width={60} height={24} />
                         <Skeleton variant="rounded" width={90} height={24} />
                     </Box>
-                    <Skeleton variant="rectangular" width="100%" height={80} />
+                    {/* Skeleton for chart area */}
+                    <Skeleton variant="rectangular" width="100%" sx={{ flexGrow: 1, minHeight: 60, mt: 'auto' }} />
                 </CardContent>
             </Card>
         );
     }
 
+    // 2. Render the card with available data
     return (
       <Card
         sx={{
@@ -126,24 +155,24 @@ const WebsiteCard = React.memo(
           "&:hover": { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
         }}
         onClick={handleClick}
-        aria-label={`View details for ${userWebsite.name || userWebsite.website.url}`} // Improved label
+        aria-label={`View details for ${userWebsite.name || userWebsite.website.url}`}
       >
         <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", p: 2 }}>
-          {/* Header */}
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
-            <Tooltip title={userWebsite.name || userWebsite.website.url} placement="top-start">
+          {/* Header (identical to skeleton) */}
+           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+             <Tooltip title={userWebsite.name || userWebsite.website.url} placement="top-start">
                  <Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)' }}>
-                    {userWebsite.name || userWebsite.website.url} {/* Display URL if name is missing */}
+                    {userWebsite.name || userWebsite.website.url}
                  </Typography>
-            </Tooltip>
-            <Tooltip title="Website Settings">
-              <IconButton size="small" onClick={handleSettingsClick} aria-label={`Settings for ${userWebsite.name || userWebsite.website.url}`}>
-                <SettingsIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
+             </Tooltip>
+             <Tooltip title="Website Settings">
+               <IconButton size="small" onClick={handleSettingsClick} aria-label={`Settings for ${userWebsite.name || userWebsite.website.url}`}>
+                 <SettingsIcon fontSize="small" />
+               </IconButton>
+             </Tooltip>
+           </Box>
 
-          {/* URL (only if name exists) */}
+          {/* URL (identical to skeleton) */}
           {userWebsite.name && (
               <Tooltip title={userWebsite.website.url} placement="bottom-start">
                 <Typography variant="body2" color="textSecondary" noWrap sx={{ mb: 1.5 }}>
@@ -151,30 +180,38 @@ const WebsiteCard = React.memo(
                 </Typography>
               </Tooltip>
           )}
-          {/* Adjust margin if URL isn't shown */}
           {!userWebsite.name && <Box sx={{ mb: 1.5 }} />}
 
 
-          {/* Status Chips */}
+          {/* Status Chips - Conditionally render based on available data */}
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5 }}>
-             {/* ... Chips ... (kept as is) */}
-             <Tooltip title={isOnline ? "Website is online" : "Website is offline"}>
-                 <Chip size="small" icon={isOnline ? <CheckIcon fontSize="inherit"/> : <ErrorIcon fontSize="inherit"/>} label={isOnline ? "Online" : "Offline"} color={statusChipColor} sx={{ fontWeight: 500 }}/>
-            </Tooltip>
-            {statusCode && (
+             {/* Status Chip: Show based on latestResult presence */}
+             {latestResult && (
+                 <Tooltip title={isOnline ? "Website is online" : "Website is offline"}>
+                     <Chip size="small" icon={isOnline ? <CheckIcon fontSize="inherit"/> : <ErrorIcon fontSize="inherit"/>} label={isOnline ? "Online" : "Offline"} color={statusChipColor} sx={{ fontWeight: 500 }}/>
+                 </Tooltip>
+             )}
+             {/* Status Code Chip: Show if available */}
+             {statusCode != null && ( // Check for null/undefined explicitly
                  <Tooltip title={`Last HTTP Status: ${statusCode}`}>
                     <Chip size="small" label={`${statusCode}`} variant="outlined" />
                  </Tooltip>
-            )}
-            {responseTime !== null && (
+             )}
+             {/* Response Time Chip: Show if available */}
+             {responseTime !== null && (
                  <Tooltip title={`Last Response Time: ${formatResponseTime(responseTime)}`}>
                     <Chip size="small" label={formatResponseTime(responseTime)} color={responseTimeColor} variant="outlined" />
                  </Tooltip>
-            )}
-             {results.length > 0 && (
+             )}
+             {/* Uptime Chip: Show if uptime was calculated (results array wasn't empty) */}
+             {uptime !== null && ( // Render only if uptime calculation was successful
                 <Tooltip title={`Uptime (last ${results.length} checks): ${formatUptime(uptime)}`}>
                     <Chip size="small" icon={<ChartIcon fontSize="inherit" />} label={formatUptime(uptime)} color={uptimeColor} variant="outlined" />
                 </Tooltip>
+             )}
+             {/* Fallback message if absolutely no monitoring data exists for card */}
+             {isMonitoringDataMissing && ( // Should not render if skeleton is shown, but as safety
+                 <Typography variant="caption" color="textSecondary">Awaiting check data...</Typography>
              )}
           </Box>
 
@@ -185,8 +222,8 @@ const WebsiteCard = React.memo(
              ) : (
                  <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Typography variant="caption" color="textSecondary">
-                       {/* Show loading only if parent indicated loading, otherwise 'No data' */}
-                       {loading && !latestResult ? <CircularProgress size={20} /> : "No recent data"}
+                       {/* Provide context: is data loading elsewhere, or just no data? */}
+                       {results.length > 0 ? "No chart data" : "No recent results"}
                     </Typography>
                  </Box>
              )}

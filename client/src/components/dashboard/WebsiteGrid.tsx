@@ -1,16 +1,15 @@
-// client/src/components/dashboard/WebsiteGrid.tsx
 import React, { useMemo } from "react";
-import { Box, Alert, Button, Typography, Skeleton } from "@mui/material";
-import Grid from "@mui/material/Grid2"; // Using Grid2 (already imported correctly)
-import WebsiteCard from "./WebsiteCard";
+import { Box, Alert, Button, Typography } from "@mui/material";
+import Grid from "@mui/material/Grid2";
+import WebsiteCard from "./WebsiteCard"; // Ensure this path is correct
 import { WebsiteWithResults } from "../../hooks/domain/useWebsiteData";
 import { Add as AddIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router";
-import { ApiError } from "../../types";
+import { ApiError, UserWebsite } from "../../types"; // Import UserWebsite
 
 interface WebsiteGridProps {
   websitesWithResults: WebsiteWithResults[];
-  loading?: boolean;
+  loading?: boolean; // Keep this prop for the grid's own skeleton logic
   error?: ApiError | null;
 }
 
@@ -22,91 +21,114 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
   ({ websitesWithResults, loading = false, error = null }) => {
     const navigate = useNavigate();
 
+    // --- useMemo for sorting (keep as is) ---
     const sortedWebsites = useMemo(() => {
       if (!websitesWithResults?.length) return [];
       return [...websitesWithResults].sort((a, b) => {
-        const aStatus = a.latestResult?.isAvailable ?? true;
-        const bStatus = b.latestResult?.isAvailable ?? true;
+        const aStatus = a?.latestResult?.isAvailable ?? true;
+        const bStatus = b?.latestResult?.isAvailable ?? true;
         if (aStatus !== bStatus) {
           return aStatus ? 1 : -1;
         }
-        return a.userWebsite.name.localeCompare(b.userWebsite.name);
+        const nameA = a?.userWebsite?.name ?? a?.userWebsite?.website?.url ?? '';
+        const nameB = b?.userWebsite?.name ?? b?.userWebsite?.website?.url ?? '';
+        return nameA.localeCompare(nameB);
       });
     }, [websitesWithResults]);
 
+    // --- Skeleton Rendering ---
     const renderSkeletonCards = (count = 4) => {
+      // Create a more structured (but still dummy) UserWebsite for type safety
+      const dummyUserWebsite: UserWebsite = {
+          id: -1, // Use temporary negative ID
+          userId: -1,
+          websiteId: -1,
+          name: 'Loading...', // Placeholder name
+          interval: 0,
+          alertEnabled: false,
+          alertThreshold: null,
+          notifyEmail: null,
+          createdAt: new Date().toISOString(),
+          website: { // Need nested website object
+            id: -1,
+            url: 'http://loading.com',
+            isActive: true,
+            lastChecked: null,
+            globalInterval: 0,
+          }
+      };
+
       return Array(count)
         .fill(0)
         .map((_, i) => (
-          // Use Grid v2 size prop syntax
           <Grid key={`skeleton-${i}`} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-            <Box sx={{ height: "100%", bgcolor: "background.paper", borderRadius: 1, p: 2, boxShadow: 1 }}>
-              <Skeleton variant="text" width="60%" height={32} />
-              <Skeleton variant="text" width="80%" height={20} sx={{ mt: 1, mb: 2 }} />
-              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
-                <Skeleton variant="rounded" width={70} height={24} />
-                <Skeleton variant="rounded" width={50} height={24} />
-                <Skeleton variant="rounded" width={60} height={24} />
-                <Skeleton variant="rounded" width={90} height={24} />
-              </Box>
-              <Skeleton variant="rectangular" width="100%" height={80} />
-            </Box>
+            {/* Pass dummy userWebsite and empty results array */}
+            <WebsiteCard
+                userWebsite={dummyUserWebsite}
+                results={[]} // Pass empty array to satisfy the required prop
+                // latestResult is optional, will be undefined
+            />
           </Grid>
         ));
     };
 
+    // --- Event Handlers (keep as is) ---
     const handleAddWebsite = () => {
       navigate("/add-website");
     };
 
-    // --- Render Logic ---
-
+    // --- Render Logic (keep as is) ---
     if (loading && sortedWebsites.length === 0) {
+      console.log("[WebsiteGrid] Rendering skeleton cards because loading=true and sortedWebsites is empty.");
+      // Adjust skeleton count logic if needed, e.g., use a fixed number or estimate
       return (
-        // Grid v2 container props (container, spacing) are valid
         <Grid container spacing={2}>
-          {renderSkeletonCards()}
+          {renderSkeletonCards(4)}
         </Grid>
       );
     }
 
     if (error) {
-      return (
-        <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
-          Error loading websites: {error.message}
-        </Alert>
-      );
+        // ... error handling ...
+         return (
+            <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+              Error loading websites: {error.message}
+            </Alert>
+          );
     }
 
     if (!sortedWebsites.length) {
-      return (
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: { xs: 2, sm: 4 }, borderRadius: 2, bgcolor: "background.paper", boxShadow: 1, textAlign: "center", mt: 3 }}>
-          <Typography variant="h6" gutterBottom>No websites found</Typography>
-          <Typography variant="body2" color="textSecondary" paragraph>Add your first website to start monitoring.</Typography>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddWebsite} sx={{ mt: 2 }}>
-            Add Website
-          </Button>
-        </Box>
-      );
+        // ... no websites found handling ...
+         console.log("[WebsiteGrid] Rendering 'No websites found' message.");
+         return (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: { xs: 2, sm: 4 }, borderRadius: 2, bgcolor: "background.paper", boxShadow: 1, textAlign: "center", mt: 3 }}>
+              <Typography variant="h6" gutterBottom>No websites found</Typography>
+              <Typography variant="body2" color="textSecondary" paragraph>Add your first website to start monitoring.</Typography>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddWebsite} sx={{ mt: 2 }}>
+                Add Website
+              </Button>
+            </Box>
+          );
     }
 
+    console.log(`[WebsiteGrid] Rendering ${sortedWebsites.length} actual WebsiteCards.`);
     return (
-      // Grid v2 container props (container, spacing) are valid
       <Grid container spacing={2}>
-        {sortedWebsites.map((item) => (
-          // Use Grid v2 size prop syntax
-          <Grid
-            key={`website-${item.userWebsite.websiteId}`}
-            size={{ xs: 12, sm: 6, md: 4, lg: 3 }} // Updated size prop
-          >
-            <WebsiteCard
-              userWebsite={item.userWebsite}
-              latestResult={item.latestResult}
-              results={item.recentResults || []}
-              loading={loading}
-            />
-          </Grid>
-        ))}
+        {sortedWebsites.map((item) => {
+           if (!item || !item.userWebsite) return null;
+           return (
+              <Grid
+                key={`website-${item.userWebsite.websiteId}`}
+                size={{ xs: 12, sm: 6, md: 4, lg: 3 }}
+              >
+                <WebsiteCard // NO loading prop passed here
+                  userWebsite={item.userWebsite}
+                  latestResult={item.latestResult}
+                  results={item.recentResults || []}
+                />
+              </Grid>
+           );
+        })}
       </Grid>
     );
   },
