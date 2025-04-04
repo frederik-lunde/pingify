@@ -2,8 +2,8 @@ import { PrismaClient, Website, Alert, WebsiteUser, AlertUser } from '@prisma/cl
 import { emailTransporter, EMAIL_FROM } from '../config/config';
 import { ResultsManager } from './monitoringService';
 import { AlertQueryOptions, EmailAlertOptions, AlertType } from '../types';
+import prisma from '../prisma/prismaClient'; // Adjust the path if needed
 
-const prisma = new PrismaClient();
 
 /**
  * Creates an alert record in the database and links it to relevant users

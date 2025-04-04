@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as authService from '../services/authService';
-import { PrismaClient} from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../prisma/prismaClient'; // Adjust the path if needed
 
 export const register = async (
   req: Request,

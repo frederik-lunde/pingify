@@ -1,17 +1,7 @@
 // server/src/services/websiteService.ts
-
 import { PrismaClient, Website, WebsiteUser as PrismaWebsiteUser, Prisma } from '@prisma/client';
-// Adjust path to your types file as needed
 import { CreateWebsiteDTO, WebsiteUserDTO, UserWebsite, WebsiteUpdateDTO } from '../types';
-
-// Instantiate or import your Prisma Client instance
-// const prisma = new PrismaClient(); // Or import from shared location
-
-// --- Make sure prisma instance is available ---
-// If you have a shared instance (recommended):
-// import prisma from '../db/prismaClient'; // Example path
-// Otherwise, instantiate here (less common):
-const prisma = new PrismaClient();
+import prisma from '../prisma/prismaClient'; // Adjust the path if needed
 
 
 /**

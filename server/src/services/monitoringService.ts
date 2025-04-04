@@ -5,8 +5,8 @@ import { PrismaClient, Website, MonitoringResult, WebsiteUser } from '@prisma/cl
 import { TIMEOUT_MS } from '../config/config';
 import { processAlerts } from './alertService';
 import { MonitoringResponse, ResultsQueryOptions, WebsiteStatsData } from '../types';
+import prisma from '../prisma/prismaClient'; // Adjust the path if needed
 
-const prisma = new PrismaClient();
 
 // Website Checking
 export class WebsiteMonitor {

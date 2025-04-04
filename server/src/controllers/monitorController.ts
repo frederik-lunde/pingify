@@ -2,14 +2,8 @@ import { PrismaClient, Prisma } from '@prisma/client'; // Import Prisma Client a
 import { Request, Response, NextFunction } from 'express';
 import { ResultsManager, WebsiteMonitor, StatsCalculator } from '../services/monitoringService';
 import * as websiteService from '../services/websiteService';
-// Adjust path to your types file as needed
-import { WebsiteDetailsData, TimeframeKey, MonitoringResult, UserWebsite, ApiError } from '../types'; // Ensure UserWebsite is imported
-
-// Instantiate or import your Prisma Client instance
-// If you have a shared instance (recommended), import it:
-// import prisma from '../db/prismaClient'; // Example path
-// Otherwise, instantiate (less common for request handlers):
-const prisma = new PrismaClient();
+import { WebsiteDetailsData, TimeframeKey} from '../types'; // Ensure UserWebsite is imported
+import prisma from '../prisma/prismaClient'; // Adjust the path if needed
 
 // Helper to get start date based on timeframe
 const getStartDateForTimeframe = (timeframe: TimeframeKey): Date => {

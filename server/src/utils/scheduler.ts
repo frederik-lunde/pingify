@@ -2,8 +2,9 @@ import cron from 'node-cron';
 import { PrismaClient, Website } from '@prisma/client';
 import { CONCURRENCY, DEFAULT_INTERVAL } from '../config/config';
 import { WebsiteMonitor } from '../services/monitoringService';
+import prisma from '../prisma/prismaClient'; // Adjust the path if needed
 
-const prisma = new PrismaClient();
+
 
 /**
  * Determines if a website is due for checking based on its global interval
