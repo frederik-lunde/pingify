@@ -29,7 +29,6 @@ import {
 // Import the mutation hook, remove useAuth context usage for register
 import { useRegisterMutation } from "../hooks/api/useAuth"; // Adjust path
 import { ApiError } from "../types"; // Adjust path
-import FormNotification from "../components/common/FormNotification"; // Keep if used for success message
 
 // Register form values interface - unchanged
 interface RegisterFormValues {
