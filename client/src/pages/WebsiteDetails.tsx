@@ -4,22 +4,20 @@ import { useParams, useNavigate } from 'react-router';
 import { Container, Box, Alert, Button, Skeleton, Paper, Grid as MuiGrid, SelectChangeEvent, CircularProgress } from '@mui/material';
 import { keepPreviousData } from '@tanstack/react-query';
 
-import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks'; // Adjust path
-import { TimeframeKey, MonitoringResult } from '../types'; // Adjust path, potentially add MonitoringResult if needed by types below
+import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks'; // Adjust path if needed
+import { TimeframeKey, MonitoringResult } from '../types'; // Adjust path if needed
 
-import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader'; // Adjust path
-import RecentChecksList from '../components/details/RecentCheckList'; // Adjust path
-const WebsiteCharts = React.lazy(() => import('../components/details/WebsiteCharts')); // Adjust path
+import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader'; // Adjust path if needed
+import RecentChecksList from '../components/details/RecentCheckList'; // Adjust path if needed
+const WebsiteCharts = React.lazy(() => import('../components/details/WebsiteCharts')); // Adjust path if needed
 
-// --- Type Definitions ---
-// Keep these types - they define the sortable columns and direction
 export type SortableColumn = 'isAvailable' | 'timestamp' | 'statusCode' | 'responseTime';
 export type SortDirection = 'asc' | 'desc';
 
-// Skeleton for the whole page content area (Keep as is)
+// --- Skeletons & Fallbacks (Keep as is) ---
 const PageSkeleton = () => (
-    // ... skeleton JSX ...
-     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        {/* Example skeleton structure */}
         <Paper sx={{ p: 2, mb: 3 }}><Skeleton variant="rectangular" height={80} /></Paper>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}><Skeleton variant="rectangular" width={150} height={40} /></Box>
         <MuiGrid container spacing={3} sx={{ mb: 3 }}>
@@ -36,14 +34,12 @@ const PageSkeleton = () => (
     </Container>
 );
 
-// Fallback for lazy loaded components (Keep as is)
 const LoadingFallback = () => (
-    // ... fallback JSX ...
-     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
         <CircularProgress />
     </Box>
 );
-
+// --- End Skeletons & Fallbacks ---
 
 const WebsiteDetails: React.FC = () => {
     const { websiteId: websiteIdParam } = useParams<{ websiteId: string }>();
@@ -54,37 +50,35 @@ const WebsiteDetails: React.FC = () => {
         return isNaN(id) ? undefined : id;
     }, [websiteIdParam]);
 
-    // --- Local UI State ---
+    // --- Local UI State (Keep as is) ---
     const [timeframeKey, setTimeframeKey] = useState<TimeframeKey>('day');
     const [checkLimit, setCheckLimit] = useState<number>(25);
-    // Set default sort state correctly
-    const [sortBy, setSortBy] = useState<SortableColumn>('timestamp'); // Default sort column
-    const [sortDir, setSortDir] = useState<SortDirection>('desc');      // Default sort direction
+    const [sortBy, setSortBy] = useState<SortableColumn>('timestamp');
+    const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
-    // --- TanStack Query Hook (Keep as is, it receives the state) ---
     const {
         data: websiteDetails,
         isPending: isInitialLoading,
         error: detailsError,
+        // Explicitly use isFetching for background loading states (e.g., refetch after mutation or window focus)
         isFetching: isDetailsRefetching,
         refetch: refetchDetails,
     } = useWebsiteDetailsQuery({
         websiteId: numericWebsiteId!,
         timeframe: timeframeKey,
         limit: checkLimit,
-        sortBy: sortBy,    // Pass current state
-        sortDir: sortDir,   // Pass current state
+        sortBy: sortBy,
+        sortDir: sortDir,
     }, {
         enabled: !!numericWebsiteId && numericWebsiteId > 0,
-        staleTime: 1000 * 60,
+        staleTime: 1000 * 60, // 1 minute
         refetchOnWindowFocus: true,
-        placeholderData: keepPreviousData,
+        placeholderData: keepPreviousData, // Keep showing old data while fetching new
     });
 
-    // --- TanStack Mutation Hook (Keep as is) ---
     const { mutate: checkWebsite, isPending: isChecking } = useWebsiteCheckMutation();
 
-    // --- Event Handlers ---
+    // --- Event Handlers (Keep as is, including corrected handleSort) ---
     const handleTimeframeChange = useCallback((event: SelectChangeEvent<TimeframeKey>) => {
         setTimeframeKey(event.target.value as TimeframeKey);
     }, []);
@@ -94,25 +88,21 @@ const WebsiteDetails: React.FC = () => {
         if (!isNaN(newLimit)) { setCheckLimit(newLimit); }
     }, []);
 
-    // --- CORRECTED Sorting Handler ---
     const handleSort = useCallback((column: SortableColumn) => {
-        // Check if the column clicked is the currently sorted column
         if (column === sortBy) {
-            // If yes, just toggle the direction
             setSortDir(currentDir => (currentDir === 'desc' ? 'asc' : 'desc'));
         } else {
-            // If no, set the new column as sortBy and reset direction to 'desc' (or 'asc' if preferred)
             setSortBy(column);
-            setSortDir('desc'); // Default direction for a newly selected column
+            setSortDir('desc');
         }
-        // Dependencies: The logic inside DEPENDS on the current sortBy and sortDir
-        // to make its decision. React needs to know this to ensure the callback
-        // always has the latest values when it's called.
-    }, [sortBy, sortDir]); // <-- Add sortBy and sortDir as dependencies
+    }, [sortBy]); // sortDir is implicitly handled by the logic, sortBy is the trigger
 
     const handleCheckNow = useCallback(() => {
-        if (!isChecking && numericWebsiteId) { checkWebsite(numericWebsiteId); }
-    }, [isChecking, numericWebsiteId, checkWebsite]);
+        // Disable checkNow if a manual check is pending OR a background refetch is happening
+        if (!isChecking && !isDetailsRefetching && numericWebsiteId) {
+            checkWebsite(numericWebsiteId);
+        }
+    }, [isChecking, isDetailsRefetching, numericWebsiteId, checkWebsite]);
 
     const handleSettingsClick = useCallback(() => {
         if (numericWebsiteId) { navigate(`/website/${numericWebsiteId}/settings`); }
@@ -125,17 +115,26 @@ const WebsiteDetails: React.FC = () => {
     const chartData = websiteDetails?.chartData ?? [];
     const recentChecks = websiteDetails?.recentChecks ?? [];
     const uptimePercent = websiteDetails?.uptimePercent ?? 0;
-    const isProcessing = isDetailsRefetching || isChecking;
 
-    // --- Render Logic (Keep as is) ---
+    // *** Define loading states more granularly ***
+    // General background processing (query refetch or mutation) - useful for disabling fetch-triggering controls
+    const isProcessingData = isDetailsRefetching || isChecking;
+    // Specific state for the manual "Check Now" action being in progress
+    const isManualChecking = isChecking;
+    // Specific state for background data refreshing (e.g., stale data refetch, window focus refetch)
+    const isBackgroundRefetching = isDetailsRefetching && !isChecking; // Only true if refetching but not due to manual check
+
+
     if (websiteIdParam !== undefined && numericWebsiteId === undefined) {
         return <Container sx={{ mt: 4 }}><Alert severity="error">Invalid Website ID provided in URL.</Alert></Container>;
     }
 
+    // Skeleton Loading State (Use isInitialLoading for the *first* load)
     if (isInitialLoading) {
         return <PageSkeleton />;
     }
 
+    // Error State (Keep as is)
     if (detailsError && !websiteDetails) {
         const errorMessage = (detailsError as any)?.message || 'An unknown error occurred';
         return (
@@ -147,49 +146,63 @@ const WebsiteDetails: React.FC = () => {
         );
     }
 
+    // Handle case where refetch fails but we have placeholder data (from keepPreviousData)
     const showInlineError = detailsError && !!websiteDetails;
 
+    // No Data State (Keep as is) - Check after initial load and potential refetches
     if (!isInitialLoading && !isDetailsRefetching && !websiteDetails) {
        return <Container sx={{ mt: 4 }}><Alert severity="warning">Could not find data for this website.</Alert></Container>;
     }
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+            {/* Inline error for failed refetches (Keep as is) */}
             {showInlineError && (
-                 <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => refetchDetails()}>Retry</Button>}>
-                     Could not refresh data: {(detailsError as any)?.message || 'Unknown error'}. Displaying last known data.
-                 </Alert>
+                <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => refetchDetails()}>Retry</Button>}>
+                    Could not refresh data: {(detailsError as any)?.message || 'Unknown error'}. Displaying last known data.
+                </Alert>
             )}
 
+            {/* Pass specific loading states to Header */}
             <WebsiteDetailsHeader
                 name={name}
                 url={url}
                 latestResult={latestResult}
-                isChecking={isChecking}
-                isRefetching={isDetailsRefetching}
+                // isChecking specifically tracks the manual "Check Now" mutation
+                isChecking={isManualChecking}
+                // isRefetching tracks background data updates (not the manual check)
+                isRefetching={isBackgroundRefetching}
                 onCheckNow={handleCheckNow}
                 onSettingsClick={handleSettingsClick}
+                // Header internal logic should disable "Check Now" if isChecking or isRefetching is true.
+                // Settings button might only be disabled during isChecking, or not at all.
             />
 
+            {/* Suspense boundary for lazy-loaded charts */}
              <Suspense fallback={<LoadingFallback />}>
+                 {/* Charts: Timeframe select SHOULD be disabled during any data processing */}
                 <WebsiteCharts
                     chartData={chartData}
                     uptimePercent={uptimePercent}
                     timeframeKey={timeframeKey}
-                    isLoading={isProcessing}
+                    // Disable timeframe selection if any data fetch/mutation is in progress
+                    isLoading={isProcessingData}
                     onTimeframeChange={handleTimeframeChange}
                 />
             </Suspense>
 
-            {/* Pass the corrected handleSort and current sort state */}
+            {/* Pass appropriate loading state to List */}
             <RecentChecksList
                 recentChecks={recentChecks}
                 checkLimit={checkLimit}
-                sortBy={sortBy}              // Pass current sortBy
-                sortDir={sortDir}             // Pass current sortDir
-                isLoading={isProcessing}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                // Disable limit selector if any data fetch/mutation is in progress
+                isLoading={isProcessingData}
                 onCheckLimitChange={handleCheckLimitChange}
-                onSort={handleSort}          // Pass the corrected handler
+                onSort={handleSort}
+                // List internal logic should use `isLoading` to disable the 'Limit' Select.
+                // Sorting headers should likely remain enabled even during loading.
             />
         </Container>
     );

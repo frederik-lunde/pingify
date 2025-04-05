@@ -91,7 +91,7 @@ export function formatUptime(uptime: number | null | undefined): string {
 
   // Show "100%" without decimals, otherwise show 2 decimal places
   const formatted = clampedUptime === 100 ? "100" : clampedUptime.toFixed(2);
-  return `${formatted}%`;
+  return `${formatted}`;
 }
 
 
