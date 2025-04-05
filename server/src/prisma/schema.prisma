@@ -75,7 +75,7 @@ model Alert {
   websiteId    Int
   message      String
   type         String
-  isRead       Boolean     @default(false)  // For backward compatibility BURDE FJERNE
+  //isRead       Boolean     @default(false)  // For backward compatibility BURDE FJERNE
   isResolved   Boolean     @default(false)  // New field to track resolution
   resolvedAt   DateTime?   // Track when the alert was resolved
   createdAt    DateTime    @default(now())
@@ -85,7 +85,7 @@ model Alert {
   @@index([websiteId])
   @@index([createdAt])
   @@index([type])
-  @@index([isRead])
+  //@@index([isRead])
   @@index([isResolved])
 }
 

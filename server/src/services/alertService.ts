@@ -1,7 +1,6 @@
 // server/src/services/alertService.ts
 
 import {
-  PrismaClient,
   Website as PrismaWebsite,     // Use alias for Prisma type
   Alert as PrismaAlert,         // Use alias for Prisma type
   WebsiteUser as PrismaWebsiteUser, // Use alias for Prisma type

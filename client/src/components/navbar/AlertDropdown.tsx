@@ -10,9 +10,9 @@ import CloseIcon from "@mui/icons-material/Close";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router";
 // Use the refactored TanStack Query hooks
-import { useUserUnreadAlertsQuery, useAlertReadMutations } from "../../hooks/api/useAlerts"; // Adjusted path
-import { AlertUser, AlertQueryOptions } from "../../types"; // Added ApiError
-import { getAlertTypeColor } from "../../utils/statusUtils";
+import { useUserUnreadAlertsQuery, useAlertReadMutations } from "../../hooks/api/useAlerts"; // Adjust path
+import { AlertUser, AlertQueryOptions, ApiError } from "../../types"; // Added ApiError and specific types
+import { getAlertTypeColor } from "../../utils/statusUtils"; // Adjust path
 
 interface AlertsDropdownProps {
   options?: AlertQueryOptions;
@@ -27,28 +27,41 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
   const navigate = useNavigate();
   const isMenuOpen = Boolean(anchorEl);
 
-  // --- TanStack Query Hook for fetching unread alerts ---
+  // --- TanStack Query Hook for fetching unread alerts (Using v5 isPending) ---
   const {
     data: unreadAlerts = [], // Default to empty array
-    isLoading: queryLoading, // Loading state from the query
-    isFetching: queryFetching, // Fetching state (includes background refetches)
-    error: queryError, // Error from the query
+    // Destructure isPending for the initial loading state in v5
+    isPending: queryPending,
+    // isFetching is true for initial load AND background refetches
+    isFetching: queryFetching,
+    error: queryError, // Error from the query is type ApiError | null
   } = useUserUnreadAlertsQuery(options, {
     enabled: true, // Always enabled when component is mounted
     refetchInterval: isMenuOpen ? pollingInterval : false, // Poll only when menu is open
   });
 
   // --- TanStack Mutation Hooks for marking alerts as read ---
+  // Assuming useAlertReadMutations returns isPending for each mutation:
   const {
     markAsRead,
     markAllAsRead,
-    isMarkingOne,
-    isMarkingAll,
+    isMarkingOne, // This should map to the first mutation's isPending
+    isMarkingAll, // This should map to the second mutation's isPending
+    // Optional: If you needed combined error state:
+    // errorMarkingOne,
+    // errorMarkingAll,
   } = useAlertReadMutations();
 
-  // Combine loading states
-  const isLoading = queryLoading && !unreadAlerts.length; // Show initial loading spinner
-  const isPolling = queryFetching && !queryLoading; // Indicate background polling/refresh
+
+  // --- Combine loading states for UI ---
+
+  // Show initial loading spinner ONLY during the very first fetch (isPending)
+  // AND only if we haven't received any data yet (even an empty array).
+  const showInitialSpinner = queryPending && !unreadAlerts.length;
+
+  // Indicate background polling/refresh:
+  // True if fetching is happening, but it's NOT the initial pending load.
+  const isPolling = queryFetching && !queryPending;
 
   // Handler to open the menu
   const handleOpenAlerts = (event: React.MouseEvent<HTMLElement>) => {
@@ -107,7 +120,8 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
           aria-expanded={isMenuOpen ? 'true' : undefined}
           color="inherit"
           onClick={handleOpenAlerts}
-          sx={{ opacity: (isLoading || isPolling) ? 0.7 : 1 }} // Dim slightly when loading/polling
+          // Dim slightly during initial load OR background polling
+          sx={{ opacity: (showInitialSpinner || isPolling) ? 0.7 : 1 }}
         >
           <Badge badgeContent={badgeCount} color="error" max={99}>
             <NotificationsIcon />
@@ -127,20 +141,32 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
         {/* Header */}
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1, position: "sticky", top: 0, bgcolor: "background.paper", zIndex: 1 }}>
           <Typography variant="subtitle1" fontWeight="bold">Alerts</Typography>
-          <Button size="small" variant="text" color="primary" onClick={handleMarkAllAsRead} disabled={unreadAlerts.length === 0 || isMarkingAll} sx={{ textTransform: "none", minWidth: "auto" }}>
+          <Button
+             size="small"
+             variant="text"
+             color="primary"
+             onClick={handleMarkAllAsRead}
+             // Disable if no alerts, or if the "mark all" mutation is pending
+             disabled={unreadAlerts.length === 0 || isMarkingAll}
+             sx={{ textTransform: "none", minWidth: "auto" }}
+          >
             {isMarkingAll ? "Marking..." : "Mark all as read"}
           </Button>
         </Stack>
         <Divider sx={{ mb: 0.5 }} />
 
         {/* Body: Loading, Error, Empty, or List */}
-        {isLoading ? ( // Initial Loading State
+        {showInitialSpinner ? ( // <-- Use updated variable for initial loading
           <MenuItem disabled sx={{ justifyContent: "center", py: 4 }}>
             <CircularProgress size={24} />
           </MenuItem>
         ) : queryError ? ( // Error State
              <MenuItem disabled sx={{ justifyContent: "center", py: 2 }}>
-                <Typography variant="body2" color="error" textAlign="center">Error loading alerts: <br /> {queryError.message}</Typography>
+                <Typography variant="body2" color="error" textAlign="center">
+                  Error loading alerts: <br />
+                  {/* Safely access error message */}
+                  {(queryError as ApiError)?.message || 'Unknown error'}
+                </Typography>
              </MenuItem>
         ) : unreadAlerts.length === 0 ? ( // Empty State
           <MenuItem disabled sx={{ justifyContent: "center", py: 2 }}>
@@ -204,6 +230,7 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                     size="small"
                     className="dismiss-button"
                     onClick={(event) => handleDismissAlert(event, alertId)} // Pass alertId
+                    // Disable if the mutation for marking *one* item is pending
                     disabled={isMarkingOne}
                     sx={{
                       opacity: 0, // Hidden initially
