@@ -1,144 +1,134 @@
 // src/hooks/api/useAlerts.ts
-import { useCallback } from "react";
-import { Alert, AlertStats, AlertQueryOptions, AlertUser } from "../../types";
-import apiClient from "../../api/client";
-import { DEFAULT_POLLING_INTERVAL } from "../../api/config";
-import { usePolling } from "../common/usePolling";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Alert, AlertStats, AlertQueryOptions, AlertUser, ApiError } from "../../types"; // Adjust path
+// Import API functions directly
+import {
+    fetchUserAlerts,
+    fetchUserUnreadAlerts,
+    fetchWebsiteAlerts,
+    fetchAlertStats,
+    markAlertAsRead as markAlertAsReadAPI,
+    markAllAlertsAsRead as markAllAlertsAsReadAPI
+} from '../../api/alertApi'; // Adjust path
+
+// --- Query Keys ---
+export const alertQueryKeys = {
+    all: ['alerts'] as const,
+    lists: () => [...alertQueryKeys.all, 'list'] as const,
+    list: (options: AlertQueryOptions) => [...alertQueryKeys.lists(), options] as const,
+    userUnread: (options: AlertQueryOptions) => [...alertQueryKeys.all, 'user', 'unread', options] as const,
+    website: (websiteId: number | undefined, options: AlertQueryOptions) => [...alertQueryKeys.all, 'website', websiteId, options] as const,
+    stats: (days: number) => [...alertQueryKeys.all, 'stats', { days }] as const,
+};
+
+// --- Query Hooks ---
 
 /**
- * Hook for polling user's alerts with improved parameter handling
+ * Hook for fetching user's alerts.
  */
-export function useUserAlerts(
-  options: AlertQueryOptions = {},
-  pollingInterval = DEFAULT_POLLING_INTERVAL,
-) {
-  const fetchAlerts = useCallback(async () => {
-    const { limit = 50, type, from, to, isResolved } = options;
-
-    const params: any = { limit };
-    if (type) params.type = type;
-    if (from) params.from = from.toISOString();
-    if (to) params.to = to.toISOString();
-    if (isResolved !== undefined) params.isResolved = isResolved;
-
-    return await apiClient.get<Alert[]>("/alerts/user", { params });
-  }, [options]);
-
-  return usePolling<Alert[]>(fetchAlerts, { pollingInterval });
+export function useUserAlertsQuery(options: AlertQueryOptions = {}, queryOptions?: { enabled?: boolean, refetchInterval?: number | false }) {
+    const queryKey = alertQueryKeys.list(options);
+    return useQuery<Alert[], ApiError>({
+        queryKey: queryKey,
+        queryFn: () => fetchUserAlerts(options),
+        enabled: queryOptions?.enabled,
+        refetchInterval: queryOptions?.refetchInterval,
+    });
 }
 
 /**
- * Hook for polling unread alerts for the user with improved parameter handling
+ * Hook for fetching unread alerts for the user.
  */
-export function useUserUnreadAlerts(
-  options: AlertQueryOptions = {},
-  pollingInterval = DEFAULT_POLLING_INTERVAL,
-  isPollingPaused = false, // New parameter to pause polling
-) {
-  const fetchUnreadAlerts = useCallback(async () => {
-    const { limit = 50, type, from, to, isResolved } = options;
-    const params: any = { limit };
-    if (type) params.type = type;
-    if (from) params.from = from.toISOString();
-    if (to) params.to = to.toISOString();
-    if (isResolved !== undefined) params.isResolved = isResolved;
-
-    // Ensure the API returns an array, even if empty
-    const result = await apiClient.get<AlertUser[]>("/alerts/user/unread", {
-      params,
+export function useUserUnreadAlertsQuery(options: AlertQueryOptions = {}, queryOptions?: { enabled?: boolean, refetchInterval?: number | false }) {
+    const queryKey = alertQueryKeys.userUnread(options);
+    return useQuery<AlertUser[], ApiError>({
+        queryKey: queryKey,
+        queryFn: () => fetchUserUnreadAlerts(options),
+        enabled: queryOptions?.enabled,
+        refetchInterval: queryOptions?.refetchInterval,
+        initialData: [], // Keep initial data as empty array
     });
-    return result ?? []; // Default to empty array if API returns null/undefined
-  }, [options]);
-
-  const pollingEnabled = !isPollingPaused;
-
-  const {
-    data: unreadAlerts,
-    loading,
-    error,
-    refetch,
-    setData,
-  } = usePolling<AlertUser[]>(fetchUnreadAlerts, {
-    pollingInterval,
-    initialData: [],
-    enabled: pollingEnabled,
-  });
-
-  // Updated markAsRead: Uses setData, avoids refetch
-  const markAsRead = useCallback(
-    async (alertId: number) => {
-      try {
-        await apiClient.post<void>(`/alerts/user/read/${alertId}`);
-        setData((currentAlerts) =>
-          (currentAlerts ?? []).filter(
-            (alertUser) => alertUser.alert.id !== alertId,
-          ),
-        );
-      } catch (err) {
-        console.error(`Failed to mark alert ${alertId} as read:`, err);
-        throw err;
-      }
-    },
-    [setData],
-  );
-
-  const markAllAsRead = useCallback(async () => {
-    try {
-      await apiClient.post<void>("/alerts/user/read-all");
-      setData([]);
-    } catch (err) {
-      console.error("Failed to mark all alerts as read:", err);
-      throw err;
-    }
-  }, [setData]);
-
-  return {
-    unreadAlerts: unreadAlerts ?? [],
-    loading,
-    error,
-    refetch,
-    markAsRead,
-    markAllAsRead,
-  };
 }
 
 /**
- * Hook for polling alerts for a specific website with improved parameter handling
+ * Hook for fetching alerts for a specific website.
  */
-export function useWebsiteAlerts(
-  websiteId: number,
-  options: AlertQueryOptions = {},
-  pollingInterval = DEFAULT_POLLING_INTERVAL,
-) {
-  const fetchAlerts = useCallback(async () => {
-    const { limit = 50, type, from, to, isResolved } = options;
-
-    const params: any = { limit };
-    if (type) params.type = type;
-    if (from) params.from = from.toISOString();
-    if (to) params.to = to.toISOString();
-    if (isResolved !== undefined) params.isResolved = isResolved;
-
-    return await apiClient.get<Alert[]>(`/alerts/website/${websiteId}`, {
-      params,
+export function useWebsiteAlertsQuery(websiteId: number | undefined, options: AlertQueryOptions = {}, queryOptions?: { enabled?: boolean, refetchInterval?: number | false }) {
+    const queryKey = alertQueryKeys.website(websiteId, options);
+    return useQuery<Alert[], ApiError>({
+        queryKey: queryKey,
+        queryFn: () => fetchWebsiteAlerts(websiteId!, options), // Assert non-null as enabled handles undefined
+        enabled: queryOptions?.enabled ?? (!!websiteId && websiteId > 0), // Enable if websiteId is valid
+        refetchInterval: queryOptions?.refetchInterval,
     });
-  }, [websiteId, options]);
-
-  return usePolling<Alert[]>(fetchAlerts, { pollingInterval });
 }
 
 /**
- * Hook for getting alert statistics for the user
+ * Hook for fetching alert statistics for the user.
  */
-export function useAlertStats(
-  days = 7,
-  pollingInterval = DEFAULT_POLLING_INTERVAL,
-) {
-  const fetchStats = useCallback(async () => {
-    return await apiClient.get<AlertStats>("/alerts/user/stats", {
-      params: { days },
+export function useAlertStatsQuery(days = 7, queryOptions?: { enabled?: boolean, refetchInterval?: number | false }) {
+    const queryKey = alertQueryKeys.stats(days);
+    return useQuery<AlertStats, ApiError>({
+        queryKey: queryKey,
+        queryFn: () => fetchAlertStats(days),
+        enabled: queryOptions?.enabled,
+        refetchInterval: queryOptions?.refetchInterval,
+        staleTime: 1000 * 60 * 5, // Stats might not need frequent updates
     });
-  }, [days]);
+}
 
-  return usePolling<AlertStats>(fetchStats, { pollingInterval });
+// --- Mutation Hooks ---
+
+/**
+ * Hook providing mutations for marking alerts as read.
+ */
+export function useAlertReadMutations() {
+    const queryClient = useQueryClient();
+
+    // Mutation to mark a single alert as read
+    const markOneAsReadMutation = useMutation<void, ApiError, number>({
+        mutationFn: markAlertAsReadAPI,
+        onSuccess: (_, alertId) => {
+            // Optimistic Update: Immediately remove from unread cache
+            queryClient.setQueryData<AlertUser[]>(
+                alertQueryKeys.userUnread({}), // Assume base options for unread list
+                (oldData) => (oldData ?? []).filter(alertUser => alertUser.alertId !== alertId)
+            );
+            // Also, invalidate to ensure consistency if optimistic fails or other views exist
+            queryClient.invalidateQueries({ queryKey: alertQueryKeys.userUnread({}) });
+            console.log(`Alert ${alertId} marked as read`);
+        },
+        onError: (error, alertId) => {
+            console.error(`Failed to mark alert ${alertId} as read:`, error.message);
+            // Invalidate on error to rollback optimistic update and fetch server state
+             queryClient.invalidateQueries({ queryKey: alertQueryKeys.userUnread({}) });
+        },
+    });
+
+    // Mutation to mark all alerts as read
+    const markAllAsReadMutation = useMutation<void, ApiError, void>({
+        mutationFn: markAllAlertsAsReadAPI,
+        onSuccess: () => {
+            // Optimistic Update: Set all unread query data to empty array
+            queryClient.setQueriesData<AlertUser[]>({ queryKey: alertQueryKeys.userUnread({}) }, () => []);
+            // Also invalidate
+            queryClient.invalidateQueries({ queryKey: alertQueryKeys.userUnread({}) });
+            console.log("All alerts marked as read");
+        },
+         onError: (error) => {
+            console.error("Failed to mark all alerts as read:", error.message);
+             queryClient.invalidateQueries({ queryKey: alertQueryKeys.userUnread({}) });
+        },
+    });
+
+    return {
+        markAsRead: markOneAsReadMutation.mutate,
+        markAsReadAsync: markOneAsReadMutation.mutateAsync,
+        markAllAsRead: markAllAsReadMutation.mutate,
+        markAllAsReadAsync: markAllAsReadMutation.mutateAsync,
+        isMarkingOne: markOneAsReadMutation.isPending,
+        isMarkingAll: markAllAsReadMutation.isPending,
+        errorMarkingOne: markOneAsReadMutation.error,
+        errorMarkingAll: markAllAsReadMutation.error,
+    };
 }

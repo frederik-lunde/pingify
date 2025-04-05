@@ -1,30 +1,21 @@
+// src/services/authService.ts
 import { PrismaClient, User } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken'; // Removed JwtPayload import unless needed elsewhere
 import { LoginCredentials, RegisterUserData } from '../types';
+import prisma from '../prisma/prismaClient'; // Adjust the path if needed
+import { config } from '../config/config'; // Import the validated config
 
-const prisma = new PrismaClient();
-
-//PUT IN ENV FOR PRODUCTION
-const JWT_SECRET = process.env.JWT_SECRET || 'b0fd5b5063b01700bb0f13d45f37de17e0c72e1a274cfc3f29df3769c289ae7a'; // Use environment variable in production
+const JWT_SECRET = config.jwtSecret;
 const SALT_ROUNDS = 10;
 
-
-
 export async function registerUser(data: RegisterUserData): Promise<{ user: Omit<User, 'password'>, token: string }> {
-  // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
-    where: { email: data.email }
-  });
-
+  const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
   if (existingUser) {
     throw new Error('User with this email already exists');
   }
 
-  // Hash password
   const hashedPassword = await bcrypt.hash(data.password, SALT_ROUNDS);
-
-  // Create user
   const user = await prisma.user.create({
     data: {
       email: data.email,
@@ -33,52 +24,48 @@ export async function registerUser(data: RegisterUserData): Promise<{ user: Omit
     }
   });
 
-  // Generate token
   const token = generateToken(user.id);
-
-  // Return user (without password) and token
   const { password, ...userWithoutPassword } = user;
-  return { 
-    user: userWithoutPassword, 
-    token 
-  };
+  return { user: userWithoutPassword, token };
 }
 
 export async function loginUser(credentials: LoginCredentials): Promise<{ user: Omit<User, 'password'>, token: string }> {
-  // Find user
-  const user = await prisma.user.findUnique({
-    where: { email: credentials.email }
-  });
-
+  const user = await prisma.user.findUnique({ where: { email: credentials.email } });
   if (!user) {
     throw new Error('Invalid credentials');
   }
 
-  // Verify password
   const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
   if (!isPasswordValid) {
     throw new Error('Invalid credentials');
   }
 
-  // Generate token
   const token = generateToken(user.id);
-
-  // Return user (without password) and token
   const { password, ...userWithoutPassword } = user;
-  return { 
-    user: userWithoutPassword, 
-    token 
-  };
+  return { user: userWithoutPassword, token };
 }
 
 export function generateToken(userId: number): string {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '24h' });
 }
 
+// Use the improved type guard for verifyToken
 export function verifyToken(token: string): { userId: number } {
   try {
-    return jwt.verify(token, JWT_SECRET) as { userId: number };
-  } catch (error) {
-    throw new Error('Invalid token');
+    // Verify the token - the return type is string | object | JwtPayload
+    const decoded = jwt.verify(token, JWT_SECRET); // JWT_SECRET is known to be a string
+
+    // **Type Guard**: Check if the decoded payload is an object and has the userId property
+    if (typeof decoded === 'object' && decoded !== null && 'userId' in decoded && typeof decoded.userId === 'number') {
+      // Now TypeScript knows decoded has userId: number within this block
+      return { userId: decoded.userId };
+    } else {
+      throw new Error('Invalid token payload structure');
+    }
+
+  } catch (error: any) { // Catch errors from jwt.verify (expired, bad signature, etc.) OR our custom errors
+    console.error("Token verification failed:", error.message || error); // Log the actual error message
+    // Provide a more generic error to the caller
+    throw new Error('Invalid or expired token');
   }
 }

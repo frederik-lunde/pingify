@@ -1,244 +1,214 @@
-// src/pages/WebsiteDetails.tsx
-import React, { useState, useCallback, useRef, useEffect } from "react";
-import { useParams } from "react-router";
-import {
-  Container,
-  Box,
-  CircularProgress,
-  Typography,
-  Button,
-  Paper,
-  Snackbar,
-  Alert,
-} from "@mui/material";
-import {
-  ErrorOutline as ErrorIcon,
-  Refresh as RefreshIcon,
-} from "@mui/icons-material";
+// src/components/details/WebsiteDetails.tsx
+import React, { useState, useMemo, useCallback, Suspense } from 'react';
+import { useParams, useNavigate } from 'react-router';
+import { Container, Box, Alert, Button, Skeleton, Paper, Grid as MuiGrid, SelectChangeEvent, CircularProgress } from '@mui/material';
+// --- Import keepPreviousData ---
+import { keepPreviousData } from '@tanstack/react-query';
 
-// Chart.js registration
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip as ChartTooltip,
-  Legend,
-  Filler,
-} from "chart.js";
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  ChartTooltip,
-  Legend,
-  Filler,
+// --- Import Hooks, Utils, Types ---
+// Adjust paths as necessary for your project structure
+import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks';
+import { TimeframeKey } from '../types';
+
+// --- Import Child Components ---
+// Adjust paths as necessary for your project structure
+import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader';
+import RecentChecksList from '../components/details/RecentCheckList';
+// Lazy load charts component
+const WebsiteCharts = React.lazy(() => import('../components/details/WebsiteCharts'));
+
+
+type SortableColumn = 'isAvailable' | 'timestamp' | 'statusCode' | 'responseTime';
+type SortDirection = 'asc' | 'desc';
+
+// Skeleton for the whole page content area
+const PageSkeleton = () => (
+     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Paper sx={{ p: 2, mb: 3 }}><Skeleton variant="rectangular" height={80} /></Paper>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}><Skeleton variant="rectangular" width={150} height={40} /></Box>
+        <MuiGrid container spacing={3} sx={{ mb: 3 }}>
+            <MuiGrid item xs={12} md={6}><Paper sx={{ p: 2 }}><Skeleton variant="rectangular" height={300} /></Paper></MuiGrid>
+            <MuiGrid item xs={12} md={6}><Paper sx={{ p: 2 }}><Skeleton variant="rectangular" height={300} /></Paper></MuiGrid>
+        </MuiGrid>
+        <Paper sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Skeleton variant="text" width={150} height={30} />
+                <Skeleton variant="rectangular" width={100} height={40} />
+            </Box>
+            <Skeleton variant="rectangular" height={200} />
+        </Paper>
+    </Container>
 );
 
-// Import our hooks
-import { useWebsiteDetail } from "../hooks/domain/useWebsiteDetail";
-import { 
-  useTimeRangeSelection, 
-  useFilteredResults 
-} from "../hooks";
+// Fallback for lazy loaded components
+const LoadingFallback = () => (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+        <CircularProgress />
+    </Box>
+);
 
-// Component imports
-import WebsiteHeader from "../components/website-details/WebsiteHeader";
-import WebsiteStatsCards from "../components/WebsiteStatsCards";
-import ResponseTimeChart from "../components/website-details/ResponseTimeChart";
-import UptimeChart from "../components/website-details/UptimeChart";
-import DowntimePatternChart from "../components/website-details/DownTimePatternChart";
-import ResultsTable from "../components/website-details/ResultsTable";
-import TimeRangeSelector from "../components/website-details/TimeRangeSelector";
-import WebsiteDetailsTabs from "../components/website-details/WebsiteDetailsTabs";
 
 const WebsiteDetails: React.FC = () => {
-  const params = useParams<Record<string, string>>();
-  const websiteId = parseInt(params.id || "0", 10);
+    const { websiteId: websiteIdParam } = useParams<{ websiteId: string }>();
+    const navigate = useNavigate();
 
-  // Tab state
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
-  
-  // Snackbar state
-  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
-  const [snackbarMessage, setSnackbarMessage] = useState<string>("");
+    const numericWebsiteId = useMemo(() => {
+        const id = parseInt(websiteIdParam || '', 10);
+        return isNaN(id) ? undefined : id;
+    }, [websiteIdParam]);
 
-  // Use the central hook for website details
-  const {
-    userWebsite,
-    allResults, // Unfiltered data
-    loading,
-    error,
-    isChecking,
-    handleCheckNow,
-    currentStatus,
-    statusColor,
-    refetch,
-  } = useWebsiteDetail(websiteId);
+    // --- Local UI State (Remains in parent) ---
+    const [timeframeKey, setTimeframeKey] = useState<TimeframeKey>('day');
+    const [checkLimit, setCheckLimit] = useState<number>(25);
+    const [sortBy, setSortBy] = useState<SortableColumn>('timestamp');
+    const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
-  // Use our new time range selection hook
-  const { timeRange, setTimeRange, availableRanges } = useTimeRangeSelection("7d", activeTabIndex);
+    // --- TanStack Query Hook (v5 specific flags) ---
+    const {
+        data: websiteDetails,
+        // Use isPending for the initial "hard" loading state in v5
+        isPending: isInitialLoading,
+        error: detailsError,
+        // isFetching indicates *any* fetch in progress (initial or background)
+        isFetching: isDetailsRefetching,
+        refetch: refetchDetails,
+    } = useWebsiteDetailsQuery({
+        websiteId: numericWebsiteId!,
+        timeframe: timeframeKey,
+        limit: checkLimit,
+        sortBy: sortBy,
+        sortDir: sortDir,
+    }, {
+        enabled: !!numericWebsiteId && numericWebsiteId > 0,
+        staleTime: 1000 * 60, // 1 minute
+        refetchOnWindowFocus: true,
+        // Keep showing old data while fetching new data triggered by parameter changes
+        placeholderData: keepPreviousData,
+    });
 
-  // Use our filtered results hook to filter results based on time range
-  const filteredResults = useFilteredResults(allResults, timeRange);
+    // --- TanStack Mutation Hook (Remains in parent) ---
+    const { mutate: checkWebsite, isPending: isChecking } = useWebsiteCheckMutation();
 
-  // Ref to track if the initial data load has completed
-  const initialLoadComplete = useRef(false);
+    // --- Event Handlers (Remain in parent, passed down) ---
+    const handleTimeframeChange = useCallback((event: SelectChangeEvent<TimeframeKey>) => {
+        setTimeframeKey(event.target.value as TimeframeKey);
+    }, []);
 
-  // Determine if initial load is complete
-  useEffect(() => {
-    if (!loading && (userWebsite || allResults.length > 0)) {
-      initialLoadComplete.current = true;
+    const handleCheckLimitChange = useCallback((event: SelectChangeEvent<number | string>) => {
+        const newLimit = Number(event.target.value);
+        if (!isNaN(newLimit)) { setCheckLimit(newLimit); }
+    }, []);
+
+    const handleSort = useCallback((column: SortableColumn) => {
+        setSortBy(prevSortBy => {
+            setSortDir(prevDir => (prevSortBy === column && prevDir === 'desc' ? 'asc' : 'desc'));
+            return column;
+        });
+    }, []);
+
+    const handleCheckNow = useCallback(() => {
+        if (!isChecking && numericWebsiteId) { checkWebsite(numericWebsiteId); }
+    }, [isChecking, numericWebsiteId, checkWebsite]);
+
+    const handleSettingsClick = useCallback(() => {
+        if (numericWebsiteId) { navigate(`/website/${numericWebsiteId}/settings`); }
+    }, [navigate, numericWebsiteId]);
+
+    // --- Derived Data (Extract necessary parts for children) ---
+    // With placeholderData, `websiteDetails` will hold previous data during refetches.
+    // Defaults primarily cover the absolute initial load or error states where data is truly absent.
+    const name = websiteDetails?.name ?? (isInitialLoading ? 'Loading...' : 'N/A');
+    const url = websiteDetails?.url ?? '';
+    const latestResult = websiteDetails?.latestResult ?? null;
+    const chartData = websiteDetails?.chartData ?? [];
+    const recentChecks = websiteDetails?.recentChecks ?? [];
+    const uptimePercent = websiteDetails?.uptimePercent ?? 0;
+
+    // Combined loading state for disabling interactions during background fetches or mutations
+    const isProcessing = isDetailsRefetching || isChecking;
+
+    // --- Render Logic ---
+    if (websiteIdParam !== undefined && numericWebsiteId === undefined) {
+        return <Container sx={{ mt: 4 }}><Alert severity="error">Invalid Website ID provided in URL.</Alert></Container>;
     }
-  }, [loading, userWebsite, allResults]);
 
-  // Callback for tab changes
-  const handleTabChange = useCallback((newTabIndex: number) => {
-    setActiveTabIndex(newTabIndex);
-  }, []);
+    // Skeleton Loading State (Only for the very first fetch using `isPending`)
+    if (isInitialLoading) { // <-- Using isPending directly here
+        return <PageSkeleton />;
+    }
 
-  // Simple handler for closing snackbar
-  const handleSnackbarClose = () => setSnackbarOpen(false);
+    // Error State (Handles fetch errors when no data/placeholder is available)
+    if (detailsError && !websiteDetails) {
+        const errorMessage = (detailsError as any)?.message || 'An unknown error occurred';
+        return (
+            <Container sx={{ mt: 4 }}>
+                <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => refetchDetails()}>Retry</Button>}>
+                    Error loading website details: {errorMessage}
+                </Alert>
+            </Container>
+        );
+    }
 
-  // Simplified loading states
-  const isInitialLoading = loading && !initialLoadComplete.current;
-  const showChartLoading = isInitialLoading && allResults.length === 0 && !error;
+    // If we have an error but ALSO have placeholder data, show a less intrusive warning
+    const showInlineError = detailsError && !!websiteDetails;
 
-  // Error State (if website data fails critically on initial load)
-  if (error && !userWebsite && !initialLoadComplete.current) {
+    // No Data State (after initial load, if query succeeded but returned nothing)
+    if (!isInitialLoading && !isDetailsRefetching && !websiteDetails) {
+         // This case might be less common if the backend always returns a basic structure,
+         // but good to handle if the API might return truly nothing on success.
+        return <Container sx={{ mt: 4 }}><Alert severity="warning">Could not find data for this website.</Alert></Container>;
+    }
+
+     // --- Render Page Content using Children ---
+     // We should have `websiteDetails` here (potentially stale due to placeholderData)
+     // if not in the initial loading or hard error state.
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Paper sx={{ p: 3, textAlign: "center" }}>
-          <ErrorIcon color="error" sx={{ fontSize: 40, mb: 2 }} />
-          <Typography variant="h5" color="error">
-            Error Loading Website Details
-          </Typography>
-          <Typography variant="body1" sx={{ mt: 2 }}>
-            {error.message}
-          </Typography>
-          <Button
-            variant="contained"
-            onClick={() => refetch()}
-            startIcon={<RefreshIcon />}
-            sx={{ mt: 3 }}
-          >
-            Try Again
-          </Button>
-        </Paper>
-      </Container>
+        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+            {/* Show a non-blocking error if a refetch fails but we still have old data */}
+            {showInlineError && (
+                 <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => refetchDetails()}>Retry</Button>}>
+                     Could not refresh data: {(detailsError as any)?.message || 'Unknown error'}. Displaying last known data.
+                 </Alert>
+            )}
+
+            {/* Render header - it receives potentially stale data during refetch */}
+            <WebsiteDetailsHeader
+                name={name}
+                url={url}
+                latestResult={latestResult}
+                isChecking={isChecking}
+                // Pass isFetching to show the small spinner during background updates
+                isRefetching={isDetailsRefetching}
+                onCheckNow={handleCheckNow}
+                onSettingsClick={handleSettingsClick}
+            />
+
+            {/* Suspense boundary for lazy-loaded charts */}
+             <Suspense fallback={<LoadingFallback />}>
+                 {/* Render charts - receives potentially stale data during refetch */}
+                 {/* Pass isProcessing to disable controls within the charts component */}
+                <WebsiteCharts
+                    chartData={chartData}
+                    uptimePercent={uptimePercent}
+                    timeframeKey={timeframeKey}
+                    isLoading={isProcessing}
+                    onTimeframeChange={handleTimeframeChange}
+                />
+            </Suspense>
+
+            {/* Render list - receives potentially stale data during refetch */}
+            {/* Pass isProcessing to disable controls within the list component */}
+            <RecentChecksList
+                recentChecks={recentChecks}
+                checkLimit={checkLimit}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                isLoading={isProcessing}
+                onCheckLimitChange={handleCheckLimitChange}
+                onSort={handleSort}
+            />
+        </Container>
     );
-  }
-
-  // Not Found / No Access State
-  if (!userWebsite && !loading) {
-    return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Paper sx={{ p: 3, textAlign: "center" }}>
-          <ErrorIcon color="info" sx={{ fontSize: 40, mb: 2 }} />
-          <Typography variant="h5">Website Not Found</Typography>
-          <Typography variant="body1" sx={{ mt: 2 }}>
-            This website doesn't exist or you don't have access to it.
-          </Typography>
-        </Paper>
-      </Container>
-    );
-  }
-
-  // Loading State (Initial Load Only)
-  if (isInitialLoading) {
-    return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="80vh"
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  // Main Content Render
-  return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {userWebsite && (
-        <WebsiteHeader
-          userWebsite={userWebsite}
-          currentStatus={currentStatus}
-          statusColor={statusColor}
-          isChecking={isChecking}
-          onCheckNow={handleCheckNow}
-        />
-      )}
-
-      {/* Stats cards */}
-      <WebsiteStatsCards
-        latestResult={allResults.length > 0 ? allResults[0] : null}
-      />
-
-      {/* Time range selector with available ranges from our hook */}
-      <TimeRangeSelector
-        value={timeRange}
-        onChange={setTimeRange}
-        availableRanges={availableRanges}
-      />
-
-      {/* Tabs with charts - passing filtered results to all chart components */}
-      <WebsiteDetailsTabs
-        onTabChange={handleTabChange}
-        responseTimeChart={
-          <ResponseTimeChart
-            results={filteredResults}
-            timeRange={timeRange}
-            loading={showChartLoading && activeTabIndex === 0}
-            error={error && activeTabIndex === 0 ? error : null}
-          />
-        }
-        uptimeChart={
-          <UptimeChart
-            results={filteredResults}
-            timeRange={timeRange}
-            loading={showChartLoading && activeTabIndex === 1}
-            error={error && activeTabIndex === 1 ? error : null}
-          />
-        }
-        downtimePatternChart={
-          <DowntimePatternChart
-            results={filteredResults}
-            timeRange={timeRange}
-            loading={showChartLoading && activeTabIndex === 2}
-            error={error && activeTabIndex === 2 ? error : null}
-          />
-        }
-        resultsTable={
-          <ResultsTable
-            results={filteredResults}
-            timeRange={timeRange}
-            loading={showChartLoading && activeTabIndex === 3}
-            limit={20}
-          />
-        }
-      />
-
-      {/* Feedback Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert onClose={handleSnackbarClose} severity="info">
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
-    </Container>
-  );
 };
 
 export default WebsiteDetails;

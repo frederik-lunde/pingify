@@ -1,183 +1,170 @@
-// src/hooks/api/useWebsites.ts
+//client\src\hooks\api\useWebsites.ts
 import { useState, useCallback } from "react";
 import {
-  UserWebsite,
-  WebsiteCreateDTO,
-  WebsiteUpdateDTO,
-  Website,
-} from "../../types";
-import apiClient from "../../api/client";
-import { usePolling, PollingOptions } from "../common/usePolling";
+    useQuery,
+    useMutation,
+    useQueryClient,
+    UseQueryOptions // <-- Import UseQueryOptions
+} from '@tanstack/react-query';
+import {
+    fetchUserWebsites,
+    fetchUserWebsite,
+    searchWebsites as apiSearchWebsites, // Renamed import
+    createWebsite,
+    updateWebsite,
+    deleteWebsite,
+} from '../../api/websitesApi'; // Adjust path
+import {
+    WebsiteUser,        
+    AddWebsiteUserDTO,  
+    UpdateWebsiteUserDTO,
+    Website,
+    ApiError,
+} from "../../types"; // Adjust path
+
+// Query Keys
+export const websiteQueryKeys = {
+    all: ['websites'] as const,
+    lists: () => [...websiteQueryKeys.all, 'list'] as const, // For user's dashboard list
+    details: () => [...websiteQueryKeys.all, 'detail'] as const,
+    detail: (id: number | undefined) => [...websiteQueryKeys.details(), id] as const, // For single website detail
+    search: (query: string) => [...websiteQueryKeys.all, 'search', query] as const, // For search results (if using useQuery for search)
+};
+
+// Define a type for standard query options, omitting keys set internally
+type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
+    UseQueryOptions<TQueryFnData, TError>,
+    'queryKey' | 'queryFn' // Omit keys that are defined within the hook
+>;
 
 /**
- * Hook for getting and polling user's websites list
+ * Hook for fetching the user's list of websites.
  */
-export function useWebsites(
-  pollingInterval?: number,
-  options?: Partial<PollingOptions<UserWebsite[]>>,
-) {
-  const fetchWebsites = useCallback(async () => {
-    return await apiClient.get<UserWebsite[]>("/websites/user/dashboard");
-  }, []);
-
-  return usePolling<UserWebsite[]>(fetchWebsites, {
-    pollingInterval,
-    ...options,
-  });
+export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>) {
+    return useQuery<WebsiteUser[], ApiError>({
+        queryKey: websiteQueryKeys.lists(),
+        queryFn: fetchUserWebsites,
+        // NO initialData should be passed or set here by default
+        ...options,
+    });
 }
 
 /**
- * Hook for getting a single website from user's dashboard by ID
+ * Hook for fetching a single user website by ID.
  */
-export function useWebsite(
-  websiteId: number,
-  pollingInterval?: number,
-  options?: Partial<PollingOptions<UserWebsite>>,
-) {
-  const fetchWebsite = useCallback(async () => {
-    return await apiClient.get<UserWebsite>(
-      `/websites/user/dashboard/${websiteId}`,
-    );
-  }, [websiteId]);
-
-  return usePolling<UserWebsite>(fetchWebsite, {
-    pollingInterval,
-    ...options,
-  });
+export function useUserWebsiteQuery(websiteId: number | undefined, options?: CustomQueryOptions<WebsiteUser>) {
+    return useQuery<WebsiteUser, ApiError>({
+        queryKey: websiteQueryKeys.detail(websiteId),
+        queryFn: () => fetchUserWebsite(websiteId!),
+        enabled: options?.enabled ?? (!!websiteId && websiteId > 0),
+        // NO initialData here either unless explicitly needed and handled
+        ...options,
+    });
 }
 
 /**
- * Hook for searching websites
+ * Hook for searching websites (manual trigger).
  */
-export function useWebsiteSearch(
-  initialQuery: string = "",
-  limit: number = 10,
-) {
-  const [query, setQuery] = useState(initialQuery);
-  const [results, setResults] = useState<Website[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+export function useWebsiteSearch(limit: number = 10) {
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<Website[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<ApiError | null>(null);
 
-  const search = useCallback( // Rename searchWebsites to search
-    async (searchQuery: string) => {
-      setQuery(searchQuery); // Update query state here
-      try {
+    const search = useCallback(async (searchQuery: string) => {
+        setQuery(searchQuery);
+        if (!searchQuery.trim()) {
+            setResults([]);
+            return [];
+        }
         setLoading(true);
         setError(null);
-        const data = await apiClient.get<Website[]>("/websites/search", {
-          params: { query: searchQuery, limit },
-        });
-        setResults(data);
-        return data;
-      } catch (err) {
-        // ... (error handling remains the same)
-        setError(error);
-        console.error("Error searching websites:", error);
-        setResults([]); // Clear results on error
-        return [];
-      } finally {
-        setLoading(false);
-      }
-    },
-    [limit], // Removed dependency on the internal 'search'
-  );
+        try {
+            const data = await apiSearchWebsites(searchQuery, limit);
+            setResults(data);
+            return data;
+        } catch (err) {
+            setError(err as ApiError);
+            console.error("Error searching websites:", err);
+            setResults([]);
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, [limit]);
 
-  return {
-    query,
-    results,
-    loading,
-    error,
-    search, // Export the single search function
-  };
+    return { query, results, loading, error, search };
 }
 
 /**
- * Hook for website CRUD operations
+ * Hook for website CRUD mutations.
  */
-export function useWebsiteCrud() {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
+export function useWebsiteMutations() {
+    const queryClient = useQueryClient();
 
-  const create = useCallback(async (websiteData: WebsiteCreateDTO) => {
-    setLoading(true);
-    setError(null);
+    // CREATE Mutation
+    const createMutation = useMutation<WebsiteUser, ApiError, AddWebsiteUserDTO>({
+        mutationFn: createWebsite,
+        onSuccess: (newWebsite) => {
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
+            console.log('Website created:', newWebsite);
+        },
+        onError: (error) => {
+            console.error("Error creating website:", error.message);
+        },
+    });
 
-    try {
-      const result = await apiClient.post<UserWebsite>(
-        "/websites/user/dashboard",
-        websiteData,
-      );
-      return result;
-    } catch (err) {
-      const errorObj =
-        err instanceof Error ? err : new Error("Failed to create website");
-      setError(errorObj);
-      throw errorObj;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    // UPDATE Mutation
+    const updateMutation = useMutation<WebsiteUser, ApiError, { websiteId: number, websiteData: UpdateWebsiteUserDTO }>({
+        mutationFn: updateWebsite,
+        onSuccess: (updatedWebsite, variables) => {
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(variables.websiteId) });
+            console.log('Website updated:', updatedWebsite);
+        },
+        onError: (error, variables) => {
+            console.error(`Error updating website ${variables.websiteId}:`, error.message);
+        },
+    });
 
-  const update = useCallback(
-    async (websiteId: number, websiteData: WebsiteUpdateDTO) => {
-      setLoading(true);
-      setError(null);
+    // DELETE Mutation
+    const deleteMutation = useMutation<void, ApiError, number>({ // Variable is websiteId (number)
+        mutationFn: deleteWebsite,
+        onSuccess: (_, websiteId) => {
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
+            queryClient.removeQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
+            console.log(`Website deleted: ${websiteId}`);
+        },
+        onError: (error, websiteId) => {
+            console.error(`Error deleting website ${websiteId}:`, error.message);
+        },
+    });
 
-      try {
-        const result = await apiClient.put<UserWebsite>(
-          `/websites/user/dashboard/${websiteId}`,
-          websiteData,
-        );
-        return result;
-      } catch (err) {
-        const errorObj =
-          err instanceof Error
-            ? err
-            : new Error(`Failed to update website ID: ${websiteId}`);
-        setError(errorObj);
-        throw errorObj;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
+     // Utility mutation for toggling alerts (uses the update mutation)
+     const toggleAlertEnabledMutation = useMutation<WebsiteUser, ApiError, { websiteId: number, currentStatus: boolean }>({
+        mutationFn: ({ websiteId, currentStatus }) => updateWebsite({ websiteId, websiteData: { alertEnabled: !currentStatus } }),
+         onSuccess: (updatedWebsite, variables) => {
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(variables.websiteId) });
+             console.log('Website alert status toggled:', updatedWebsite);
+        },
+        onError: (error, variables) => {
+            console.error(`Error toggling alert status for website ${variables.websiteId}:`, error.message);
+        },
+     });
 
-  const remove = useCallback(async (websiteId: number) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      await apiClient.delete<void>(`/websites/user/dashboard/${websiteId}`);
-      return true;
-    } catch (err) {
-      const errorObj =
-        err instanceof Error
-          ? err
-          : new Error(`Failed to delete website ID: ${websiteId}`);
-      setError(errorObj);
-      throw errorObj;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * Utility function to toggle the alert enabled status for a website
-   */
-  const toggleAlertEnabled = useCallback(
-    async (websiteId: number, currentStatus: boolean) => {
-      return update(websiteId, { alertEnabled: !currentStatus });
-    },
-    [update],
-  );
-
-  return {
-    create,
-    update,
-    remove,
-    toggleAlertEnabled,
-    loading,
-    error,
-  };
+    return {
+        create: createMutation.mutateAsync,
+        update: updateMutation.mutateAsync,
+        remove: deleteMutation.mutateAsync,
+        toggleAlertEnabled: toggleAlertEnabledMutation.mutateAsync,
+        isCreating: createMutation.isPending,
+        isUpdating: updateMutation.isPending,
+        isDeleting: deleteMutation.isPending,
+        isTogglingAlert: toggleAlertEnabledMutation.isPending,
+        errorCreating: createMutation.error,
+        errorUpdating: updateMutation.error,
+        errorDeleting: deleteMutation.error,
+        errorToggling: toggleAlertEnabledMutation.error,
+    };
 }

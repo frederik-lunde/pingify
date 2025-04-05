@@ -15,6 +15,7 @@ import {
   FormControlLabel,
   InputAdornment,
   IconButton,
+  CircularProgress, // Import CircularProgress
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import {
@@ -24,84 +25,76 @@ import {
   VisibilityOff as VisibilityOffIcon,
   Login as LoginIcon,
 } from "@mui/icons-material";
-import { useAuth } from "../context/AuthContext";
+// Import the mutation hook, remove useAuth import for login/register
+import { useLoginMutation } from "../hooks/api/useAuth"; // Adjust path
+import { ApiError } from "../types"; // Adjust path
 
-// Login form values interface
+// Login form values interface - unchanged
 interface LoginFormValues {
   email: string;
   password: string;
   rememberMe: boolean;
 }
 
-// Validation schema using Yup
+// Validation schema using Yup - unchanged
 const LoginSchema = Yup.object().shape({
-  email: Yup.string()
-    .email("Please enter a valid email address")
-    .required("Email is required"),
+  email: Yup.string().email("Please enter a valid email address").required("Email is required"),
   password: Yup.string().required("Password is required"),
   rememberMe: Yup.boolean(),
 });
 
 const Login: React.FC = () => {
-  // UI state
+  // UI state - unchanged
   const [showPassword, setShowPassword] = useState(false);
-  
-  // Auth context
-  const { login, loading, error: authError } = useAuth();
+
+  // --- Use the login mutation hook ---
+  const { mutateAsync: loginUser, isPending: isLoggingIn, error: loginError } = useLoginMutation();
   const navigate = useNavigate();
 
-  // Initial form values
-  const initialValues: LoginFormValues = {
-    email: "",
-    password: "",
-    rememberMe: false,
-  };
+  // Initial form values - unchanged
+  const initialValues: LoginFormValues = { email: "", password: "", rememberMe: false };
 
-  // Form submission handler
+  // Form submission handler - uses mutateAsync
   const handleSubmit = async (
     values: LoginFormValues,
     formikHelpers: FormikHelpers<LoginFormValues>
   ) => {
+     formikHelpers.setStatus({ error: null }); // Clear previous form error
     try {
-      await login(values.email, values.password, values.rememberMe);
-      
-      // On success, navigate to the dashboard
+      // Call the mutation
+      await loginUser({
+          email: values.email,
+          password: values.password,
+          rememberMe: values.rememberMe
+      });
+      // On success, TanStack Query handles token storage and query invalidation via onSuccess
+      // Navigation happens after successful mutation
       navigate("/");
     } catch (err) {
-      // Extract the error message and set it in Formik's status
-      const errorMessage = err instanceof Error 
-        ? err.message 
-        : "Login failed. Please try again.";
-      
-      formikHelpers.setStatus({ error: errorMessage });
-      formikHelpers.setSubmitting(false);
+      // Catch errors from the mutation
+      const apiError = err as ApiError;
+      // Set the error message in Formik's status for display
+      formikHelpers.setStatus({ error: apiError.message || "Login failed. Please check your credentials." });
+      console.error("Login error:", apiError);
+    } finally {
+        // Ensure submitting state is always reset
+         formikHelpers.setSubmitting(false);
     }
   };
 
-  // Toggle password visibility
-  const togglePasswordVisibility = () => {
-    setShowPassword((prev) => !prev);
-  };
+  // Toggle password visibility - unchanged
+  const togglePasswordVisibility = () => setShowPassword((prev) => !prev);
 
   return (
     <Container maxWidth="sm" sx={{ mt: 4, mb: 8 }}>
       <Paper
         elevation={3}
-        sx={{
-          p: 4,
-          borderRadius: 2,
-          background: (theme) =>
-            `linear-gradient(120deg, ${theme.palette.background.paper} 60%, ${theme.palette.primary.dark}22 100%)`,
-        }}
+        sx={{ p: 4, borderRadius: 2, /* background gradient */ }}
       >
         <Box textAlign="center" mb={3}>
           <LoginIcon color="primary" sx={{ fontSize: 40, mb: 2 }} />
-          <Typography component="h1" variant="h4" fontWeight="bold">
-            Welcome Back
-          </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-            Sign in to your account to continue
-          </Typography>
+          <Typography component="h1" variant="h4" fontWeight="bold">Welcome Back</Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>Sign in to your account to continue</Typography>
         </Box>
 
         <Formik
@@ -111,141 +104,55 @@ const Login: React.FC = () => {
         >
           {({ errors, touched, isSubmitting, status }) => (
             <Form>
-              {/* Display form-level errors - this is the ONLY error display we keep */}
-              {(status?.error || authError) && (
+              {/* Display form-level errors from Formik status OR direct mutation error */}
+              {(status?.error || loginError?.message) && (
                 <Alert severity="error" sx={{ mb: 3 }}>
-                  {status?.error || authError}
+                  {status?.error || loginError?.message}
                 </Alert>
               )}
-              
+
               <Grid container spacing={2}>
-                {/* Email Address */}
-                <Grid size={12}>
-                  <Field
-                    as={TextField}
-                    required
-                    fullWidth
-                    id="email"
-                    name="email"
-                    label="Email Address"
-                    autoComplete="email"
-                    autoFocus
-                    error={touched.email && Boolean(errors.email)}
-                    helperText={touched.email && errors.email}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <EmailIcon color="action" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
+                {/* Email Field - unchanged */}
+                 <Grid size={12}>
+                  <Field as={TextField} required fullWidth id="email" name="email" label="Email Address" autoComplete="email" autoFocus error={touched.email && Boolean(errors.email)} helperText={touched.email && errors.email} InputProps={{ startAdornment: (<InputAdornment position="start"><EmailIcon color="action" /></InputAdornment>), }}/>
                 </Grid>
 
-                {/* Password */}
+                {/* Password Field - unchanged */}
                 <Grid size={12}>
-                  <Field
-                    as={TextField}
-                    required
-                    fullWidth
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    label="Password"
-                    autoComplete="current-password"
-                    error={touched.password && Boolean(errors.password)}
-                    helperText={touched.password && errors.password}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <LockIcon color="action" />
-                        </InputAdornment>
-                      ),
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={togglePasswordVisibility}
-                            edge="end"
-                            aria-label="toggle password visibility"
-                          >
-                            {showPassword ? (
-                              <VisibilityOffIcon />
-                            ) : (
-                              <VisibilityIcon />
-                            )}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
+                   <Field as={TextField} required fullWidth id="password" name="password" type={showPassword ? "text" : "password"} label="Password" autoComplete="current-password" error={touched.password && Boolean(errors.password)} helperText={touched.password && errors.password} InputProps={{ startAdornment: (<InputAdornment position="start"><LockIcon color="action" /></InputAdornment>), endAdornment: (<InputAdornment position="end"><IconButton onClick={togglePasswordVisibility} edge="end">{showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}</IconButton></InputAdornment>),}}/>
                 </Grid>
 
-                {/* Remember Me Checkbox */}
-                <Grid size={12}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Field
-                      as={FormControlLabel}
-                      control={
-                        <Checkbox
-                          name="rememberMe"
-                          color="primary"
-                        />
-                      }
-                      label="Remember me"
-                    />
-                    <Typography
-                      variant="body2"
-                      color="primary"
-                      sx={{ cursor: "pointer" }}
-                    >
-                      Forgot password?
-                    </Typography>
+                {/* Remember Me / Forgot Password - unchanged */}
+                 <Grid size={12}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Field as={FormControlLabel} control={<Checkbox name="rememberMe" color="primary"/>} label="Remember me"/>
+                    <Typography variant="body2" color="primary" sx={{ cursor: "pointer" }}>Forgot password?</Typography>
                   </Box>
                 </Grid>
 
-                {/* Submit Button */}
+                {/* Submit Button - uses isLoggingIn from mutation */}
                 <Grid size={12} sx={{ mt: 2 }}>
-                  <Button
-                    type="submit"
-                    fullWidth
-                    variant="contained"
-                    size="large"
-                    disabled={isSubmitting || loading}
-                    sx={{
-                      py: 1.5,
-                      borderRadius: 2,
-                      textTransform: "none",
-                      fontSize: "1rem",
-                    }}
-                  >
-                    {loading || isSubmitting ? "Signing In..." : "Sign In"}
+                  <Button type="submit" fullWidth variant="contained" size="large" disabled={isLoggingIn || isSubmitting} sx={{ py: 1.5, borderRadius: 2, textTransform: "none", fontSize: "1rem" }}>
+                    {isLoggingIn ? (
+                        <>
+                          <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
+                          Signing In...
+                        </>
+                     ) : (
+                        "Sign In"
+                     )}
                   </Button>
                 </Grid>
 
-                {/* Sign Up Link */}
+                {/* Sign Up Link - unchanged */}
                 <Grid size={12} sx={{ mt: 2, textAlign: "center" }}>
-                  <Typography variant="body2" color="textSecondary">
-                    Don't have an account?{" "}
-                    <Link
-                      to="/register"
-                      style={{ textDecoration: "none", color: "primary.main" }}
-                    >
-                      Create account
-                    </Link>
-                  </Typography>
+                  <Typography variant="body2" color="textSecondary">Don't have an account? <Link to="/register" style={{ textDecoration: "none", color: "primary.main" }}>Create account</Link></Typography>
                 </Grid>
               </Grid>
             </Form>
           )}
         </Formik>
       </Paper>
-
     </Container>
   );
 };

@@ -1,112 +1,90 @@
 // client/src/utils/formUtils.ts
 import { FormikHelpers } from "formik";
-import { FormNotificationState } from "../components/common/FormNotification";
-import { NavigateFunction } from "react-router";
+// Assuming FormNotificationState is defined correctly elsewhere
+import { FormNotificationState } from "../components/common/FormNotification"; // Adjust path if needed
+import { NavigateFunction } from "react-router"; 
+import { ApiError } from "../types"; // Use the defined ApiError type
 
 /**
- * Enhanced error interface for API errors
+ * Processes an error (potentially an ApiError) and extracts relevant information for form display.
+ * @param error The error object caught during form submission.
+ * @returns A structured error object containing a message and potentially field-specific errors.
  */
-export interface ApiFormError {
-  message: string;
-  field?: string;
-  errors?: Record<string, string>;
+export function handleApiFormError(error: unknown): { message: string; errors?: Record<string, string> } {
+    // Default error message
+    let message = "An unexpected error occurred. Please try again.";
+    let fieldErrors: Record<string, string> | undefined = undefined;
+
+    // Check if it's the ApiError structure from our client
+    if (error && typeof error === 'object' && 'message' in error) {
+        const apiError = error as ApiError;
+        message = apiError.message || message; // Use API message if available
+
+        // Check if the API provided specific field validation errors in the 'data' property
+        if (apiError.data && typeof apiError.data === 'object') {
+            // Example structure: { errors: { field1: 'message1', field2: 'message2' } }
+            if ('errors' in apiError.data && typeof apiError.data.errors === 'object' && apiError.data.errors !== null) {
+                 fieldErrors = apiError.data.errors as Record<string, string>;
+                 // Optionally refine the main message if specific field errors exist
+                 // message = "Please correct the highlighted fields.";
+            }
+            // Example structure: { field: 'fieldName', message: 'Specific error' } (less common for multiple errors)
+             else if ('field' in apiError.data && typeof apiError.data.field === 'string' && 'message' in apiError.data && typeof apiError.data.message === 'string') {
+                 fieldErrors = { [apiError.data.field]: apiError.data.message };
+             }
+             // If data itself has a message property
+             else if ('message' in apiError.data && typeof apiError.data.message === 'string') {
+                 message = apiError.data.message;
+             }
+        }
+    }
+    // Handle plain Error objects
+    else if (error instanceof Error) {
+        message = error.message;
+    }
+
+    return { message, errors: fieldErrors };
 }
 
-/**
- * Handle API errors in a consistent way for forms
- * @param error The error object from the API
- * @returns Structured error information for the form
- */
-export function handleApiError(error: unknown): ApiFormError {
-  // Check if it's a standard Error object
-  if (error instanceof Error) {
-    return { message: error.message };
-  }
-  
-  // Handle API response errors
-  if (error && typeof error === "object") {
-    const err = error as any;
-    
-    // Check for field-specific errors from API
-    if (err.errors && typeof err.errors === "object") {
-      return {
-        message: err.message || "Validation failed",
-        errors: err.errors,
-      };
-    }
-    
-    // Check for field-specific error
-    if (err.field && err.message) {
-      return {
-        message: err.message,
-        field: err.field,
-      };
-    }
-    
-    // Use message if available
-    if (err.message && typeof err.message === "string") {
-      return { message: err.message };
-    }
-    
-    // Handle response data
-    if (err.response?.data) {
-      const data = err.response.data;
-      
-      if (typeof data === "string") {
-        return { message: data };
-      }
-      
-      if (typeof data === "object" && data.message) {
-        return { 
-          message: data.message,
-          field: data.field,
-          errors: data.errors
-        };
-      }
-    }
-  }
-  
-  // Default error message
-  return { message: "An unexpected error occurred" };
-}
 
 /**
- * Set Formik errors from API error response
- * @param error API error response
- * @param setFieldError Formik's setFieldError function
- * @param setStatus Formik's setStatus function
+ * Sets errors in Formik based on the processed API error information.
+ * Sets field-specific errors and a general status message.
+ * @param error The processed error object from `handleApiFormError`.
+ * @param formikHelpers Formik helpers (specifically setFieldError and setStatus).
  */
 export function setFormikErrors(
-  error: ApiFormError,
-  formikHelpers: FormikHelpers<any>
+  error: { message: string; errors?: Record<string, string> },
+  formikHelpers: Pick<FormikHelpers<any>, 'setFieldError' | 'setStatus'> // Only require needed helpers
 ): void {
   const { setFieldError, setStatus } = formikHelpers;
-  
-  // Set specific field errors if present
+
+  // Set specific field errors if the API provided them
   if (error.errors) {
-    Object.entries(error.errors).forEach(([field, message]) => {
-      setFieldError(field, message);
+    Object.entries(error.errors).forEach(([field, msg]) => {
+      // Ensure message is a string before setting
+      if (typeof msg === 'string') {
+          setFieldError(field, msg);
+      } else {
+           console.warn(`Received non-string error message for field ${field}:`, msg);
+           setFieldError(field, 'Invalid input.'); // Fallback message
+      }
     });
   }
-  
-  // Set a single field error if specified
-  if (error.field) {
-    setFieldError(error.field, error.message);
-  }
-  
-  // Always set the status for the general error message
+
+  // Set the general error message in Formik's status
+  // This is often displayed in a top-level Alert component
   setStatus({ error: error.message });
 }
 
+
 /**
- * Handle form submission with success notification and optional redirect
- * @param values Form values
- * @param formikHelpers Formik helpers
- * @param submitFn Function to submit the form data
- * @param setNotification Function to set the notification state
- * @param navigate React Router navigate function (optional)
- * @param redirectPath Path to redirect to after success (optional)
- * @param redirectDelay Delay before redirect in ms (optional)
+ * Generic handler for Formik form submissions involving an async operation (like an API call).
+ * Handles calling the submission function, setting loading states, processing errors,
+ * showing notifications, and optionally navigating on success.
+ *
+ * @template T The type of the form values.
+ * @param options Configuration object for the submission handler.
  */
 export async function handleFormSubmit<T>({
   values,
@@ -115,91 +93,112 @@ export async function handleFormSubmit<T>({
   setNotification,
   navigate,
   redirectPath,
-  redirectDelay = 1500,
-  successMessage = "Operation completed successfully",
+  redirectDelay = 1500, // Default delay before redirecting
+  successMessage = "Operation successful!", // Default success message
 }: {
-  values: T;
-  formikHelpers: FormikHelpers<T>;
-  submitFn: (values: T) => Promise<any>;
-  setNotification: (notification: FormNotificationState) => void;
-  navigate?: NavigateFunction;
-  redirectPath?: string;
-  redirectDelay?: number;
-  successMessage?: string;
+  values: T; // Form values
+  formikHelpers: FormikHelpers<T>; // Formik helpers object
+  submitFn: (values: T) => Promise<any>; // The async function performing the submission
+  setNotification: (notification: FormNotificationState) => void; // State setter for notifications
+  navigate?: NavigateFunction; // Optional navigate function from react-router-dom
+  redirectPath?: string; // Optional path to redirect to on success
+  redirectDelay?: number; // Delay in ms before redirecting
+  successMessage?: string; // Custom success message
 }): Promise<void> {
+  const { setSubmitting, resetForm, setStatus } = formikHelpers;
+  setStatus({ error: null, success: null }); // Clear previous status
+
   try {
+    // Call the provided async submission function
     await submitFn(values);
-    
-    // Show success notification
-    setNotification({
-      open: true,
-      message: successMessage,
-      severity: "success",
-    });
-    
-    // Redirect if needed
+
+    // --- Success Handling ---
+    setStatus({ success: successMessage }); // Set success status in Formik
+    setNotification({ open: true, message: successMessage, severity: "success" }); // Show success snackbar
+
+    // Handle redirection or form reset
     if (navigate && redirectPath) {
       setTimeout(() => {
-        navigate(redirectPath);
+        navigate(redirectPath); // Navigate after delay
       }, redirectDelay);
     } else {
-      // Reset form if not redirecting
-      setTimeout(() => {
-        formikHelpers.resetForm();
-      }, redirectDelay);
+      // Optionally reset form after a delay if not redirecting
+      // setTimeout(() => {
+      //   resetForm();
+      // }, redirectDelay);
     }
+     // Keep submitting true until after potential redirect timeout? Or set false earlier?
+     // Setting false now allows UI to unlock sooner if no redirect.
+     // setSubmitting(false); // Set submitting false on success path
+
   } catch (error) {
-    const apiError = handleApiError(error);
-    
-    // Set field errors in Formik
-    setFormikErrors(apiError, formikHelpers);
-    
-    // Show error notification
-    setNotification({
-      open: true,
-      message: apiError.message,
-      severity: "error",
-    });
-    
-    // Allow the form to be submitted again
-    formikHelpers.setSubmitting(false);
+    // --- Error Handling ---
+    console.error("Form submission error:", error); // Log the raw error
+    const processedError = handleApiFormError(error); // Process error for form display
+    setFormikErrors(processedError, formikHelpers); // Set errors in Formik state
+    setNotification({ open: true, message: processedError.message, severity: "error" }); // Show error snackbar
+
+  } finally {
+    // Ensure submitting state is always reset, regardless of success or error
+    setSubmitting(false);
   }
 }
 
 /**
- * Helper to validate URL formats
- * @param url URL string to validate
- * @returns Boolean indicating if URL is valid
+ * Validates if a string is a plausible URL, checking basic structure.
+ * Does not guarantee reachability or correctness beyond format.
+ * @param url The string to validate.
+ * @returns `true` if the string looks like a URL, `false` otherwise.
  */
 export function isValidUrl(url: string): boolean {
-  // Allow URLs with or without protocol
-  if (!url) return false;
-  
-  // First, check if it has a protocol
-  if (url.match(/^https?:\/\//i)) {
-    try {
-      new URL(url);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-  
-  // Try adding https:// and checking
+  if (!url || typeof url !== 'string') return false;
+
+  // Basic regex: checks for optional protocol, domain name, and optional path.
+  // Allows domain names without TLD for local development (e.g., http://localhost:3000)
+  // Does not validate IP addresses rigorously.
+  const pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol (optional)
+    '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name with TLD
+    '((\\d{1,3}\\.){3}\\d{1,3})|'+ // OR ip (v4) address
+    'localhost'+ // OR localhost
+    ')(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // port and path (optional)
+    '(\\?[;&a-z\\d%_.~+=-]*)?'+ // query string (optional)
+    '(\\#[-a-z\\d_]*)?$','i'); // fragment locator (optional)
+
+  return !!pattern.test(url.trim());
+
+  // Alternative using URL constructor (stricter, requires valid domain/protocol generally)
+  /*
   try {
-    new URL(`https://${url}`);
-    return true;
-  } catch (e) {
-    return false;
+      // If no protocol, try adding https://
+      const urlWithProto = url.includes('://') ? url : `https://${url}`;
+      new URL(urlWithProto);
+      return true;
+  } catch (_) {
+      return false;
   }
+  */
 }
 
 /**
- * Helper to ensure URL has protocol
- * @param url URL string to process
- * @returns URL with protocol added if missing
+ * Ensures a URL string includes a protocol (defaults to `https://`).
+ * If the URL already has `http://` or `https://`, it's returned unchanged.
+ * @param url The URL string to process.
+ * @returns The URL string with `https://` added if no protocol was present, or the original URL. Returns empty string if input is empty.
  */
 export function ensureUrlProtocol(url: string): string {
-  if (!url) return url;
-  return url.match(/^https?:\/\//i) ? url : `https://${url}`;
+  const trimmedUrl = url ? url.trim() : "";
+  if (!trimmedUrl) return "";
+
+  // Check if it already has http or https
+  if (/^https?:\/\//i.test(trimmedUrl)) {
+    return trimmedUrl;
+  }
+
+  // Check for common incomplete protocols like //example.com
+  if (trimmedUrl.startsWith('//')) {
+      return `https:${trimmedUrl}`; // Assume https for protocol-relative URLs
+  }
+
+  // Default to adding https://
+  return `https://${trimmedUrl}`;
 }
