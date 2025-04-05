@@ -118,6 +118,7 @@ async function handleDowntimeAlert(
     statusCode: number | null,      // From the second (confirming) check
     errorMessage: string | null     // From the second (confirming) check
 ): Promise<void> {
+    const logPrefix = `[Alert Handler U:${websiteUser.userId} W:${website.id}]`; // Prefix for user/website context
     // Prevent spamming: Check if user already has an active (unresolved) 'down' alert
     const existingUnresolvedAlertUser = await prisma.alertUser.findFirst({
         where: { userId: websiteUser.userId, alert: { websiteId: website.id, type: 'down', isResolved: false } },
@@ -125,7 +126,7 @@ async function handleDowntimeAlert(
     });
 
     if (existingUnresolvedAlertUser) {
-        // console.log(`[Alert Handler] User ${websiteUser.userId} already has unresolved 'down' alert for ${website.url}.`); // Verbose log
+        console.log(`${logPrefix} Skipped DOWN alert (already active).`);
         return; // Don't create/notify again if already active
     }
 
@@ -135,7 +136,7 @@ async function handleDowntimeAlert(
     try {
         // Create the core alert (which links all enabled users)
         const alert = await createAlert(website.id, 'down', alertMessage);
-        console.log(`[Alert Handler] Alert ${alert.id} ('down', Confirmed) created for ${website.url}.`);
+        console.log(`${logPrefix} Created DOWN Alert ID: ${alert.id}.`);
 
         // Send email notification *only to this specific user* if they have it enabled
         if (websiteUser.notifyEmail && emailTransporter) {
@@ -156,7 +157,7 @@ async function handleDowntimeAlert(
             });
         }
     } catch (error) {
-        console.error(`[Alert Handler] Error creating/notifying 'down' alert for ${website.url}, user ${websiteUser.userId}:`, error);
+        console.error(`${logPrefix} Error creating/notifying DOWN alert:`, error);
     }
 }
 
@@ -169,6 +170,7 @@ async function resolveExistingDowntimeAlerts(
     responseTime: number | null, // From the recovery check
     statusCode: number | null    // From the recovery check
 ): Promise<void> {
+    const logPrefix = `[Alert Resolver W:${websiteId}]`;
     // Find all 'down' alerts for this website that are not yet resolved
     const unresolvedDownAlerts = await prisma.alert.findMany({
         where: { websiteId: websiteId, type: 'down', isResolved: false },
@@ -179,11 +181,11 @@ async function resolveExistingDowntimeAlerts(
     });
 
     if (unresolvedDownAlerts.length === 0) {
-        // console.log(`[Alert Resolver] No unresolved 'down' alerts found for website ${websiteId}.`); // Verbose log
+        // console.log(`${logPrefix} No unresolved DOWN alerts found.`); // Can uncomment if needed
         return; // Nothing to resolve
     }
 
-    console.log(`[Alert Resolver] Resolving ${unresolvedDownAlerts.length} 'down' alerts for website ${websiteId}.`);
+    console.log(`${logPrefix} Resolving ${unresolvedDownAlerts.length} DOWN alerts.`);
     const now = new Date();
     const alertIdsToResolve = unresolvedDownAlerts.map(a => a.id);
 
@@ -199,7 +201,10 @@ async function resolveExistingDowntimeAlerts(
             const userIdsToPotentiallyNotify = new Set<number>();
             unresolvedDownAlerts.forEach(alert => alert.alertUsers.forEach(au => userIdsToPotentiallyNotify.add(au.userId)));
 
-            if (userIdsToPotentiallyNotify.size === 0) return; // No users were linked
+            if (userIdsToPotentiallyNotify.size === 0) {
+                console.log(`${logPrefix} No users linked to resolved alerts.`);
+                return; // No users were linked
+            }
 
             // Fetch current settings for these users for *this specific website*
             const relevantWebsiteUsers = await tx.websiteUser.findMany({
@@ -214,6 +219,7 @@ async function resolveExistingDowntimeAlerts(
 
             // Create a map for easy lookup
             const websiteUserMap = new Map(relevantWebsiteUsers.map(wu => [wu.userId, wu]));
+            console.log(`${logPrefix} Found ${websiteUserMap.size} users eligible for RECOVERY notification.`);
 
             // Send emails based on the *original* alert and *current* user settings
             for (const resolvedAlert of unresolvedDownAlerts) {
@@ -238,14 +244,14 @@ async function resolveExistingDowntimeAlerts(
                             to: websiteUser.notifyEmail,
                             subject: `✅ RECOVERED: ${websiteUser.name || websiteUrl}`,
                             body: emailBody
-                        }).catch(err => console.error(`[Alert Resolver] Failed recovery email for alert ${resolvedAlert.id}, user ${userId}:`, err));
+                        }).catch(err => console.error(`${logPrefix} Failed recovery email for alert ${resolvedAlert.id}, user ${userId}:`, err));
                     }
                 }
             }
         });
-        console.log(`[Alert Resolver] Transaction completed for resolving ${alertIdsToResolve.length} 'down' alerts.`);
+         console.log(`${logPrefix} Finished resolving DOWN alerts.`);
     } catch (error) {
-        console.error(`[Alert Resolver] Error resolving downtime alerts transaction for website ${websiteId}:`, error);
+        console.error(`${logPrefix} Error resolving DOWN alerts transaction:`, error);
     }
 }
 
@@ -258,10 +264,11 @@ async function handleSlowResponseAlert(
     websiteUser: PrismaWebsiteUser, // User context needed for threshold and notification preferences
     responseTime: number            // From the second (confirming) check
 ): Promise<void> {
+    const logPrefix = `[Alert Handler U:${websiteUser.userId} W:${website.id}]`;
     const userThreshold = websiteUser.alertThreshold;
     // This check should technically be redundant as processAlerts verifies this before calling, but good for safety
     if (userThreshold === null || responseTime <= userThreshold) {
-        console.warn(`[Alert Handler] handleSlowResponseAlert called incorrectly for user ${websiteUser.userId}, website ${website.id}. Response time ${responseTime} not > threshold ${userThreshold}`);
+        console.warn(`${logPrefix} handleSlowResponseAlert called incorrectly for user ${websiteUser.userId}, website ${website.id}. Response time ${responseTime} not > threshold ${userThreshold}`);
         return;
     }
 
@@ -271,34 +278,20 @@ async function handleSlowResponseAlert(
         select: { id: true }
     });
     if (existingUnresolvedAlertUser) {
-        // console.log(`[Alert Handler] User ${websiteUser.userId} already has unresolved 'slow' alert for ${website.url}.`); // Verbose log
-        return;
+         console.log(`${logPrefix} Skipped SLOW alert (already active).`);
+         return;
     }
 
     const alertMessage = `Website is responding slowly: ${websiteUser.name || website.url} (${responseTime}ms > ${userThreshold}ms) (Confirmed)`;
     try {
         const alert = await createAlert(website.id, 'slow', alertMessage);
-        console.log(`[Alert Handler] Alert ${alert.id} ('slow', Confirmed) created for ${website.url}, user ${websiteUser.userId}.`);
-
-        // Send email notification if configured for this user
+        console.log(`${logPrefix} Created SLOW Alert ID: ${alert.id}.`);
         if (websiteUser.notifyEmail && emailTransporter) {
-            const emailBody = `
-            <p>Your monitored website <strong>${websiteUser.name || website.url}</strong> is confirmed to be responding slowly.</p>
-            <p>
-                Current Response Time: ${responseTime}ms (Threshold: ${userThreshold}ms)<br>
-                Time Confirmed: ${new Date().toLocaleString()}
-            </p>
-            <p>We will notify you if performance improves.</p>
-            <p>Alert ID: ${alert.id}</p>
-            `;
-            await sendEmailAlert({
-                to: websiteUser.notifyEmail,
-                subject: `⚠️ CONFIRMED SLOW: ${websiteUser.name || website.url}`,
-                body: emailBody
-            });
+            const emailBody = `<p>Your monitored website <strong>${websiteUser.name || website.url}</strong> is confirmed to be responding slowly.</p><p>Current Response Time: ${responseTime}ms (Threshold: ${userThreshold}ms)<br>Time Confirmed: ${new Date().toLocaleString()}</p><p>We will notify you if the speed improves.</p><p>Alert ID: ${alert.id}</p>`;
+            await sendEmailAlert({ to: websiteUser.notifyEmail, subject: `⚠️ CONFIRMED SLOW: ${websiteUser.name || website.url}`, body: emailBody });
         }
     } catch (error) {
-        console.error(`[Alert Handler] Error creating/notifying 'slow' alert for ${website.url}, user ${websiteUser.userId}:`, error);
+        console.error(`${logPrefix} Error creating/notifying SLOW alert:`, error);
     }
 }
 
@@ -311,6 +304,7 @@ async function resolveSlowResponseAlerts(
     websiteUser: PrismaWebsiteUser, // User context for threshold
     responseTime: number           // Current (fast) response time
 ): Promise<void> {
+    const logPrefix = `[Alert Resolver U:${websiteUser.userId} W:${website.id}]`;
     const userThreshold = websiteUser.alertThreshold;
 
     // Check if resolution is needed/possible
@@ -329,7 +323,7 @@ async function resolveSlowResponseAlerts(
 
     if (userSlowAlertLinks.length > 0) {
         const alertIdsToResolve = userSlowAlertLinks.map(link => link.alertId);
-        console.log(`[Alert Resolver] Resolving ${alertIdsToResolve.length} 'slow' alerts for user ${websiteUser.userId} on ${website.url}.`);
+        console.log(`${logPrefix} Resolving ${alertIdsToResolve.length} SLOW alerts.`);
 
         try {
             // Mark the corresponding Alert records as resolved
@@ -337,7 +331,7 @@ async function resolveSlowResponseAlerts(
                 where: { id: { in: alertIdsToResolve } },
                 data: { isResolved: true, resolvedAt: new Date() }
             });
-            console.log(`[Alert Resolver] Successfully marked ${updateResult.count} 'slow' alerts as resolved for user ${websiteUser.userId}.`);
+            console.log(`${logPrefix} Marked ${updateResult.count} SLOW alerts as resolved.`);
 
             // Optionally send speed recovery email notification
             if (websiteUser.notifyEmail && emailTransporter) {
@@ -354,10 +348,11 @@ async function resolveSlowResponseAlerts(
                 });
             }
         } catch (error) {
-            console.error(`[Alert Resolver] Error resolving 'slow' alerts for user ${websiteUser.userId}, website ${website.id}:`, error);
+            console.error(`${logPrefix} Error resolving SLOW alerts:`, error);
         }
+    } else {
+       // console.log(`${logPrefix} No active SLOW alerts found to resolve.`); // Verbose log
     }
-    // else: No slow alerts were active for this user, nothing to resolve.
 }
 
 
@@ -372,16 +367,19 @@ export async function processAlerts(
     firstResult: PrismaMonitoringResult | null, // Result of the first check (null if recovery only)
     secondResult: PrismaMonitoringResult         // Result of the second check (or the single OK check)
 ): Promise<void> {
-    console.log(`[Alert Proc] Processing for User ${websiteUser.userId}, Website ${website.id}. Comparing Result1 (ID ${firstResult?.id ?? 'N/A'}) with Result2 (ID ${secondResult.id})`);
+    // *** LOGGING START ***
+    const logPrefix = `[Alert Proc U:${websiteUser.userId} W:${website.id}]`;
+    const result1Id = firstResult?.id ?? 'N/A';
+    const result2Id = secondResult.id;
+    console.log(`${logPrefix} Comparing Result1(ID ${result1Id}) with Result2(ID ${result2Id}).`);
+    // *** LOGGING END ***
 
     try {
-        // Skip if user hasn't enabled alerts
         if (!websiteUser.alertEnabled) {
-             // console.log(`[Alert Proc] Alerts disabled for user ${websiteUser.userId}, website ${website.id}. Skipping.`); // Verbose log
+             console.log(`${logPrefix} Skipped (Alerts Disabled).`); // Log skip reason
              return;
         }
 
-        // Extract key data from the second/current result
         const isCurrentAvailable = secondResult.isAvailable;
         const currentResponseTime = secondResult.responseTime;
         const userThreshold = websiteUser.alertThreshold;
@@ -393,19 +391,18 @@ export async function processAlerts(
 
             // A) Confirmed DOWN: First DOWN, Second DOWN
             if (!isFirstAvailable && !isCurrentAvailable) {
-                console.log(`[Alert Proc] Condition: Confirmed DOWN (Both checks unavailable). Triggering handler.`);
+                console.log(`${logPrefix} Outcome: Confirmed DOWN.`); // Log decision
                 await handleDowntimeAlert(website, websiteUser, secondResult.statusCode, secondResult.errorMessage);
                 return; // Primary condition met
             }
 
             // B) Recovered from DOWN: First DOWN, Second UP
             if (!isFirstAvailable && isCurrentAvailable) {
-                console.log(`[Alert Proc] Condition: Recovered from DOWN. Triggering resolver.`);
+                console.log(`${logPrefix} Outcome: Recovered from DOWN.`); // Log decision
                 await resolveExistingDowntimeAlerts(website.id, currentResponseTime, secondResult.statusCode);
                 // Check if it recovered but is now SLOW
                 if (userThreshold !== null && currentResponseTime !== null && currentResponseTime > userThreshold) {
-                    console.log(`[Alert Proc] Condition: Recovered from DOWN but now SLOW (${currentResponseTime}ms > ${userThreshold}ms). Triggering SLOW handler.`);
-                    // Trigger slow alert immediately based on current state after recovery
+                    console.log(`${logPrefix} Outcome: Recovered DOWN but now SLOW.`); // Log decision
                     await handleSlowResponseAlert(website, websiteUser, currentResponseTime);
                 }
                 return; // Recovery handled
@@ -419,7 +416,7 @@ export async function processAlerts(
                     const wasFirstSlow = firstResponseTime > userThreshold;
                     const isCurrentSlow = currentResponseTime > userThreshold;
                     if (wasFirstSlow && isCurrentSlow) {
-                        console.log(`[Alert Proc] Condition: Confirmed SLOW (${currentResponseTime}ms > ${userThreshold}ms). Triggering handler.`);
+                        console.log(`${logPrefix} Outcome: Confirmed SLOW.`); // Log decision
                         await handleSlowResponseAlert(website, websiteUser, currentResponseTime);
                         return; // Confirmed slow handled
                     }
@@ -431,7 +428,7 @@ export async function processAlerts(
                     const wasFirstSlow = firstResponseTime > userThreshold;
                     const isCurrentFast = currentResponseTime <= userThreshold;
                     if (wasFirstSlow && isCurrentFast) {
-                        console.log(`[Alert Proc] Condition: Recovered from SLOW (now ${currentResponseTime}ms <= ${userThreshold}ms). Triggering resolver.`);
+                        console.log(`${logPrefix} Outcome: Recovered from SLOW.`); // Log decision
                         await resolveSlowResponseAlerts(website, websiteUser, currentResponseTime);
                         return; // Recovered from slow handled
                     }
@@ -443,7 +440,7 @@ export async function processAlerts(
                      const wasFirstFast = firstResponseTime <= userThreshold;
                      const isCurrentSlow = currentResponseTime > userThreshold;
                      if (wasFirstFast && isCurrentSlow) {
-                         console.log(`[Alert Proc] Condition: Transitioned FAST -> SLOW (${currentResponseTime}ms > ${userThreshold}ms). Confirmation pending next check.`);
+                         console.log(`${logPrefix} Outcome: Transitioned FAST -> SLOW. (No immediate alert)`); // Log decision
                          // No immediate alert action needed for this transition
                      }
                  }
@@ -451,27 +448,30 @@ export async function processAlerts(
 
              // F) Other cases like UP+FAST -> UP+FAST, or transitions involving unavailable second check after UP first check
              // do not trigger new alerts or standard resolutions based on this comparison logic.
-             // console.log(`[Alert Proc] Re-check for ${website.id} (user ${websiteUser.userId}) completed. No persistent failure or recovery detected.`); // Verbose log
+             else {
+                 // Log if no other condition was explicitly met after comparison
+                 console.log(`${logPrefix} Outcome: No specific alert/recovery condition met based on comparison of two checks.`);
+             }
 
         }
         // --- Scenario 2: Processing recovery after a single OK check (firstResult is null) ---
         else {
-            // console.log(`[Alert Proc] Processing recovery check only for website ${website.id}, user ${websiteUser.userId}.`); // Verbose log
+            // console.log(`${logPrefix} Processing in Recovery Mode (Result2 ID: ${result2Id}).`); // Can uncomment if needed
 
             // A) Resolve any existing DOWN alerts since the current check is UP
             if (isCurrentAvailable) {
-                 // Pass current check details for the recovery notification content
+                 // console.log(`${logPrefix} Outcome (Recovery): Resolving potential DOWN alerts.`); // Can uncomment if needed
                  await resolveExistingDowntimeAlerts(website.id, currentResponseTime, secondResult.statusCode);
             }
             // B) Resolve SLOW alerts if current check is FAST ENOUGH for this user
             if (isCurrentAvailable && userThreshold !== null && currentResponseTime !== null && currentResponseTime <= userThreshold) {
-                 // Pass current (fast) response time for notification content
+                 // console.log(`${logPrefix} Outcome (Recovery): Resolving potential SLOW alerts.`); // Can uncomment if needed
                  await resolveSlowResponseAlerts(website, websiteUser, currentResponseTime);
             }
         }
 
     } catch (error) {
-        console.error(`[Alert Proc] CRITICAL Error processing alerts for ${website.url} (User: ${websiteUser.userId}):`, error);
+        console.error(`${logPrefix} CRITICAL Error processing alerts:`, error);
     }
 } // --- End processAlerts ---
 
@@ -487,10 +487,10 @@ export async function getRecentAlerts(options: AlertQueryOptions = {}): Promise<
 
     if (type && VALID_ALERT_TYPES.includes(type)) whereClause.type = type;
     if (from || to) {
-      whereClause.createdAt = {}; // Initialize createdAt filter object
-      if (from) whereClause.createdAt.gte = from;
-      if (to) whereClause.createdAt.lte = to;
-  }
+        whereClause.createdAt = {};
+        if (from) whereClause.createdAt.gte = from;
+        if (to) whereClause.createdAt.lte = to;
+    }
     if (isResolved !== undefined) whereClause.isResolved = isResolved;
 
     return prisma.alert.findMany({
@@ -513,10 +513,10 @@ export async function getAlertsByWebsite(
 
     if (type && VALID_ALERT_TYPES.includes(type)) whereClause.type = type;
     if (from || to) {
-      whereClause.createdAt = {}; // Initialize createdAt filter object
-      if (from) whereClause.createdAt.gte = from;
-      if (to) whereClause.createdAt.lte = to;
-  }
+        whereClause.createdAt = {};
+        if (from) whereClause.createdAt.gte = from;
+        if (to) whereClause.createdAt.lte = to;
+    }
     if (isResolved !== undefined) whereClause.isResolved = isResolved;
 
     return prisma.alert.findMany({
@@ -539,18 +539,14 @@ export async function getAlertsForUser(
         alertUsers: { some: { userId } } // Base filter: must be linked to the user
     };
 
-    // Add optional filters to the Alert model
     if (type && VALID_ALERT_TYPES.includes(type)) whereClause.type = type;
     if (from || to) {
-      whereClause.createdAt = {}; // Initialize createdAt filter object
-      if (from) whereClause.createdAt.gte = from;
-      if (to) whereClause.createdAt.lte = to;
-  }
+        whereClause.createdAt = {};
+        if (from) whereClause.createdAt.gte = from;
+        if (to) whereClause.createdAt.lte = to;
+    }
     if (isResolved !== undefined) whereClause.isResolved = isResolved;
-
-    // Add filter on the JOINED AlertUser if isRead is specified
     if (isRead !== undefined) {
-        // Modify the alertUsers filter to include the isRead condition
         whereClause.alertUsers = { some: { userId, isRead } };
     }
 
@@ -559,17 +555,15 @@ export async function getAlertsForUser(
         orderBy: { createdAt: 'desc' },
         take: limit,
         include: {
-            // Include website URL and user's custom name
             website: {
                 select: {
                     id: true, url: true,
                     websiteUsers: { where: { userId }, select: { name: true } }
                 }
             },
-            // Include the specific AlertUser link for THIS user to get 'isRead'
             alertUsers: {
                 where: { userId },
-                select: { isRead: true, id: true } // Include AlertUser ID if needed
+                select: { isRead: true, id: true }
             }
         }
     });
@@ -581,16 +575,15 @@ export async function getAlertsForUser(
 export async function getUserUnreadAlerts(
     userId: number,
     options: AlertQueryOptions = {}
-): Promise<PrismaAlertUser[]> { // Returns AlertUser[]
+): Promise<PrismaAlertUser[]> {
     const { limit = 50, type, from, to, isResolved } = options;
 
     const whereClause: Prisma.AlertUserWhereInput = {
         userId,
-        isRead: false, // Key filter: only unread
-        alert: { // Nested filter on the related Alert
+        isRead: false,
+        alert: {
             ...(type && VALID_ALERT_TYPES.includes(type) && { type }),
             ...(isResolved !== undefined && { isResolved }),
-            // Combine date filters safely
             ...( (from || to) && {
                 createdAt: {
                     ...(from && { gte: from }),
@@ -602,17 +595,15 @@ export async function getUserUnreadAlerts(
 
     return prisma.alertUser.findMany({
         where: whereClause,
-        orderBy: { alert: { createdAt: 'desc' } }, // Order by the alert's creation time
+        orderBy: { alert: { createdAt: 'desc' } },
         take: limit,
         include: {
-            alert: { // Include the full Alert object
+            alert: {
                 include: {
-                    website: { // Include Website info within the Alert
+                    website: {
                         select: {
                             id: true, url: true,
-                            websiteUsers: { // Get user's custom name
-                                where: { userId }, select: { name: true }
-                            }
+                            websiteUsers: { where: { userId }, select: { name: true } }
                         }
                     }
                 }
@@ -630,7 +621,7 @@ export async function markAlertAsRead(
 ): Promise<Prisma.BatchPayload> {
     console.log(`[API Action] Marking alert ${alertId} as read for user ${userId}`);
     return prisma.alertUser.updateMany({
-        where: { userId, alertId, isRead: false }, // Target specific unread link
+        where: { userId, alertId, isRead: false },
         data: { isRead: true }
     });
 }
@@ -641,7 +632,7 @@ export async function markAlertAsRead(
 export async function markAllAlertsAsRead(userId: number): Promise<Prisma.BatchPayload> {
     console.log(`[API Action] Marking all alerts as read for user ${userId}`);
     return prisma.alertUser.updateMany({
-        where: { userId, isRead: false }, // Target all unread links for the user
+        where: { userId, isRead: false },
         data: { isRead: true }
     });
 }
@@ -655,7 +646,7 @@ export async function deleteAlertForUser(
 ): Promise<Prisma.BatchPayload> {
     console.log(`[API Action] Dismissing alert ${alertId} for user ${userId}`);
     return prisma.alertUser.deleteMany({
-        where: { userId, alertId } // Target specific link
+        where: { userId, alertId }
     });
 }
 
