@@ -1,3 +1,4 @@
+//client\src\hooks\api\useMonitoring.ts
 import {
     useQuery,
     useMutation,
