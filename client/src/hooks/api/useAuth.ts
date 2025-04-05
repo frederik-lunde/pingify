@@ -6,7 +6,6 @@ import {
   getAuthToken,
   storeAuthToken,
   removeAuthToken,
-  fireAuthErrorEvent,
 } from "../../utils/authTokenUtils"; // Adjust path
 import { User, AuthContextType, ApiError } from "../../types"; // Adjust path
 import {
