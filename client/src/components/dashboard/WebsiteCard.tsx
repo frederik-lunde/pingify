@@ -83,7 +83,7 @@ const WebsiteCard = React.memo(
     // Show skeleton ONLY if there are no results AT ALL.
     const showSkeleton = isMonitoringDataMissing;
     // Show chart only if not skeleton AND chart hook provided valid data
-    const showChart = !showSkeleton && chartData?.datasets?.[0]?.data?.length > 0;
+    const showChart = !showSkeleton && (chartData?.datasets?.[0]?.data?.length ?? 0) > 0;
 
     // Memoized handlers
     const handleClick = useCallback(() => {
