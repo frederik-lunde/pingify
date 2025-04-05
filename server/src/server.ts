@@ -1,6 +1,6 @@
 // server.ts (or index.ts, main.ts, etc.)
 import dotenv from 'dotenv';
-dotenv.config(); // <<< Perfect: Load .env variables FIRST
+dotenv.config();
 
 import app from './app';
 // Import config AFTER dotenv.config() so process.env is populated
