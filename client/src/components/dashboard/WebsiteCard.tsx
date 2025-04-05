@@ -10,6 +10,7 @@ import {
   ErrorOutline as ErrorIcon,
   Settings as SettingsIcon,
   ShowChart as ChartIcon,
+  CloudOff as CloudOffIcon // Optional: Icon for offline state placeholder
 } from "@mui/icons-material";
 import { Line } from "react-chartjs-2";
 // --- Import Hook (Adjust path as needed) ---
@@ -36,7 +37,7 @@ interface WebsiteCardProps {
   results: MonitoringResult[]; // Array of recent results
 }
 
-// Memoized chart component
+// Memoized chart component (remains the same)
 const ResponseTimeChart = React.memo(
   ({ data, options }: { data: any; options: any }) => {
     // Ensure data is valid before rendering
@@ -58,64 +59,56 @@ const WebsiteCard = React.memo(
     const theme = useTheme();
 
     // --- Internal State Determination ---
-    // Consider missing if no results are passed *at all* for this website
     const isMonitoringDataMissing = !results || results.length === 0;
 
-    // Calculate uptime based on the 'results' array passed in
+    // Derived status info from latestResult
+    const isOnline = useMemo(() => latestResult?.isAvailable ?? false, [latestResult]);
+    const responseTime = latestResult?.responseTime ?? null;
+    const statusCode = latestResult?.statusCode;
+    const statusChipColor = isOnline ? "success" : "error";
+    const responseTimeColor = responseTime !== null ? getResponseTimeColor(responseTime) : "default";
+
+    // Calculate uptime based on the 'results' array
     const uptime = useMemo(() => {
-      if (isMonitoringDataMissing) return null; // No results, no uptime
+      if (isMonitoringDataMissing) return null;
       const total = results.length;
       const available = results.filter((r) => r.isAvailable).length;
-      // Avoid division by zero, return 100 if no checks but not missing data? (Edge case)
-      // Or return null if total is 0. Returning null seems safer.
       return total > 0 ? (available / total) * 100 : null;
     }, [results, isMonitoringDataMissing]);
- 
+
     const uptimeColor = uptime !== null ? getStatusColor(uptime) : "default";
 
     // Get chart data/options using the hook based on 'results'
-    // Pass only results needed for the mini-chart (e.g., last 10-20)
-    const cardResultsLimit = 20; // How many points for the card chart
+    const cardResultsLimit = 20;
     const chartInputResults = useMemo(() => results.slice(0, cardResultsLimit), [results]);
-    const { chartData, chartOptions } = useCardChartData(chartInputResults); // Hook takes MonitoringResult[]
+    const { chartData, chartOptions } = useCardChartData(chartInputResults);
 
     // UI States
-    // Show skeleton ONLY if there are no results AT ALL.
     const showSkeleton = isMonitoringDataMissing;
-    // Show chart only if not skeleton AND chart hook provided valid data
-    const showChart = !showSkeleton && (chartData?.datasets?.[0]?.data?.length ?? 0) > 0;
 
-    // Memoized handlers
+    // *** MODIFIED: Show chart only if currently online AND chart data exists ***
+    const showChart = !showSkeleton && isOnline && (chartData?.datasets?.[0]?.data?.length ?? 0) > 0;
+
+    // Memoized handlers (remain the same)
     const handleClick = useCallback(() => {
-      // Access websiteId from the WebsiteUser prop
       navigate(`/website/${userWebsite.websiteId}`);
     }, [navigate, userWebsite.websiteId]);
 
     const handleSettingsClick = useCallback(
       (e: React.MouseEvent) => {
         e.stopPropagation();
-         // Access websiteId from the WebsiteUser prop
         navigate(`/website/${userWebsite.websiteId}/settings`);
       },
       [navigate, userWebsite.websiteId],
     );
 
-    // Derived status info (use defaults/fallbacks if latestResult is missing)
-    // Access properties from latestResult (MonitoringResult type)
-    const isOnline = useMemo(() => latestResult?.isAvailable ?? false, [latestResult]);
-    const statusChipColor = isOnline ? "success" : "error";
-    const responseTime = latestResult?.responseTime ?? null;
-    const responseTimeColor = responseTime !== null ? getResponseTimeColor(responseTime) : "default";
-    const statusCode = latestResult?.statusCode;
-
-    // Determine display name (user custom name or URL)
-    // Access name from WebsiteUser, nested URL from WebsiteUser.website
-    const displayName = userWebsite.name || userWebsite.website?.url || 'Website'; // Fallback needed?
-    const displayUrl = userWebsite.website?.url; // Optional chaining needed if website might be missing
+    // Derived display names (remain the same)
+    const displayName = userWebsite.name || userWebsite.website?.url || 'Website';
+    const displayUrl = userWebsite.website?.url;
 
     // --- Render Logic ---
 
-    // 1. Render Skeleton if monitoring data is missing entirely for this card
+    // 1. Render Skeleton (remains the same)
     if (showSkeleton) {
         return (
             <Card sx={{ height: "100%" }}>
@@ -133,7 +126,7 @@ const WebsiteCard = React.memo(
                            </IconButton>
                          </Tooltip>
                      </Box>
-                    {/* URL (only if different from name) */}
+                    {/* URL */}
                     {userWebsite.name && displayUrl && (
                          <Tooltip title={displayUrl} placement="bottom-start">
                              <Typography variant="body2" color="textSecondary" noWrap sx={{ mb: 1.5 }}>
@@ -141,9 +134,8 @@ const WebsiteCard = React.memo(
                              </Typography>
                          </Tooltip>
                     )}
-                    {(!userWebsite.name || !displayUrl) && <Box sx={{ mb: 1.5 }} />} {/* Placeholder space */}
-
-                    {/* Skeletons for status chips */}
+                    {(!userWebsite.name || !displayUrl) && <Box sx={{ mb: 1.5 }} />}
+                    {/* Skeletons for chips */}
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
                         <Skeleton variant="rounded" width={70} height={24} />
                         <Skeleton variant="rounded" width={50} height={24} />
@@ -167,12 +159,14 @@ const WebsiteCard = React.memo(
           flexDirection: "column",
           transition: "transform 0.2s, box-shadow 0.2s",
           "&:hover": { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
+          // Optional: Slightly dim the card if offline for stronger visual cue
+          // opacity: isOnline ? 1 : 0.85,
         }}
         onClick={handleClick}
         aria-label={`View details for ${displayName}`}
       >
         <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", p: 2 }}>
-          {/* Header */}
+          {/* Header (remains the same) */}
            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
              <Tooltip title={displayName} placement="top-start">
                  <Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)' }}>
@@ -186,7 +180,7 @@ const WebsiteCard = React.memo(
              </Tooltip>
            </Box>
 
-          {/* URL (only if name is set and URL exists) */}
+          {/* URL (remains the same) */}
           {userWebsite.name && displayUrl && (
               <Tooltip title={displayUrl} placement="bottom-start">
                 <Typography variant="body2" color="textSecondary" noWrap sx={{ mb: 1.5 }}>
@@ -194,44 +188,50 @@ const WebsiteCard = React.memo(
                 </Typography>
               </Tooltip>
           )}
-           {(!userWebsite.name || !displayUrl) && <Box sx={{ mb: 1.5 }} />} {/* Placeholder space */}
+           {(!userWebsite.name || !displayUrl) && <Box sx={{ mb: 1.5 }} />}
 
-          {/* Status Chips */}
+          {/* Status Chips (remain the same - already reflect latestResult) */}
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5 }}>
-             {/* Status Chip: Always show based on latestResult */}
+             {/* Status Chip */}
              <Tooltip title={isOnline ? "Website is online" : "Website is offline"}>
                  <Chip size="small" icon={isOnline ? <CheckIcon fontSize="inherit"/> : <ErrorIcon fontSize="inherit"/>} label={isOnline ? "Online" : "Offline"} color={statusChipColor} sx={{ fontWeight: 500 }}/>
              </Tooltip>
-             {/* Status Code Chip: Show if available */}
+             {/* Status Code Chip */}
              {statusCode != null && (
                  <Tooltip title={`Last HTTP Status: ${statusCode}`}>
                     <Chip size="small" label={`${statusCode}`} variant="outlined" />
                  </Tooltip>
              )}
-             {/* Response Time Chip: Show if available */}
-             {responseTime !== null && (
+             {/* Response Time Chip: Show only if online and time exists */}
+             {isOnline && responseTime !== null && (
                  <Tooltip title={`Last Response Time: ${formatResponseTime(responseTime)}`}>
                     <Chip size="small" label={formatResponseTime(responseTime)} color={responseTimeColor} variant="outlined" />
                  </Tooltip>
              )}
-             {/* Uptime Chip: Show if uptime was calculated */}
+             {/* Uptime Chip */}
              {uptime !== null && (
-                <Tooltip title={`Uptime (${results.length} checks): ${formatUptime(uptime)}`}>
-                    <Chip size="small" icon={<ChartIcon fontSize="inherit" />} label={formatUptime(uptime)} color={uptimeColor} variant="outlined" />
+                <Tooltip title={`Uptime (${results.length} checks): ${formatUptime(uptime)}%`}> {/* Added % */}
+                    <Chip size="small" icon={<ChartIcon fontSize="inherit" />} label={`${formatUptime(uptime)}%`} color={uptimeColor} variant="outlined" /> {/* Added % */}
                 </Tooltip>
              )}
           </Box>
 
-          {/* Response time chart area */}
+          {/* Response time chart area or placeholder */}
           <Box sx={{ flexGrow: 1, minHeight: 60, maxHeight: 80, mt: "auto" }}>
              {showChart ? (
-                 // Pass key to ensure re-render if data identity changes significantly
+                 // Render chart only if condition is met
                  <ResponseTimeChart data={chartData} options={chartOptions} key={`chart-${userWebsite.websiteId}`} />
              ) : (
-                 // Placeholder text when no chart data is available (but results exist)
-                 <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Typography variant="caption" color="textSecondary">
-                       {results.length > 0 ? "No chart data" : "Awaiting check data..."}
+                 // *** MODIFIED: Placeholder text when no chart should be shown ***
+                 <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: 'text.secondary', gap: 0.5 }}>
+                    {!isOnline && <CloudOffIcon fontSize="small" /> /* Optional icon */}
+                    <Typography variant="caption">
+                        {!isOnline
+                            ? "Currently Offline" // Primary reason if offline
+                            : results.length > 0
+                                ? "No recent chart data" // Online, but hook yielded no points (e.g., all recent offline)
+                                : "Awaiting check data..." // Online, but no results array yet
+                        }
                     </Typography>
                  </Box>
              )}
