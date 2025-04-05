@@ -70,7 +70,7 @@ const WebsiteCard = React.memo(
       // Or return null if total is 0. Returning null seems safer.
       return total > 0 ? (available / total) * 100 : null;
     }, [results, isMonitoringDataMissing]);
-
+ 
     const uptimeColor = uptime !== null ? getStatusColor(uptime) : "default";
 
     // Get chart data/options using the hook based on 'results'

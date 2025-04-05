@@ -1,23 +1,23 @@
 // src/api/websitesApi.ts
 // No changes needed in API functions themselves.
 import apiClient from './client';
-import { UserWebsite, WebsiteCreateDTO, WebsiteUpdateDTO, Website } from '../types'; // Adjust path, add ApiError
+import { WebsiteUser, AddWebsiteUserDTO, UpdateWebsiteUserDTO, Website } from '../types'; // Adjust path, add ApiError
 
 /**
  * Fetches all websites for the user's dashboard.
  * Endpoint: GET /websites/user/dashboard
  */
-export const fetchUserWebsites = async (): Promise<UserWebsite[]> => {
-    return apiClient.get<UserWebsite[]>('/websites/user/dashboard');
+export const fetchUserWebsites = async (): Promise<WebsiteUser[]> => {
+    return apiClient.get<WebsiteUser[]>('/websites/user/dashboard');
 };
 
 /**
  * Fetches a single website by ID for the user's dashboard.
  * Endpoint: GET /websites/user/dashboard/:websiteId
  */
-export const fetchUserWebsite = async (websiteId: number): Promise<UserWebsite> => {
+export const fetchUserWebsite = async (websiteId: number): Promise<WebsiteUser> => {
      if (!websiteId) throw new Error("Website ID is required to fetch a single website.");
-    return apiClient.get<UserWebsite>(`/websites/user/dashboard/${websiteId}`);
+    return apiClient.get<WebsiteUser>(`/websites/user/dashboard/${websiteId}`);
 };
 
 /**
@@ -32,17 +32,17 @@ export const searchWebsites = async (query: string, limit: number = 10): Promise
  * Creates a new website entry for the user.
  * Endpoint: POST /websites/user/dashboard
  */
-export const createWebsite = async (websiteData: WebsiteCreateDTO): Promise<UserWebsite> => {
-    return apiClient.post<UserWebsite>('/websites/user/dashboard', websiteData);
+export const createWebsite = async (websiteData: AddWebsiteUserDTO): Promise<WebsiteUser> => {
+    return apiClient.post<WebsiteUser>('/websites/user/dashboard', websiteData);
 };
 
 /**
  * Updates an existing website entry for the user.
  * Endpoint: PUT /websites/user/dashboard/:websiteId
  */
-export const updateWebsite = async ({ websiteId, websiteData }: { websiteId: number, websiteData: WebsiteUpdateDTO }): Promise<UserWebsite> => {
+export const updateWebsite = async ({ websiteId, websiteData }: { websiteId: number, websiteData: UpdateWebsiteUserDTO }): Promise<WebsiteUser> => {
      if (!websiteId) throw new Error("Website ID is required for update.");
-    return apiClient.put<UserWebsite>(`/websites/user/dashboard/${websiteId}`, websiteData);
+    return apiClient.put<WebsiteUser>(`/websites/user/dashboard/${websiteId}`, websiteData);
 };
 
 /**
