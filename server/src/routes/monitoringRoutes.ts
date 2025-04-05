@@ -17,6 +17,8 @@ router.get('/user/stats', monitoringController.getUserStats);
 // Website-specific routes (accessible to users who have access)
 router.get('/website/:websiteId/results', monitoringController.getResultsByWebsite);
 router.get('/website/:websiteId/stats', monitoringController.getWebsiteStats);
+router.get('/website/:websiteId', monitoringController.getWebsiteDetails); 
+
 
 // Trigger an immediate check for a website
 router.post('/check/:websiteId', monitoringController.triggerWebsiteCheck);

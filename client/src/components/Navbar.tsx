@@ -1,6 +1,6 @@
-//client\src\components\Navbar.tsx
+// client/src/components/Navbar.tsx
 import * as React from "react";
-import { useCallback } from "react";
+import { useCallback, useState } from "react"; // Added useState
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
@@ -12,13 +12,17 @@ import Container from "@mui/material/Container";
 import Avatar from "@mui/material/Avatar";
 import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
-import AdbIcon from "@mui/icons-material/Adb";
-import { useAuth } from "../context/AuthContext";
+import AdbIcon from "@mui/icons-material/Adb"; // Keep or replace with your actual logo icon
+import { useAuth } from "../context/AuthContext"; // Correct: Uses the context hook
 import { useNavigate } from "react-router";
 import AddIcon from "@mui/icons-material/Add";
-import ImportExportIcon from "@mui/icons-material/ImportExport";
+// Corrected import path based on provided file name `AlertsDropdown.tsx`
 import AlertsDropdown from "./navbar/AlertDropdown";
+// Make sure AlertQueryOptions is imported if needed, or remove unused import
+// import { AlertQueryOptions } from "../types";
 
+// --- Navigation Items ---
+// Define pages with icons and aria labels for better structure and accessibility
 const pages = [
   {
     name: "Add Website",
@@ -26,27 +30,27 @@ const pages = [
     icon: <AddIcon fontSize="small" />,
     ariaLabel: "Add new website to monitor",
   },
-  {
-    name: "Export Data",
-    path: "#",
-    icon: <ImportExportIcon fontSize="small" />,
-    ariaLabel: "Export monitoring data",
-  },
+  // { // Example for future feature
+  //   name: "Export Data",
+  //   path: "/export", // Or specific path
+  //   icon: <ImportExportIcon fontSize="small" />,
+  //   ariaLabel: "Export monitoring data",
+  // },
 ];
 
+// --- User Menu Items ---
 const settings = ["Profile", "Logout"];
 
 function Navbar() {
-  const [anchorElNav, setAnchorElNav] = React.useState<null | HTMLElement>(
-    null,
-  );
-  const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(
-    null,
-  );
+  // State for mobile and user menus
+  const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
+  const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
 
+  // Get auth state and logout function from context
   const { logout, user } = useAuth();
   const navigate = useNavigate();
 
+  // --- Menu Handlers ---
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElNav(event.currentTarget);
   };
@@ -63,51 +67,58 @@ function Navbar() {
     setAnchorElUser(null);
   };
 
+  // Navigate to page and close mobile menu
   const handlePageClick = useCallback(
     (path: string) => {
       handleCloseNavMenu();
-      navigate(path);
+      if (path !== "#") { // Avoid navigation for placeholder paths
+        navigate(path);
+      } else {
+        // Handle placeholder actions if needed (e.g., open modal)
+        console.log("Placeholder action for:", path);
+      }
     },
-    [navigate, handleCloseNavMenu],
+    [navigate], // Removed handleCloseNavMenu dependency as it's stable
   );
 
+  // Handle user menu item clicks (Profile, Logout)
   const handleSettingClick = useCallback(
     async (setting: string) => {
       handleCloseUserMenu();
       if (setting === "Logout") {
         try {
-          await logout();
-          navigate("/login");
+          await logout(); // Call logout from useAuth context
+          // Navigation is handled implicitly by useAuthCore's effect or listener after logout completes
+          // navigate("/login"); // Explicit navigation can be removed if handled globally
         } catch (error) {
           console.error("Failed to logout:", error);
+          // Handle logout error display if necessary
         }
       } else if (setting === "Profile") {
-        // Future implementation for profile page
+        // Placeholder for navigating to profile page
+         navigate("/profile"); // Example navigation
+        console.log("Navigate to Profile page");
       }
     },
-    [logout, navigate, handleCloseUserMenu],
+    [logout, navigate], // Removed handleCloseUserMenu dependency
   );
 
+  // --- Render Logic ---
   return (
     <AppBar position="static">
       <Container maxWidth="xl">
         <Toolbar disableGutters>
-          {/* Left side - Logo/Brand */}
+          {/* Desktop Logo */}
           <Box
-            component="div"
             onClick={() => navigate("/")}
-            sx={{
-              display: { xs: "none", md: "flex" },
-              alignItems: "center",
-              cursor: "pointer",
-            }}
+            sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", cursor: "pointer", mr: 1 }}
           >
-            <AdbIcon sx={{ mr: 1 }} />
+            <AdbIcon /> {/* Replace with your Logo */}
           </Box>
           <Typography
             variant="h6"
             noWrap
-            component="div"
+            component="div" // Changed to div, navigation handled by Box onClick
             onClick={() => navigate("/")}
             sx={{
               mr: 2,
@@ -120,43 +131,35 @@ function Navbar() {
               cursor: "pointer",
             }}
           >
-            PINGIFY
+            PINGIFY {/* Your App Name */}
           </Typography>
 
-          {/* Mobile Menu */}
+          {/* Mobile Menu Button */}
           <Box sx={{ flexGrow: 1, display: { xs: "flex", md: "none" } }}>
             <IconButton
               size="large"
-              aria-label="account of current user"
-              aria-controls="menu-appbar"
+              aria-label="navigation menu"
+              aria-controls="menu-appbar-nav" // Ensure ID matches Menu
               aria-haspopup="true"
               onClick={handleOpenNavMenu}
               color="inherit"
             >
               <MenuIcon />
             </IconButton>
+            {/* Mobile Navigation Menu */}
             <Menu
-              id="menu-appbar"
+              id="menu-appbar-nav" // Matches aria-controls
               anchorEl={anchorElNav}
-              anchorOrigin={{
-                vertical: "bottom",
-                horizontal: "left",
-              }}
+              anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
               keepMounted
-              transformOrigin={{
-                vertical: "top",
-                horizontal: "left",
-              }}
+              transformOrigin={{ vertical: "top", horizontal: "left" }}
               open={Boolean(anchorElNav)}
               onClose={handleCloseNavMenu}
               sx={{ display: { xs: "block", md: "none" } }}
             >
               {pages.map((page) => (
-                <MenuItem
-                  key={page.name}
-                  onClick={() => handlePageClick(page.path)}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <MenuItem key={page.name} onClick={() => handlePageClick(page.path)}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}> {/* Added gap */}
                     {page.icon}
                     <Typography>{page.name}</Typography>
                   </Box>
@@ -167,25 +170,20 @@ function Navbar() {
 
           {/* Mobile Logo */}
           <Box
-            component="div"
             onClick={() => navigate("/")}
-            sx={{
-              display: { xs: "flex", md: "none" },
-              alignItems: "center",
-              cursor: "pointer",
-            }}
+            sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", cursor: "pointer", mr: 1 }}
           >
-            <AdbIcon sx={{ mr: 1 }} />
+             <AdbIcon /> {/* Replace with your Logo */}
           </Box>
           <Typography
-            variant="h5"
+            variant="h5" // Slightly larger for mobile visibility
             noWrap
-            component="div"
+            component="div" // Changed to div
             onClick={() => navigate("/")}
             sx={{
               mr: 2,
               display: { xs: "flex", md: "none" },
-              flexGrow: 1,
+              flexGrow: 1, // Takes available space
               fontFamily: "monospace",
               fontWeight: 700,
               letterSpacing: ".3rem",
@@ -194,66 +192,61 @@ function Navbar() {
               cursor: "pointer",
             }}
           >
-            PINGIFY
+            PINGIFY {/* Your App Name */}
           </Typography>
 
-          {/* Desktop Navigation */}
-          <Box
-            sx={{
-              flexGrow: 1,
-              display: { xs: "none", md: "flex" },
-              gap: 2,
-              ml: 3,
-            }}
-          >
+          {/* Desktop Navigation Buttons */}
+          <Box sx={{ flexGrow: 1, display: { xs: "none", md: "flex" }, gap: 1, ml: 2 }}> {/* Reduced gap/margin */}
             {pages.map((page) => (
-              <Tooltip key={page.name} title={page.name} arrow>
-                <IconButton
-                  aria-label={page.ariaLabel}
-                  onClick={() => handlePageClick(page.path)}
-                  color="inherit"
-                  size="large"
-                >
-                  {page.icon}
-                </IconButton>
+              <Tooltip key={page.name} title={page.ariaLabel || page.name} arrow>
+                {/* Wrap IconButton in span for Tooltip when disabled */}
+                <span>
+                   <IconButton
+                    aria-label={page.ariaLabel || page.name}
+                    onClick={() => handlePageClick(page.path)}
+                    color="inherit"
+                    size="medium" // Slightly smaller icon buttons
+                    // disabled={page.path === "#"} // Example: Disable placeholder buttons
+                   >
+                    {page.icon}
+                   </IconButton>
+                </span>
               </Tooltip>
             ))}
           </Box>
 
-          {/* Right-aligned icons */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 2,
-              ml: "auto",
-            }}
-          >
+          {/* Right-aligned Icons (Alerts, User Menu) */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1, sm: 2 }, ml: "auto" }}> {/* Responsive gap */}
             {/* Alerts Dropdown Component */}
+            {/* Pass necessary options for fetching unread alerts */}
             <AlertsDropdown
               options={{
-                limit: 50,
-                isResolved: false,
+                limit: 50, // How many alerts to fetch initially
+                isResolved: false, // Only show unresolved alerts in the dropdown count/list
               }}
+              pollingInterval={60000} // e.g., Refetch every 60 seconds when dropdown is open
             />
 
             {/* User Menu */}
             <Tooltip title="Open settings">
-              <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
+              <IconButton
+                 onClick={handleOpenUserMenu}
+                 sx={{ p: 0 }}
+                 aria-label="open user menu"
+                 aria-controls="menu-appbar-user" // Ensure ID matches Menu
+                 aria-haspopup="true"
+              >
                 <Avatar
-                  alt={user?.name}
+                  alt={user?.name || user?.email || 'User'} // Provide alt text
                   sx={{
-                    bgcolor: "primary.main",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: "bold",
-                    fontSize: "1.2rem",
+                    width: { xs: 32, sm: 40 }, // Responsive size
+                    height: { xs: 32, sm: 40 },
+                    bgcolor: "secondary.main", // Use theme color
+                    fontSize: "1rem", // Adjust font size if needed
                   }}
                 >
-                  {user?.name?.charAt(0)?.toUpperCase() ||
-                    user?.email?.charAt(0)?.toUpperCase() ||
-                    "?"}
+                  {/* Display first letter of name or email */}
+                  {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "?"}
                 </Avatar>
               </IconButton>
             </Tooltip>
@@ -261,26 +254,23 @@ function Navbar() {
 
           {/* User Menu Dropdown */}
           <Menu
+            id="menu-appbar-user" // Matches aria-controls
             sx={{ mt: "45px" }}
-            id="menu-appbar"
             anchorEl={anchorElUser}
-            anchorOrigin={{
-              vertical: "top",
-              horizontal: "right",
-            }}
+            anchorOrigin={{ vertical: "top", horizontal: "right" }}
             keepMounted
-            transformOrigin={{
-              vertical: "top",
-              horizontal: "right",
-            }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
             open={Boolean(anchorElUser)}
             onClose={handleCloseUserMenu}
           >
+            {/* User Info Display (Optional) */}
+             <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                 <Typography variant="subtitle1" fontWeight="bold">{user?.name || 'User'}</Typography>
+                 <Typography variant="body2" color="text.secondary">{user?.email}</Typography>
+             </Box>
+
             {settings.map((setting) => (
-              <MenuItem
-                key={setting}
-                onClick={() => handleSettingClick(setting)}
-              >
+              <MenuItem key={setting} onClick={() => handleSettingClick(setting)}>
                 <Typography sx={{ textAlign: "center" }}>{setting}</Typography>
               </MenuItem>
             ))}

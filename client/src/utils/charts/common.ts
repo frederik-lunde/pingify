@@ -1,257 +1,245 @@
 // src/utils/charts/common.ts
-import { Theme } from "@mui/material";
-import { MonitoringResult, TimeRange } from "../../types";
+import { MonitoringResult, TimeframeKey } from "../../types"; // Use TimeframeKey
 
 /**
- * Get date range based on time range selection
- * @param timeRange Selected time range
- * @returns Object with from and to dates
+ * Calculates the start date based on a timeframe key relative to a given end date (usually now).
+ * @param timeframe The selected timeframe key ('hour', 'day', 'week', 'month', 'year').
+ * @param endDate The date to calculate backwards from (defaults to current time).
+ * @returns The calculated start Date. Returns epoch start (1970) for 'all' or invalid keys.
  */
-export function getDateRangeFromTimeRange(timeRange: TimeRange): {
-  from: Date;
-  to: Date;
-} {
-  const to = new Date();
-  let from = new Date();
+export function getStartDateFromTimeframe(timeframe: TimeframeKey | string, endDate: Date = new Date()): Date {
+  const startDate = new Date(endDate); // Start calculation from the end date
 
-  switch (timeRange) {
-    case "1d":
-      from.setDate(from.getDate() - 1);
+  switch (timeframe) {
+    case 'hour':
+      startDate.setHours(startDate.getHours() - 1);
       break;
-    case "7d":
-      from.setDate(from.getDate() - 7);
+    case 'day':
+      startDate.setDate(startDate.getDate() - 1);
       break;
-    case "30d":
-      from.setDate(from.getDate() - 30);
+    case 'week':
+      startDate.setDate(startDate.getDate() - 7);
       break;
-    case "365d":
-      from.setDate(from.getDate() - 365);
+    case 'month':
+      startDate.setMonth(startDate.getMonth() - 1);
       break;
-    case "all":
-      // Set to a very old date for "all time"
-      from = new Date(0);
+    case 'year':
+      startDate.setFullYear(startDate.getFullYear() - 1);
       break;
+    // Handle explicit day counts if needed, mirroring logic from previous version
+    case '1d': startDate.setDate(startDate.getDate() - 1); break;
+    case '7d': startDate.setDate(startDate.getDate() - 7); break;
+    case '30d': startDate.setDate(startDate.getDate() - 30); break;
+    case '365d': startDate.setDate(startDate.getDate() - 365); break;
+    case 'all': // Represent 'all' with a very early date
+      return new Date(0); // Epoch start
+    default:
+      console.warn(`Invalid timeframe key: "${timeframe}". Defaulting to 'day'.`);
+      startDate.setDate(startDate.getDate() - 1); // Default to 'day' if invalid
+      break; // Added break statement
   }
 
-  return { from, to };
+  return startDate;
 }
 
 /**
- * Filters monitoring results based on time range
- * @param results Array of monitoring results
- * @param timeRange Selected time range
- * @returns Filtered results within the specified time range
+ * Filters monitoring results to include only those within a specified timeframe.
+ * @param results Array of monitoring results.
+ * @param timeframe The selected timeframe key.
+ * @returns Filtered results within the specified timeframe.
  */
 export function filterResultsByTimeRange(
   results: MonitoringResult[],
-  timeRange: TimeRange,
+  timeframe: TimeframeKey | string,
 ): MonitoringResult[] {
-  if (!results || results.length === 0) return [];
+  // Return early if no results or timeframe requires all data
+  if (!results || results.length === 0 || timeframe === 'all') {
+      return results;
+  }
 
-  const { from } = getDateRangeFromTimeRange(timeRange);
+  // Calculate the start date based on the timeframe
+  const startDate = getStartDateFromTimeframe(timeframe);
 
+  // Filter results where checkedAt is on or after the calculated start date
   return results.filter((result) => {
-    const checkedAt = new Date(result.checkedAt);
-    return checkedAt >= from;
+    // Ensure result.checkedAt is valid before creating Date
+    if (!result?.checkedAt) return false;
+    try {
+       const checkedAtDate = new Date(result.checkedAt);
+       // Check if the date is valid before comparison
+       return !isNaN(checkedAtDate.getTime()) && checkedAtDate >= startDate;
+    } catch (e) {
+        console.error(`Error parsing date: ${result.checkedAt}`, e);
+        return false; // Exclude results with invalid dates
+    }
   });
 }
 
+
 /**
- * Sorts monitoring results by time (oldest first)
- * @param results Array of monitoring results
- * @returns Sorted array
+ * Sorts monitoring results by time (chronologically, oldest first).
+ * @param results Array of monitoring results.
+ * @returns A new array with results sorted by time.
  */
 export function sortResultsByTime(
   results: MonitoringResult[],
 ): MonitoringResult[] {
   if (!results || results.length === 0) return [];
 
+  // Create a new array before sorting to avoid mutating the original
   return [...results].sort(
     (a, b) => new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime(),
   );
 }
 
+/** Type definition for grouped time data */
+export interface GroupedResult {
+    period: string; // The label for the time period (e.g., 'YYYY-MM-DD HH:00')
+    total: number; // Total checks in this period
+    available: number; // Number of 'up' checks
+    unavailable: number; // Number of 'down' checks
+    uptimePercentage: number; // Uptime percentage for this period
+    averageResponseTime: number; // Average response time for available checks (ms)
+}
+
+/** Type definition for the aggregation map used internally */
+type GroupedDataMap = Map<string, {
+    total: number;
+    available: number;
+    responseTimesSum: number; // Sum of response times for averaging
+    responseTimeCount: number; // Count of valid response times
+}>;
+
 /**
- * Group monitoring results by a time period
- * @param results Array of monitoring results
- * @param groupBy Time period to group by ('hour', 'day', 'week', 'month')
- * @returns Grouped results with counts and availability percentages
+ * Groups monitoring results by a specified time granularity (hour, day, week, month).
+ * @param results Array of monitoring results to group.
+ * @param groupBy The time unit to group by. Defaults to 'day'.
+ * @returns An array of grouped results, sorted chronologically by period.
  */
 export function groupResultsByTime(
   results: MonitoringResult[],
   groupBy: "hour" | "day" | "week" | "month" = "day",
-): Array<{
-  period: string;
-  total: number;
-  available: number;
-  unavailable: number;
-  uptimePercentage: number;
-  averageResponseTime: number;
-}> {
+): GroupedResult[] {
   if (!results || results.length === 0) return [];
 
-  const groupedData = new Map<
-    string,
-    {
-      total: number;
-      available: number;
-      unavailable: number;
-      responseTimes: number[];
-    }
-  >();
+  const groupedData: GroupedDataMap = new Map();
 
-  // Group the results
-  results.forEach((result) => {
-    const date = new Date(result.checkedAt);
-    let period: string;
-
+  // Helper function to get the period key based on granularity
+  const getPeriodKey = (date: Date): string => {
     switch (groupBy) {
       case "hour":
-        // Format: "YYYY-MM-DD HH:00"
-        period = `${date.toISOString().split("T")[0]} ${date.getHours()}:00`;
-        break;
-      case "day":
-        // Format: "YYYY-MM-DD"
-        period = date.toISOString().split("T")[0];
-        break;
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:00`;
       case "week":
-        // Get the first day of the week (Sunday)
-        const firstDay = new Date(date);
-        const day = date.getDay();
-        firstDay.setDate(date.getDate() - day);
-        period = firstDay.toISOString().split("T")[0];
-        break;
+        // Calculate the start of the week (assuming Sunday is the first day)
+        { const firstDayOfWeek = new Date(date);
+        firstDayOfWeek.setDate(date.getDate() - date.getDay());
+        firstDayOfWeek.setHours(0, 0, 0, 0); // Normalize time
+        return `${firstDayOfWeek.getFullYear()}-${String(firstDayOfWeek.getMonth() + 1).padStart(2, '0')}-${String(firstDayOfWeek.getDate()).padStart(2, '0')}`; } // Key is start date of the week
       case "month":
-        // Format: "YYYY-MM"
-        period = date.toISOString().split("T")[0].substring(0, 7);
-        break;
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // Key is YYYY-MM
+      case "day":
       default:
-        // Default to day format
-        period = date.toISOString().split("T")[0];
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; // Key is YYYY-MM-DD
+    }
+  };
+
+  // Iterate through results and aggregate data
+  results.forEach((result) => {
+    const date = new Date(result.checkedAt);
+    // Skip invalid dates
+    if (isNaN(date.getTime())) {
+        console.warn(`Skipping result with invalid date: ${result.checkedAt}`);
+        return;
     }
 
-    // Initialize or update the group
+    const period = getPeriodKey(date);
+
+    // Initialize group if it doesn't exist
     if (!groupedData.has(period)) {
       groupedData.set(period, {
         total: 0,
         available: 0,
-        unavailable: 0,
-        responseTimes: [],
+        responseTimesSum: 0,
+        responseTimeCount: 0,
       });
     }
 
+    // Update group data
     const group = groupedData.get(period)!;
     group.total++;
-
     if (result.isAvailable) {
       group.available++;
-      if (result.responseTime !== null && result.responseTime !== undefined) {
-        group.responseTimes.push(result.responseTime);
+      if (result.responseTime != null) { // Check for null or undefined
+        group.responseTimesSum += result.responseTime;
+        group.responseTimeCount++;
       }
-    } else {
-      group.unavailable++;
     }
   });
 
-  // Convert Map to array and calculate percentages
+  // Convert map to array, calculate percentages/averages, and sort
   return Array.from(groupedData.entries())
-    .map(([period, data]) => {
-      const uptimePercentage = (data.available / data.total) * 100;
-
-      // Calculate average response time
-      const averageResponseTime =
-        data.responseTimes.length > 0
-          ? data.responseTimes.reduce((sum, time) => sum + time, 0) /
-            data.responseTimes.length
-          : 0;
+    .map(([period, data]): GroupedResult => { // Explicit return type
+      const uptimePercentage = data.total > 0 ? (data.available / data.total) * 100 : 0;
+      const averageResponseTime = data.responseTimeCount > 0 ? data.responseTimesSum / data.responseTimeCount : 0;
+      const unavailable = data.total - data.available; // Calculate unavailable count
 
       return {
         period,
         total: data.total,
         available: data.available,
-        unavailable: data.unavailable,
+        unavailable, // Include unavailable count
         uptimePercentage,
         averageResponseTime,
       };
     })
+    // Sort the final array chronologically by period string
     .sort((a, b) => a.period.localeCompare(b.period));
 }
 
-/**
- * Get a gradient color based on value
- * @param value The value to get color for (0-100)
- * @param theme Material-UI theme
- * @returns RGB color string
- */
-export function getGradientColor(value: number, theme: Theme): string {
-  // Success color at 100%, error color at 0%
-  const successColor = theme.palette.success.main;
-  const warningColor = theme.palette.warning.main;
-  const errorColor = theme.palette.error.main;
-
-  // Convert hex to RGB
-  const hexToRgb = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result
-      ? {
-          r: parseInt(result[1], 16),
-          g: parseInt(result[2], 16),
-          b: parseInt(result[3], 16),
-        }
-      : { r: 0, g: 0, b: 0 };
-  };
-
-  let color;
-  if (value >= 99) {
-    color = successColor;
-  } else if (value >= 95) {
-    // Gradient between warning and success
-    const warningRgb = hexToRgb(warningColor);
-    const successRgb = hexToRgb(successColor);
-    const ratio = (value - 95) / (99 - 95);
-
-    color = `rgb(${Math.round(warningRgb.r + (successRgb.r - warningRgb.r) * ratio)}, ${Math.round(
-      warningRgb.g + (successRgb.g - warningRgb.g) * ratio,
-    )}, ${Math.round(warningRgb.b + (successRgb.b - warningRgb.b) * ratio)})`;
-  } else {
-    // Gradient between error and warning
-    const errorRgb = hexToRgb(errorColor);
-    const warningRgb = hexToRgb(warningColor);
-    const ratio = Math.max(0, value) / 95;
-
-    color = `rgb(${Math.round(errorRgb.r + (warningRgb.r - errorRgb.r) * ratio)}, ${Math.round(
-      errorRgb.g + (warningRgb.g - errorRgb.g) * ratio,
-    )}, ${Math.round(errorRgb.b + (warningRgb.b - errorRgb.b) * ratio)})`;
-  }
-
-  return color;
-}
 
 /**
- * Format date for display based on time range
- * @param date Date to format
- * @param timeRange Selected time range
- * @returns Formatted date string
+ * Formats a date for display in charts, adjusting based on the overall timeframe.
+ * @param date The Date object to format.
+ * @param timeframe The selected timeframe key ('hour', 'day', 'week', 'month', 'year').
+ * @returns A formatted date string suitable for chart labels.
  */
 export function formatDateForTimeRange(
   date: Date,
-  timeRange: TimeRange,
+  timeframe: TimeframeKey | string,
 ): string {
-  switch (timeRange) {
-    case "1d":
-      return date.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    case "7d":
-      return `${date.toLocaleDateString([], { weekday: "short" })} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-    case "30d":
-      return date.toLocaleDateString([], { month: "short", day: "numeric" });
-    case "365d":
-      return date.toLocaleDateString([], { month: "short", year: "2-digit" });
-    case "all":
-      return date.toLocaleDateString([], { year: "numeric", month: "short" });
-    default:
-      return date.toLocaleString();
-  }
+   try {
+     switch (timeframe) {
+        case 'hour':
+            // HH:MM format for hourly view
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        case 'day':
+        case '1d':
+            // HH:MM or just Hour for daily view
+            return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: false });
+        case 'week':
+        case '7d':
+            // Short weekday and day for weekly view
+            return date.toLocaleDateString([], { weekday: 'short', day: 'numeric' });
+        case 'month':
+        case '30d':
+            // Month abbreviation and day for monthly view
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        case 'year':
+        case '365d':
+            // Month abbreviation for yearly view
+            return date.toLocaleDateString([], { month: 'short' });
+        case 'all':
+             // Month and Year for 'all time' view
+             return date.toLocaleDateString([], { year: 'numeric', month: 'short' });
+        default:
+            // Fallback to a default locale string
+            return date.toLocaleString();
+     }
+   } catch (e) {
+       console.error("Error formatting date:", date, e);
+       return "Invalid Date"; // Return placeholder on error
+   }
 }
+
+// Note: getGradientColor function is removed as it wasn't used in the provided hooks/components
+// and introduces complexity. Direct color mapping (like in statusUtils) is often preferred.

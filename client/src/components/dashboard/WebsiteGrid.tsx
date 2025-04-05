@@ -1,153 +1,168 @@
 // client/src/components/dashboard/WebsiteGrid.tsx
 import React, { useMemo } from "react";
-import { Box, Alert, Button, Typography, Skeleton } from "@mui/material";
-import Grid from "@mui/material/Grid2"; // Using Grid2 as in your project
-import WebsiteCard from "./WebsiteCard";
-import { WebsiteWithResult } from "../../hooks/domain/useWebsiteData";
+import { Box, Alert, Button, Typography } from "@mui/material";
+import Grid from "@mui/material/Grid2"; // Using MUI Grid v2
+import WebsiteCard from "./WebsiteCard"; // Ensure this path is correct
 import { Add as AddIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router";
 
+// --- Import SHARED Types (Adjust path as needed) ---
+import {
+    ApiError,
+    WebsiteUser,
+} from "../../types"; // Adjust path to your shared types file
+
+// --- Import Hook-specific Type (Adjust path as needed) ---
+// This type likely comes from the useWebsiteData hook file itself or a related types file
+import { WebsiteWithResults } from "../../hooks/domain/useWebsiteData"; // Make sure this uses the shared WebsiteUser type internally
+
+
 interface WebsiteGridProps {
-  websitesWithLatestResults: WebsiteWithResult[];
-  loading?: boolean;
-  error?: Error | null;
+  websitesWithResults: WebsiteWithResults[]; // This should internally use the shared WebsiteUser
+  loading?: boolean; // Loading state for the overall grid data fetch
+  error?: ApiError | null; // Uses the shared ApiError type
 }
 
 /**
- * A grid component that displays website cards
- * Uses explicit data passing instead of hooks to make it more reusable
+ * A grid component that displays website cards using MUI Grid v2.
  */
 const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
-  ({ websitesWithLatestResults, loading = false, error = null }) => {
+  ({ websitesWithResults, loading = false, error = null }) => {
     const navigate = useNavigate();
 
-    // Memoize the sorted websites for better performance
+    // --- Sorting Logic ---
     const sortedWebsites = useMemo(() => {
-      if (!websitesWithLatestResults?.length) return [];
+      // Guard against null/undefined input
+      if (!websitesWithResults?.length) return [];
 
-      // Sort by online status first (offline websites first), then by name
-      return [...websitesWithLatestResults].sort((a, b) => {
-        // First sort by status (offline websites first)
-        const aStatus = a.latestResult?.isAvailable ?? true;
-        const bStatus = b.latestResult?.isAvailable ?? true;
+      // Create a shallow copy before sorting
+      return [...websitesWithResults].sort((a, b) => {
+         // Handle potential null items in the array if necessary (though ideally filter upstream)
+        if (!a || !b) return 0;
 
+        // Sort primarily by availability (Down first)
+        const aStatus = a.latestResult?.isAvailable ?? false; // Default to down if no result
+        const bStatus = b.latestResult?.isAvailable ?? false;
         if (aStatus !== bStatus) {
-          return aStatus ? 1 : -1;
+          return aStatus ? 1 : -1; // false (down) comes before true (up)
         }
 
-        // Then by name
-        return a.userWebsite.name.localeCompare(b.userWebsite.name);
+        // Sort secondarily by name (user name or URL)
+        // Use optional chaining and nullish coalescing for safety
+        const nameA = a.userWebsite?.name ?? a.userWebsite?.website?.url ?? '';
+        const nameB = b.userWebsite?.name ?? b.userWebsite?.website?.url ?? '';
+        return nameA.localeCompare(nameB);
       });
-    }, [websitesWithLatestResults]);
-    
-    // Function to render skeleton cards during loading
-    const renderSkeletonCards = () => {
-      return Array(4)
+    }, [websitesWithResults]);
+
+    // --- Skeleton Rendering ---
+    const renderSkeletonCards = (count = 4) => {
+      // Create a more realistic (but still dummy) WebsiteUser for the skeleton card
+      // Match the structure of the WebsiteUser type from your shared types file
+      const dummyWebsiteUser: WebsiteUser = {
+          id: -1,
+          userId: -1,
+          websiteId: -1,
+          name: 'Loading website...', // Placeholder name
+          interval: null, // Use null/defaults matching your type
+          alertEnabled: false,
+          alertThreshold: null,
+          notifyEmail: null,
+          createdAt: new Date().toISOString(),
+          website: { // Needs the nested Website object
+            id: -1,
+            url: 'http://loading.com',
+            isActive: true,
+            lastChecked: null,
+            globalInterval: 300, // Example default
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }
+      };
+
+      return Array(count)
         .fill(0)
         .map((_, i) => (
-          <Grid key={`skeleton-${i}`} size={{ xs: 12, sm: 6, md: 3 }}>
-            <Box
-              sx={{
-                height: "100%",
-                bgcolor: "background.paper",
-                borderRadius: 1,
-                p: 2,
-                boxShadow: 1,
-              }}
-            >
-              <Skeleton variant="text" width="70%" height={28} />
-              <Skeleton
-                variant="text"
-                width="90%"
-                height={20}
-                sx={{ mt: 1, mb: 2 }}
-              />
-              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
-                <Skeleton variant="rounded" width={80} height={24} />
-                <Skeleton variant="rounded" width={60} height={24} />
-                <Skeleton variant="rounded" width={70} height={24} />
-              </Box>
-              <Skeleton variant="rectangular" width="100%" height={100} />
-            </Box>
+          <Grid key={`skeleton-${i}`} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+            {/* Pass the dummy WebsiteUser and empty results array */}
+            {/* WebsiteCard now expects `WebsiteUser` type */}
+            <WebsiteCard
+                userWebsite={dummyWebsiteUser}
+                results={[]} // Pass empty array for results prop
+                // latestResult is optional, will be undefined
+            />
           </Grid>
         ));
     };
 
-    // Handle navigation to add website page
+    // --- Event Handlers ---
     const handleAddWebsite = () => {
       navigate("/add-website");
     };
 
-    // Loading state
-    if (loading && !sortedWebsites.length) {
+    // --- Render Logic ---
+
+    // Show skeletons if loading AND there's no data yet to display
+    if (loading && sortedWebsites.length === 0) {
       return (
-        <Grid container spacing={3}>
-          {renderSkeletonCards()}
+        <Grid container spacing={2}>
+          {renderSkeletonCards(8)} {/* Render a few more skeletons initially */}
         </Grid>
       );
     }
 
-    // Error state
+    // Show error message if an error occurred
     if (error) {
-      return (
-        <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
-          Error loading websites: {error.message}
-        </Alert>
-      );
+         const errorMessage = (error && typeof error === 'object' && 'message' in error)
+            ? String(error.message)
+            : 'An unknown error occurred';
+         return (
+            <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+              Error loading websites: {errorMessage}
+            </Alert>
+          );
     }
 
-    // Empty state
-    if (!sortedWebsites.length) {
-      return (
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            p: 4,
-            borderRadius: 2,
-            bgcolor: "background.paper",
-            boxShadow: 1,
-            textAlign: "center",
-          }}
-        >
-          <Typography variant="h6" gutterBottom>
-            No websites found
-          </Typography>
-          <Typography variant="body2" color="textSecondary" paragraph>
-            Add your first website to start monitoring.
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddWebsite}
-            sx={{ mt: 2 }}
-          >
-            Add Website
-          </Button>
-        </Box>
-      );
+    // Show "No websites" message if not loading and the array is empty
+    if (!loading && sortedWebsites.length === 0) {
+         return (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: { xs: 2, sm: 4 }, borderRadius: 2, bgcolor: "background.paper", boxShadow: 1, textAlign: "center", mt: 3 }}>
+              <Typography variant="h6" gutterBottom>No websites found</Typography>
+              <Typography variant="body2" color="textSecondary" paragraph>Add your first website to start monitoring.</Typography>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddWebsite} sx={{ mt: 2 }}>
+                Add Website
+              </Button>
+            </Box>
+          );
     }
 
+    // Render the actual website cards
     return (
-      <Grid container spacing={3}>
-        {sortedWebsites.map((item) => (
-          <Grid
-            key={`website-${item.userWebsite.websiteId}`}
-            size={{ xs: 12, sm: 6, md: 3 }}
-          >
-            <WebsiteCard
-              userWebsite={item.userWebsite}
-              latestResult={item.latestResult}
-              results={item.results || []}
-              loading={loading}
-            />
-          </Grid>
-        ))}
+      <Grid container spacing={2}>
+        {sortedWebsites.map((item) => {
+           // Add a check for item and item.userWebsite before rendering
+           if (!item?.userWebsite) {
+               console.warn("[WebsiteGrid] Skipping item due to missing userWebsite:", item);
+               return null; // Skip rendering if essential data is missing
+           }
+           return (
+              <Grid
+                key={`website-${item.userWebsite.websiteId}`}
+                size={{ xs: 12, sm: 6, md: 4, lg: 3 }}
+              >
+                {/* Pass the correct props to WebsiteCard */}
+                <WebsiteCard
+                  userWebsite={item.userWebsite} // Pass the WebsiteUser object
+                  latestResult={item.latestResult}
+                  results={item.recentResults || []} // Pass recentResults array, default to empty
+                />
+              </Grid>
+           );
+        })}
       </Grid>
     );
   },
 );
+WebsiteGrid.displayName = 'WebsiteGrid'; // Optional: for better debugging
 
 export default WebsiteGrid;

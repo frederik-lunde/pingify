@@ -1,97 +1,138 @@
-// src/hooks/domain/useWebsiteData.ts
+//client\src\hooks\domain\useWebsiteData.ts
 import { useMemo, useCallback } from "react";
-import { UserWebsite, MonitoringResult } from "../../types";
-import { useUserMonitoringResults } from "../api/useMonitoring";
-import { useWebsites } from "../api/useWebsites";
+import { WebsiteUser, MonitoringResult, ApiError, OverallStats } from "../../types"; // Adjust path
+import { useUserWebsitesQuery } from "../api/useWebsites";
+import { useUserMonitoringResultsQuery } from "../api/useMonitoring"; // Hook to fetch all results
+import { useUserStatsQuery } from "../api/useMonitoring"; // Hook to fetch user stats
 
-export interface WebsiteWithResult {
-  userWebsite: UserWebsite;
+const RECENT_RESULTS_LIMIT_FOR_CARD = 20;
+
+export interface WebsiteWithResults {
+  userWebsite: WebsiteUser;
   latestResult?: MonitoringResult;
-  results: MonitoringResult[]; // Array of monitoring results for chart
+  recentResults: MonitoringResult[];
 }
 
-/**
- * Hook to get combined website and monitoring result data
- * Uses the API hooks for data fetching
- */
-export function useWebsiteData(limit = 100, pollingInterval?: number) {
-  // Fetch websites data
-  const {
-    data: userWebsites = [],
-    loading: websitesLoading,
-    refetch: refetchWebsites,
-  } = useWebsites(pollingInterval);
+export interface WebsiteDataSummary {
+    websitesWithResults: WebsiteWithResults[];
+    overallStats: OverallStats | null;
+    isLoading: boolean; // True during the *initial* loading phase of essential data
+    isFetching: boolean; // True if any query is fetching (initial or background)
+    error: ApiError | null;
+    refetch: () => Promise<any>;
+}
 
-  // Fetch monitoring results data
-  const {
-    data: allMonitoringResults = [],
-    loading: resultsLoading,
-    refetch: refetchResults,
-  } = useUserMonitoringResults({ limit }, pollingInterval);
+export function useWebsiteData(
+    resultsLimit: number = 500,
+    statsPeriod: string = 'week',
+    refetchInterval?: number | false
+): WebsiteDataSummary {
 
-  // Combine websites with their results
-  const websitesWithLatestResults = useMemo(() => {
-    // Debug output for data received
+    const queryOptions = useMemo(() => ({ refetchInterval }), [refetchInterval]);
 
-    if (!userWebsites?.length) {
-      return [];
-    }
+    // --- Queries (No initialData passed here or set internally in hooks being called) ---
+    const websitesQuery = useUserWebsitesQuery(queryOptions);
+    const resultsQuery = useUserMonitoringResultsQuery(resultsLimit, queryOptions);
+    const statsQuery = useUserStatsQuery(statsPeriod, queryOptions);
 
-    // Map each website to include its results
-    return userWebsites.map((userWebsite) => {
-      // Filter results for this specific website
-      const websiteResults = (allMonitoringResults || [])
-        .filter((result) => result.websiteId === userWebsite.websiteId)
-        .sort(
-          (a, b) =>
-            new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime(),
-        );
+    // --- Loading and Error States ---
+    // Use isPending (v5) or isLoading (v4) for initial load status
+    const isLoading = websitesQuery.isPending || resultsQuery.isPending;
+    const isFetching = websitesQuery.isFetching || resultsQuery.isFetching || statsQuery.isFetching;
+    const error = websitesQuery.error || resultsQuery.error || statsQuery.error;
 
-      // Get the latest result (first after sorting)
-      const latestResult =
-        websiteResults.length > 0 ? websiteResults[0] : undefined;
+    // --- Process Data with useMemo (Simplified Guards) ---
+    const processedWebsitesWithResults = useMemo((): WebsiteWithResults[] => {
+        console.log(`[useWebsiteData Memo Simplified] Running. Statuses: W=${websitesQuery.status}, R=${resultsQuery.status}. Data Lengths: W=${websitesQuery.data?.length ?? 'undef'}, R=${resultsQuery.data?.length ?? 'undef'}`);
 
-      return {
-        userWebsite,
-        latestResult,
-        results: websiteResults,
-      };
-    });
-  }, [userWebsites, allMonitoringResults]);
+        // Guard 1: Ensure both queries are successful
+        if (!websitesQuery.isSuccess || !resultsQuery.isSuccess) {
+            console.log('[useWebsiteData Memo Simplified] Returning early: Queries not successful.');
+            return [];
+        }
 
-  // Helper function to refetch all data
-  const refetch = useCallback(() => {
-    refetchWebsites();
-    refetchResults();
-  }, [refetchWebsites, refetchResults]);
+        // Guard 2: Access data. Should exist and not be undefined here if isSuccess is true.
+        const userWebsites = websitesQuery.data;
+        const allMonitoringResults = resultsQuery.data;
 
-  // Calculate overall status
-  const overallStatus = useMemo(() => {
-    if (!websitesWithLatestResults.length) {
-      return {
-        totalWebsites: 0,
-        onlineWebsites: 0,
-        offlineWebsites: 0,
-      };
-    }
+        // Guard 3: Check data is actually available (maybe redundant if isSuccess works as expected, but safe)
+         if (!userWebsites || !allMonitoringResults) {
+             console.log('[useWebsiteData Memo Simplified] Returning early: Data array(s) missing after success status.');
+             return [];
+         }
 
-    const online = websitesWithLatestResults.filter(
-      (site) => site.latestResult?.isAvailable,
-    ).length;
+         // Guard 4: Handle genuinely empty websites list
+         if (userWebsites.length === 0) {
+            console.log('[useWebsiteData Memo Simplified] No actual user websites found (length 0).');
+            return [];
+         }
 
+        console.log(`[useWebsiteData Memo Simplified] Processing ${userWebsites.length} websites...`);
+        // --- Combination logic ---
+        const resultsByWebsite = new Map<number, MonitoringResult[]>();
+        allMonitoringResults.forEach(result => {
+            if (result && result.websiteId) {
+                if (!resultsByWebsite.has(result.websiteId)) {
+                    resultsByWebsite.set(result.websiteId, []);
+                }
+                resultsByWebsite.get(result.websiteId)?.push(result);
+            }
+        });
+
+        const newProcessedWebsites: WebsiteWithResults[] = userWebsites.map(userWebsite => {
+            const websiteId = userWebsite.websiteId;
+            const siteResults = resultsByWebsite.get(websiteId) || [];
+
+            if (siteResults.length > 0) {
+                 siteResults.sort((a, b) => {
+                     const timeA = a.checkedAt ? new Date(a.checkedAt).getTime() : 0;
+                     const timeB = b.checkedAt ? new Date(b.checkedAt).getTime() : 0;
+                     return timeB - timeA; // Sort newest first
+                 });
+                 const latestResult = siteResults[0];
+                 const recentResults = siteResults.slice(0, RECENT_RESULTS_LIMIT_FOR_CARD);
+                 return { userWebsite, latestResult, recentResults };
+             } else {
+                 return { userWebsite, latestResult: undefined, recentResults: [] };
+             }
+        });
+
+        console.log(`[useWebsiteData Memo Simplified] Processing complete. Returning ${newProcessedWebsites.length} items.`);
+        return newProcessedWebsites;
+
+    // Dependency array: Depend on success status and data references
+    }, [
+        websitesQuery.isSuccess,
+        resultsQuery.isSuccess,
+        websitesQuery.data,
+        resultsQuery.data
+    ]);
+
+    // --- Refetch Function ---
+    const refetch = useCallback(async () => {
+        console.log('[useWebsiteData] Triggering refetch...');
+        const results = await Promise.allSettled([
+            websitesQuery.refetch(),
+            resultsQuery.refetch(),
+            statsQuery.refetch(),
+        ]);
+        results.forEach((result, index) => {
+            if (result.status === 'rejected') {
+                console.error(`Refetch failed for query ${index}:`, result.reason);
+            }
+        });
+        return results;
+    }, [websitesQuery, resultsQuery, statsQuery]);
+
+
+    // --- Return Value ---
+    console.log(`[useWebsiteData Render] isLoading: ${isLoading}, isFetching: ${isFetching}, Processed Data Count: ${processedWebsitesWithResults.length}`);
     return {
-      totalWebsites: websitesWithLatestResults.length,
-      onlineWebsites: online,
-      offlineWebsites: websitesWithLatestResults.length - online,
+        websitesWithResults: processedWebsitesWithResults,
+        overallStats: statsQuery.data ?? null,
+        isLoading: isLoading, // Use the pending status for the main loader
+        isFetching: isFetching,
+        error: error,
+        refetch: refetch,
     };
-  }, [websitesWithLatestResults]);
-
-  return {
-    websitesWithLatestResults,
-    loading: websitesLoading || resultsLoading,
-    refetch,
-    overallStatus,
-  };
 }
-
-export default useWebsiteData;

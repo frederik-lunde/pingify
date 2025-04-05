@@ -1,122 +1,111 @@
-// src/hooks/api/useMonitoring.ts
-import { useState, useCallback } from "react";
-import { MonitoringResult, OverallStats, WebsiteStats } from "../../types";
-import apiClient from "../../api/client";
-import { usePolling } from "../common/usePolling";
+//client\src\hooks\api\useMonitoring.ts
+import {
+    useQuery,
+    useMutation,
+    useQueryClient,
+    UseQueryOptions // <-- Import UseQueryOptions
+} from '@tanstack/react-query';
+import {
+    fetchWebsiteDetails,
+    triggerWebsiteCheck,
+    fetchUserStats,
+    fetchWebsiteStats,
+    fetchAllUserMonitoringResults,
+    FetchWebsiteDetailsParams,
+} from '../../api/monitoringApi'; // Adjust path
+import {
+    WebsiteDetailsData,
+    OverallStats,
+    WebsiteStatsData,
+    MonitoringResult,
+    ApiError,
+    TimeframeKey
+} from '../../types'; // Adjust path
+
+// Query Keys
+export const monitoringQueryKeys = {
+    all: ['monitoring'] as const,
+    details: (params: FetchWebsiteDetailsParams) => [...monitoringQueryKeys.all, 'details', params.websiteId, params] as const,
+    userStats: (period: TimeframeKey | string) => [...monitoringQueryKeys.all, 'stats', 'user', { period }] as const,
+    websiteStats: (websiteId: number, period: TimeframeKey | string) => [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { period }] as const,
+    userResults: (limit: number) => [...monitoringQueryKeys.all, 'userResults', { limit }] as const,
+};
+
+// Define the helper type here as well
+type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
+    UseQueryOptions<TQueryFnData, TError>,
+    'queryKey' | 'queryFn'
+>;
 
 /**
- * Query options for monitoring results
+ * Hook to fetch detailed data for the Website Details page.
  */
-export interface MonitoringQueryOptions {
-  limit?: number;
-  from?: Date;
-  to?: Date;
-}
-
-/**
- * Hook for polling the latest monitoring results for the user's websites
- */
-export function useUserMonitoringResults(
-  options: MonitoringQueryOptions = { limit: 20 },
-  pollingInterval?: number,
-) {
-  const fetchResults = useCallback(async () => {
-    const params: any = { limit: options.limit || 100 };
-    if (options.from) params.from = options.from.toISOString();
-    if (options.to) params.to = options.to.toISOString();
-
-    return await apiClient.get<MonitoringResult[]>("/monitoring/user/results", {
-      params,
+export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, options?: CustomQueryOptions<WebsiteDetailsData>) {
+    const queryKey = monitoringQueryKeys.details(params);
+    return useQuery<WebsiteDetailsData, ApiError>({
+        queryKey: queryKey,
+        queryFn: () => fetchWebsiteDetails(params),
+        enabled: options?.enabled ?? (!!params.websiteId && params.websiteId > 0),
+        ...options,
     });
-  }, [options.limit, options.from, options.to]);
-
-  return usePolling<MonitoringResult[]>(fetchResults, { pollingInterval });
 }
 
 /**
- * Hook for polling results for a specific website
+ * Hook for triggering an immediate website check (mutation).
  */
-export function useWebsiteResults(
-  websiteId: number,
-  options: MonitoringQueryOptions = { limit: 20 },
-  pollingInterval?: number,
-) {
-  const fetchResults = useCallback(async () => {
-    const params: any = { limit: options.limit || 100 };
-    if (options.from) params.from = options.from.toISOString();
-    if (options.to) params.to = options.to.toISOString();
-
-    return await apiClient.get<MonitoringResult[]>(
-      `/monitoring/website/${websiteId}/results`,
-      { params },
-    );
-  }, [websiteId, options.limit, options.from, options.to]);
-
-  return usePolling<MonitoringResult[]>(fetchResults, { pollingInterval });
-}
-
-/**
- * Hook for polling user dashboard statistics
- */
-export function useUserStats(period = "7d", pollingInterval?: number) {
-  const fetchStats = useCallback(async () => {
-    return await apiClient.get<OverallStats>("/monitoring/user/stats", {
-      params: { period },
+export function useWebsiteCheckMutation() {
+    const queryClient = useQueryClient();
+    return useMutation< { message: string }, ApiError, number>({
+        mutationFn: (websiteId: number) => triggerWebsiteCheck(websiteId),
+        onSuccess: (data, websiteId) => {
+            console.log('Check triggered successfully:', data.message);
+             queryClient.invalidateQueries({
+                 predicate: query =>
+                    (query.queryKey[0] === 'monitoring' && query.queryKey[1] === 'details' && query.queryKey[2] === websiteId) ||
+                    (query.queryKey[0] === 'monitoring' && query.queryKey[1] === 'stats' && query.queryKey[3] === websiteId) ||
+                    (query.queryKey[0] === 'monitoring' && query.queryKey[1] === 'userResults')
+             });
+        },
+        onError: (error) => {
+            console.error('Failed to trigger website check:', error.message);
+        },
     });
-  }, [period]);
-
-  return usePolling<OverallStats>(fetchStats, { pollingInterval });
 }
 
 /**
- * Hook for polling statistics for a specific website
+ * Hook to fetch overall statistics for the user dashboard.
  */
-export function useWebsiteStats(
-  websiteId: number,
-  period = "7d",
-  pollingInterval?: number,
-) {
-  const fetchStats = useCallback(async () => {
-    return await apiClient.get<WebsiteStats>(
-      `/monitoring/website/${websiteId}/stats`,
-      {
-        params: { period },
-      },
-    );
-  }, [websiteId, period]);
-
-  return usePolling<WebsiteStats>(fetchStats, { pollingInterval });
+export function useUserStatsQuery(period: TimeframeKey | string = 'week', options?: CustomQueryOptions<OverallStats>) {
+    return useQuery<OverallStats, ApiError>({
+        queryKey: monitoringQueryKeys.userStats(period),
+        queryFn: () => fetchUserStats(period),
+        staleTime: 1000 * 60 * 2,
+        ...options,
+    });
 }
 
 /**
- * Hook for manually checking a website with loading state
+ * Hook to fetch statistics for a specific website.
  */
-export function useWebsiteCheck() {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [result, setResult] = useState<any>(null);
+export function useWebsiteStatsQuery(websiteId: number | undefined, period: TimeframeKey | string = 'week', options?: CustomQueryOptions<WebsiteStatsData>) {
+    return useQuery<WebsiteStatsData, ApiError>({
+        queryKey: monitoringQueryKeys.websiteStats(websiteId!, period),
+        queryFn: () => fetchWebsiteStats(websiteId!, period),
+        enabled: options?.enabled ?? (!!websiteId && websiteId > 0),
+        staleTime: 1000 * 60 * 2,
+        ...options,
+    });
+}
 
-  const checkWebsite = useCallback(async (websiteId: number) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await apiClient.post<{ message: string }>(
-        `/monitoring/check/${websiteId}`,
-      );
-      setResult(data);
-      return data;
-    } catch (err) {
-      const errorObj =
-        err instanceof Error
-          ? err
-          : new Error(`Failed to check website ID: ${websiteId}`);
-      setError(errorObj);
-      throw errorObj;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { checkWebsite, loading, error, result };
+/**
+ * Hook to fetch all monitoring results for the user (used by useWebsiteData).
+ */
+export function useUserMonitoringResultsQuery(limit: number = 500, options?: CustomQueryOptions<MonitoringResult[]>) {
+    return useQuery<MonitoringResult[], ApiError>({
+        queryKey: monitoringQueryKeys.userResults(limit),
+        queryFn: () => fetchAllUserMonitoringResults(limit),
+        // REMOVED initialData setting from here
+        staleTime: 1000 * 30,
+        ...options,
+    });
 }

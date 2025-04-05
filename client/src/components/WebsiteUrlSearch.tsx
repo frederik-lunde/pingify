@@ -1,205 +1,233 @@
-// Simplified WebsiteUrlSearch.tsx
-import React, {useEffect, useMemo } from "react";
+// src/components/WebsiteUrlSearch.tsx
+import React, { useMemo, useCallback } from "react";
 import {
   TextField,
   Autocomplete,
   CircularProgress,
-  InputAdornment,
-  Tooltip,
-  IconButton,
-  Box,
+  debounce,
+  FormHelperText, // Import FormHelperText
+  Box,            // Import Box for layout if needed
 } from "@mui/material";
-import { Search as SearchIcon } from "@mui/icons-material";
+// Import SHARED types
 import { Website } from "../types";
-import { useWebsiteSearch } from "../hooks";
-import { debounce } from "lodash";
-import { useField, useFormikContext } from "formik";
+// Import hook
+import { useWebsiteSearch } from "../hooks/api/useWebsites";
+import { useField, useFormikContext } from "formik"; // Keep Formik hooks
 
+// --- Define Props Interface ---
 export interface WebsiteUrlSearchProps {
-  name: string; // Field name for Formik
+  name: string; // Field name for Formik - REQUIRED
+  label?: string;
+  placeholder?: string;
+  helperText?: string; // Default helper text (shown when no error)
+  searchLimit?: number;
+  disabled?: boolean;
+  required?: boolean; // To show the asterisk (*) on the label
+
+  // Optional callbacks for non-Formik usage or extra actions
   value?: string;
   onChange?: (url: string) => void;
   onSelect?: (website: Website | null) => void;
-  label?: string;
-  placeholder?: string;
-  helperText?: string;
-  searchLimit?: number;
-  disabled?: boolean;
+
+  // --- Add Props for Formik Validation Display ---
+  error?: boolean;       // Explicitly pass error state from Formik (meta.touched && !!meta.error)
+  errorMessage?: string; // Explicitly pass error message from Formik (meta.error)
 }
 
 const WebsiteUrlSearch = ({
   name,
-  value: externalValue,
-  onChange: externalOnChange,
-  onSelect,
   label = "Website URL",
   placeholder = "https://example.com",
-  helperText = "Full URL including http:// or https://",
+  helperText = "Enter full URL (e.g., https://example.com)",
   searchLimit = 10,
   disabled = false,
+  required = false, // Default to false
+  value: externalValue,
+  onChange: externalOnChange,
+  onSelect: externalOnSelect,
+  // --- Destructure the new props ---
+  error: externalError,
+  errorMessage: externalErrorMessage,
 }: WebsiteUrlSearchProps) => {
-  // Get Formik context if available
-  const formik = useFormikContext();
-  const [field, meta, helpers] = useField(name);
-  
-  // Use values from Formik or from props if used outside of Formik
-  const isFormik = !!formik;
-  const fieldValue = isFormik ? field?.value : externalValue || "";
-  const fieldError = isFormik && meta?.touched ? meta.error : undefined;
-  
-  // Use our search hook
+
+  // --- Formik Integration ---
+  // Use Formik context ONLY IF available. Fallback for standalone usage.
+  const formikContext = useFormikContext();
+  const isFormik = !!formikContext; // Check if Formik context exists
+
+  // Use useField hook ONLY IF inside Formik, otherwise manage state via props
+  // Provide a dummy field/meta if not in Formik to avoid runtime errors
+  const [field, meta] = isFormik
+    ? useField(name)
+    : [ { name, value: externalValue || '', onChange: () => {}, onBlur: () => {} }, // Dummy field
+        { value: externalValue || '', error: externalErrorMessage, touched: false, initialValue: '', initialTouched: false, initialError: undefined }, // Dummy meta
+        {}]; // Dummy helpers
+
+  const { setFieldValue, setFieldTouched } = formikContext || {}; // Get Formik helpers if available
+
+  // Determine final error state and message (prioritize explicit props if provided, else use Formik meta)
+  const hasError = externalError ?? (isFormik && meta?.touched && !!meta.error);
+  const displayMessage = hasError
+    ? (externalErrorMessage ?? (isFormik ? meta.error : ''))
+    : helperText; // Show error or default helper text
+
+
+  // --- Search Hook & Debounce (Keep as is) ---
   const {
     results: options,
     loading,
     search: searchWebsites,
-  } = useWebsiteSearch("", searchLimit);
+  } = useWebsiteSearch(searchLimit);
 
-  // Create debounced search function
   const debouncedSearch = useMemo(
-    () => debounce((searchTerm: string) => {
-      searchWebsites(searchTerm);
-    }, 300),
-    [searchWebsites],
+    () => debounce((searchTerm: string) => { searchWebsites(searchTerm); }, 400),
+    [searchWebsites]
   );
 
-  // Load initial options on mount
-  useEffect(() => {
-    debouncedSearch("");
-    return () => debouncedSearch.cancel();
-  }, [debouncedSearch]);
-
-  // Handle URL input change
-  const handleInputChange = (
-    _event: React.SyntheticEvent,
-    newValue: string,
-  ) => {
-    // Update Formik field if within Formik context, otherwise use external handler
-    if (isFormik) {
-      helpers.setValue(newValue);
-      helpers.setTouched(true, false);
-    } else if (externalOnChange) {
-      externalOnChange(newValue);
-    }
-    
-    debouncedSearch(newValue);
-  };
-
-  // Handle URL autocomplete selection
-  const handleUrlSelect = (
-    _event: React.SyntheticEvent<Element, Event>,
-    newValue: string | Website | null,
-    _reason: string,
-  ) => {
-    if (typeof newValue === "string") {
-      if (isFormik) {
-        helpers.setValue(newValue);
+  // --- Event Handlers ---
+  const handleInputChange = useCallback(
+    (_event: React.SyntheticEvent, newValue: string) => {
+      if (isFormik && setFieldValue) {
+        setFieldValue(name, newValue);
       } else if (externalOnChange) {
         externalOnChange(newValue);
       }
-      if (onSelect) onSelect(null);
-    } else if (newValue === null) {
-      if (isFormik) {
-        helpers.setValue("");
-      } else if (externalOnChange) {
-        externalOnChange("");
-      }
-      if (onSelect) onSelect(null);
-    } else {
-      if (isFormik) {
-        helpers.setValue(newValue.url);
-      } else if (externalOnChange) {
-        externalOnChange(newValue.url);
-      }
-      if (onSelect) onSelect(newValue);
-    }
-  };
+      debouncedSearch(newValue);
+    },
+    [isFormik, setFieldValue, name, externalOnChange, debouncedSearch]
+  );
 
-  // Get URL from option (string or Website)
-  const getOptionLabel = (option: string | Website): string => {
-    return typeof option === "string" ? option : option.url;
-  };
+  const handleSelection = useCallback(
+    (
+      _event: React.SyntheticEvent,
+      selectedValue: string | Website | null,
+    ) => {
+      let finalUrl = "";
+      let selectedWebsite: Website | null = null;
 
-  // Convert string value to Website object if found in options
-  const convertValue = () => {
-    if (fieldValue) {
-      const matchingWebsite = options.find((opt) => opt.url === fieldValue);
-      return matchingWebsite || fieldValue;
-    }
-    return null;
-  };
-
-  // Helper to automatically add protocol if missing
-  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-    const url = event.target.value.trim();
-    
-    // Mark field as touched in Formik
-    if (isFormik) {
-      helpers.setTouched(true, true);
-    }
-    
-    if (url && !url.match(/^https?:\/\//i)) {
-      const newUrl = `https://${url}`;
-      
-      // Update Formik field or use external handler
-      if (isFormik) {
-        helpers.setValue(newUrl);
-      } else if (externalOnChange) {
-        externalOnChange(newUrl);
+      if (typeof selectedValue === "string") {
+        finalUrl = selectedValue;
+      } else if (selectedValue) {
+        finalUrl = selectedValue.url;
+        selectedWebsite = selectedValue;
       }
-    }
-  };
+
+      if (isFormik && setFieldValue) {
+        setFieldValue(name, finalUrl);
+        // Optionally mark as touched after selection
+        if (setFieldTouched) setFieldTouched(name, true, false);
+      } else if (externalOnChange) {
+        externalOnChange(finalUrl);
+      }
+
+      if (externalOnSelect) {
+        externalOnSelect(selectedWebsite);
+      }
+    },
+    [isFormik, setFieldValue, setFieldTouched, name, externalOnChange, externalOnSelect]
+  );
+
+   // Helper to ensure URL has a protocol (needed for onBlur)
+    const ensureUrlProtocol = (url: string): string => {
+        if (!url) return "";
+        if (!/^(https?|ftp):\/\//i.test(url)) {
+            return `https://${url}`;
+        }
+        return url;
+    };
+
+    const handleBlur = useCallback((event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      // *** CORRECTED: Call Formik's onBlur directly if within Formik ***
+      if (isFormik) {
+          field.onBlur(event); // Call Formik's handler to mark field as touched
+      }
+      // *** END CORRECTION ***
+
+      // Then apply custom URL formatting logic
+      const currentValue = event.target.value.trim();
+      const formattedUrl = ensureUrlProtocol(currentValue);
+
+      // Update the value only if it changed after formatting
+      if (formattedUrl !== currentValue) {
+           if (isFormik && setFieldValue) {
+              // Update Formik state and potentially re-validate
+              setFieldValue(name, formattedUrl, true);
+          } else if (externalOnChange) {
+              // Call external handler if not using Formik
+              externalOnChange(formattedUrl);
+          }
+      }
+  }, [isFormik, field, setFieldValue, name, externalOnChange]);
+
+
+  // Determine the value to pass to Autocomplete's `value` prop
+  // It should match an object in `options` if possible, or be the string value, or null
+  const autocompleteValue = useMemo(() => {
+      const currentFieldValue = field.value || ''; // Get value from Formik field
+      const matchedOption = options.find(opt => typeof opt !== 'string' && opt.url === currentFieldValue);
+      return matchedOption || currentFieldValue || null; // Prioritize matched object
+  }, [field.value, options]);
+
 
   return (
-    <Autocomplete
-      freeSolo
-      options={options}
-      filterOptions={(x) => x} // Don't filter - we handle this server-side
-      getOptionLabel={getOptionLabel}
-      loading={loading}
-      onInputChange={(e, value) => handleInputChange(e, value)}
-      onChange={handleUrlSelect}
-      inputValue={fieldValue}
-      value={convertValue()}
-      disabled={disabled}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label={label}
-          required
-          variant="outlined"
-          placeholder={placeholder}
-          error={!!fieldError}
-          helperText={fieldError || helperText}
-          onBlur={handleBlur}
-          InputProps={{
-            ...params.InputProps,
-            endAdornment: (
-              <>
-                {loading ? (
-                  <CircularProgress color="inherit" size={20} />
-                ) : null}
-                {params.InputProps.endAdornment}
-                <InputAdornment position="end">
-                  <Tooltip title="Search for existing websites">
-                    <IconButton size="small">
-                      <SearchIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </InputAdornment>
-              </>
-            ),
-          }}
+    // Use Box to contain Autocomplete and custom FormHelperText
+    <Box>
+        <Autocomplete
+            freeSolo
+            options={options}
+            filterOptions={(x) => x} // API handles filtering
+            getOptionLabel={(option) => (typeof option === "string" ? option : option.url)}
+            renderOption={(props, option) => (
+                <li {...props} key={typeof option === 'string' ? option : option.id}>
+                {typeof option === "string" ? option : option.url}
+                </li>
+            )}
+            onInputChange={handleInputChange}
+            onChange={handleSelection}
+            // Pass the derived autocompleteValue
+            value={autocompleteValue}
+            // Control input value directly via field state for consistency
+            inputValue={field.value || ""}
+            loading={loading}
+            disabled={disabled}
+            // The input component rendered by Autocomplete
+            renderInput={(params) => (
+                <TextField
+                {...params}
+                // Use Formik field props for name, value (usually handled by Autocomplete), onChange (partially), onBlur
+                // name={field.name} // Already passed via params spreading
+                // value={field.value} // Autocomplete handles this via `value` and `inputValue` props above
+                 // onChange={field.onChange} // Autocomplete handles via onInputChange/onChange
+                 onBlur={handleBlur} // Use our custom blur handler
+                label={label}
+                variant="outlined"
+                placeholder={placeholder}
+                required={required} // Show required asterisk based on prop
+                // --- Use derived error state ---
+                error={hasError}
+                // HelperText is handled outside by FormHelperText component
+                // helperText={displayMessage} // DON'T set it here
+                disabled={disabled}
+                InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                    <>
+                        {loading ? <CircularProgress color="inherit" size={20} sx={{ mr: 4 }} /> : null} {/* Adjust margin if needed */}
+                        {params.InputProps.endAdornment}
+                    </>
+                    ),
+                }}
+                />
+            )}
         />
-      )}
-      renderOption={(props, option) => {
-        const url = typeof option === "string" ? option : option.url;
-        return (
-          <li {...props}>
-            <Box component="span">{url}</Box>
-          </li>
-        );
-      }}
-    />
+        {/* Conditionally render FormHelperText outside the TextField */}
+        {/* This ensures consistent spacing and allows showing default helper text */}
+        {displayMessage && (
+             <FormHelperText error={hasError} sx={{ marginLeft: '14px', marginRight: '14px' }}>
+                 {displayMessage}
+             </FormHelperText>
+         )}
+    </Box>
   );
 };
 
