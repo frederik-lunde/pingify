@@ -1,252 +1,290 @@
-// src/components/AlertsDropdown.tsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo } from "react";
 import {
   Badge, IconButton, Tooltip, Menu, MenuItem, Stack, Typography,
-  Button, Divider, ListItemIcon, Box, CircularProgress,
+  Divider, ListItemIcon, Box, CircularProgress,
 } from "@mui/material";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import CloseIcon from "@mui/icons-material/Close";
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'; // Icon for error state
+import NotificationsOffIcon from '@mui/icons-material/NotificationsOff'; // Icon for no alerts state
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router";
-// Use the refactored TanStack Query hooks
-import { useUserUnreadAlertsQuery, useAlertReadMutations } from "../../hooks/api/useAlerts"; // Adjust path
-import { AlertUser, AlertQueryOptions, ApiError } from "../../types"; // Added ApiError and specific types
+
+// Hooks and Types
+import { useUserAlertsQuery, useAlertActions } from "../../hooks/api/useAlerts"; // Adjust path
+import { ApiError, AlertQueryOptions, AlertType, VALID_ALERT_TYPES } from "../../types"; // Adjust path
 import { getAlertTypeColor } from "../../utils/statusUtils"; // Adjust path
 
 interface AlertsDropdownProps {
+  // Allow passing filter options for the alerts query
   options?: AlertQueryOptions;
-  pollingInterval?: number | false; // Allow explicit false to disable polling
+  // Control polling behavior
+  pollingInterval?: number | false;
+  // Max alerts to display in dropdown before showing a link to full page (optional)
+  maxItems?: number;
 }
 
 const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
-  options = { limit: 50, isResolved: false }, // Default options
-  pollingInterval = 60000, // Default polling interval (e.g., 1 minute)
+  options = { limit: 10 }, // Default: fetch 10 most recent active alerts for dropdown
+  pollingInterval = 60000, // Default: Poll every 60 seconds
+  maxItems = 10,
 }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
   const isMenuOpen = Boolean(anchorEl);
 
-  // --- TanStack Query Hook for fetching unread alerts (Using v5 isPending) ---
+  // --- Fetch User's ACTIVE Alerts ---
   const {
-    data: unreadAlerts = [], // Default to empty array
-    // Destructure isPending for the initial loading state in v5
-    isPending: queryPending,
-    // isFetching is true for initial load AND background refetches
-    isFetching: queryFetching,
-    error: queryError, // Error from the query is type ApiError | null
-  } = useUserUnreadAlertsQuery(options, {
-    enabled: true, // Always enabled when component is mounted
-    refetchInterval: isMenuOpen ? pollingInterval : false, // Poll only when menu is open
+    data: activeAlerts = [], // Default to empty array
+    isPending: isQueryInitialLoading, // True only on initial load without data
+    isFetching: isQueryFetching,     // True during initial load AND background refetches/polling
+    error: queryError,
+    // refetch: refetchActiveAlerts, // Keep if manual refresh button is added
+  } = useUserAlertsQuery(options, {
+    enabled: true, // Fetch immediately
+    // Poll only when the menu is open to save resources, or always if badge needs live updates
+    refetchInterval: isMenuOpen ? pollingInterval : false,
+    staleTime: 1000 * 30, // Data considered fresh for 30s
   });
 
-  // --- TanStack Mutation Hooks for marking alerts as read ---
-  // Assuming useAlertReadMutations returns isPending for each mutation:
+  // --- Use Alert Action Mutations ---
   const {
-    markAsRead,
-    markAllAsRead,
-    isMarkingOne, // This should map to the first mutation's isPending
-    isMarkingAll, // This should map to the second mutation's isPending
-    // Optional: If you needed combined error state:
-    // errorMarkingOne,
-    // errorMarkingAll,
-  } = useAlertReadMutations();
+    dismissAlert,
+    isDismissingAlert,
+    // errorDismissingAlert // Can be used for specific error feedback
+  } = useAlertActions();
+
+  // --- UI Loading/State Indicators ---
+  const isLoading = isQueryInitialLoading && !activeAlerts.length; // Show main spinner only on first load
+  const isPolling = isQueryFetching && !isQueryInitialLoading; // Subtle indicator for background refresh
 
 
-  // --- Combine loading states for UI ---
+  // --- Memoized Derived State ---
+  // Avoid recalculating badge count on every render
+  const badgeCount = useMemo(() => activeAlerts.length, [activeAlerts]);
+  // Truncate alerts list if maxItems is set
+  const displayedAlerts = useMemo(() => activeAlerts.slice(0, maxItems), [activeAlerts, maxItems]);
+  const hasMoreAlerts = useMemo(() => activeAlerts.length > maxItems, [activeAlerts, maxItems]);
 
-  // Show initial loading spinner ONLY during the very first fetch (isPending)
-  // AND only if we haven't received any data yet (even an empty array).
-  const showInitialSpinner = queryPending && !unreadAlerts.length;
-
-  // Indicate background polling/refresh:
-  // True if fetching is happening, but it's NOT the initial pending load.
-  const isPolling = queryFetching && !queryPending;
-
-  // Handler to open the menu
-  const handleOpenAlerts = (event: React.MouseEvent<HTMLElement>) => {
+  // --- Handlers ---
+  const handleOpenMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
-  // Handler to close the menu
-  const handleCloseAlerts = useCallback(() => {
+  const handleCloseMenu = useCallback(() => {
     setAnchorEl(null);
   }, []);
 
-  // Handler for clicking an alert item
-  const handleAlertClick = useCallback(
-    async (alertUser: AlertUser) => {
-      const websiteId = alertUser.alert?.websiteId; // Safe access
-      handleCloseAlerts(); // Close menu immediately
-
+  // Navigate to website detail page
+  const handleNavigateToWebsite = useCallback(
+    (websiteId: number | undefined) => {
+      handleCloseMenu();
       if (websiteId) {
-          navigate(`/website/${websiteId}`);
+        navigate(`/website/${websiteId}`);
+      } else {
+        console.warn("Cannot navigate: Missing websiteId in alert data");
+        // Optionally show a snackbar error to the user
       }
-      // Marking as read handled by dismiss button
     },
-    [navigate, handleCloseAlerts],
+    [navigate, handleCloseMenu]
   );
 
-  // Handler for the dismiss (mark as read) button
-  const handleDismissAlert = useCallback(
-    (event: React.MouseEvent, alertId: number | undefined) => { // Handle undefined alertId
-      event.stopPropagation(); // Prevent menu item click
-      if (alertId !== undefined) {
-          markAsRead(alertId); // Call the mutation
-      } else {
+  // Dismiss an alert
+  const handleDismiss = useCallback(
+    (event: React.MouseEvent, alertId: number | undefined) => {
+      event.stopPropagation(); // Prevent triggering navigation
+      if (alertId !== undefined && !isDismissingAlert) {
+        dismissAlert(alertId, {
+           // Optional: onSuccess/onError callbacks specific to this dismissal action
+           // onSuccess: () => { console.log(`Dismissed alert ${alertId}`)},
+           // onError: (err) => { console.error(`Failed dismissal for ${alertId}`, err)}
+        });
+      } else if (alertId === undefined) {
           console.error("Attempted to dismiss alert with undefined ID");
       }
     },
-    [markAsRead],
+    [dismissAlert, isDismissingAlert]
   );
 
-  // Handler for marking all as read
-  const handleMarkAllAsRead = useCallback(() => {
-    markAllAsRead(); // Call the mutation
-  }, [markAllAsRead]);
+  // Navigate to the main alerts page
+  const handleViewAllAlerts = useCallback(() => {
+    handleCloseMenu();
+    navigate('/alerts'); // Adjust route as needed
+  }, [navigate, handleCloseMenu]);
 
-  // Badge count should reflect the actual number of items fetched
-  const badgeCount = unreadAlerts.length;
 
-  return (
-    <>
-      {/* Notifications Icon Button */}
-      <Tooltip title="Alerts">
-        <IconButton
-          id="alerts-button" // ID for aria-controls
-          aria-label={`Show ${badgeCount} alerts`}
-          aria-controls={isMenuOpen ? 'alerts-menu' : undefined} // Control menu visibility
-          aria-haspopup="true"
-          aria-expanded={isMenuOpen ? 'true' : undefined}
-          color="inherit"
-          onClick={handleOpenAlerts}
-          // Dim slightly during initial load OR background polling
-          sx={{ opacity: (showInitialSpinner || isPolling) ? 0.7 : 1 }}
-        >
-          <Badge badgeContent={badgeCount} color="error" max={99}>
-            <NotificationsIcon />
-          </Badge>
-        </IconButton>
-      </Tooltip>
+  // --- Menu Content Rendering ---
+  const renderMenuContent = () => {
+    if (isLoading) {
+      return (
+        <MenuItem disabled sx={{ justifyContent: "center", py: 4 }}>
+          <CircularProgress size={24} />
+        </MenuItem>
+      );
+    }
 
-      {/* Notifications Dropdown Menu */}
-      <Menu
-        id="alerts-menu" // ID for accessibility
-        anchorEl={anchorEl}
-        open={isMenuOpen}
-        onClose={handleCloseAlerts}
-        PaperProps={{ sx: { maxHeight: "500px", width: "450px", overflowY: "auto", mt: 1.5 } }}
-        MenuListProps={{ 'aria-labelledby': 'alerts-button' }} // Link menu to button
-      >
-        {/* Header */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1, position: "sticky", top: 0, bgcolor: "background.paper", zIndex: 1 }}>
-          <Typography variant="subtitle1" fontWeight="bold">Alerts</Typography>
-          <Button
-             size="small"
-             variant="text"
-             color="primary"
-             onClick={handleMarkAllAsRead}
-             // Disable if no alerts, or if the "mark all" mutation is pending
-             disabled={unreadAlerts.length === 0 || isMarkingAll}
-             sx={{ textTransform: "none", minWidth: "auto" }}
-          >
-            {isMarkingAll ? "Marking..." : "Mark all as read"}
-          </Button>
-        </Stack>
-        <Divider sx={{ mb: 0.5 }} />
+    if (queryError) {
+      return (
+        <MenuItem disabled sx={{ py: 2, whiteSpace: 'normal' }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'error.main', width: '100%' }}>
+            <ErrorOutlineIcon fontSize="small" />
+            <Typography variant="body2" textAlign="center" sx={{ flexGrow: 1 }}>
+              Error loading alerts:<br />
+              {(queryError as ApiError)?.message || 'Unknown error'}
+            </Typography>
+          </Stack>
+        </MenuItem>
+      );
+    }
 
-        {/* Body: Loading, Error, Empty, or List */}
-        {showInitialSpinner ? ( // <-- Use updated variable for initial loading
-          <MenuItem disabled sx={{ justifyContent: "center", py: 4 }}>
-            <CircularProgress size={24} />
-          </MenuItem>
-        ) : queryError ? ( // Error State
-             <MenuItem disabled sx={{ justifyContent: "center", py: 2 }}>
-                <Typography variant="body2" color="error" textAlign="center">
-                  Error loading alerts: <br />
-                  {/* Safely access error message */}
-                  {(queryError as ApiError)?.message || 'Unknown error'}
+    if (badgeCount === 0) {
+      return (
+        <MenuItem disabled sx={{ py: 2 }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary', width: '100%' }}>
+            <NotificationsOffIcon fontSize="small" />
+            <Typography variant="body2" textAlign="center" sx={{ flexGrow: 1 }}>
+              No active alerts
+            </Typography>
+          </Stack>
+        </MenuItem>
+      );
+    }
+
+    return (
+      <>
+        {/* Displayed Alert Items */}
+        {displayedAlerts.map((alert, index) => {
+          if (!alert?.id) return null; // Basic validation
+
+          const websiteId = alert.website?.id;
+          const websiteName = alert.website?.name || alert.website?.url || `Website ${alert.websiteId}`;
+          const alertTime = alert.createdAt ? formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true }) : 'Unknown time';
+          // Ensure type safety; provide a fallback if type is unexpected
+          const alertType = VALID_ALERT_TYPES.includes(alert.type as AlertType) ? alert.type as AlertType : undefined;
+
+          return (
+            <MenuItem
+              key={`alert-${alert.id}`}
+              onClick={() => handleNavigateToWebsite(websiteId)}
+              disabled={isDismissingAlert} // Disable all items while dismissing one
+              sx={{
+                "&:hover": {
+                  bgcolor: "action.hover",
+                  "& .dismiss-button": { opacity: 1 }, // Show dismiss on hover
+                },
+                display: "flex", alignItems: "flex-start", cursor: "pointer",
+                py: 1.5, px: 2, gap: 1.5,
+                // Add divider except for the last *displayed* item
+                borderBottom: index < displayedAlerts.length - 1 ? '1px solid' : 'none',
+                borderColor: 'divider',
+              }}
+            >
+              {/* Status Icon */}
+              <ListItemIcon sx={{ minWidth: "auto", mt: 0.5, mr: 1 }}>
+                <FiberManualRecordIcon
+                  fontSize="small"
+                  color={alertType ? getAlertTypeColor(alertType) : 'disabled'}
+                />
+              </ListItemIcon>
+
+              {/* Main Content */}
+              <Box sx={{ flexGrow: 1, overflow: "hidden", mr: 1 }}>
+                <Typography variant="body2" fontWeight={500} noWrap title={websiteName}>
+                  {websiteName}
                 </Typography>
-             </MenuItem>
-        ) : unreadAlerts.length === 0 ? ( // Empty State
-          <MenuItem disabled sx={{ justifyContent: "center", py: 2 }}>
-            <Typography variant="body2" color="text.secondary">No new alerts</Typography>
-          </MenuItem>
-        ) : ( // List of Alerts
-          unreadAlerts.map((alertUser, index) => { // Added index for border logic
-            // Defensive coding: Ensure alert and its properties exist
-            const alert = alertUser?.alert;
-            if (!alert) {
-              console.warn("Rendering alert item with missing alert data:", alertUser);
-              return null; // Skip rendering if essential data is missing
-            }
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", whiteSpace: 'normal' }}>
+                  {alert.message}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
+                  {alertTime}
+                </Typography>
+              </Box>
 
-            const websiteName = alert.website?.websiteUsers?.[0]?.name || alert.website?.url || "Unknown Website";
-            const alertTime = alert.createdAt ? formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true }) : 'Unknown time';
-            const alertId = alertUser.alertId; // Get alertId for dismiss action
-
-            return (
-              <MenuItem
-                key={alertUser.id ?? `alert-${index}`} // Use unique ID or fallback
-                onClick={() => handleAlertClick(alertUser)}
-                sx={{
-                  "&:hover": {
-                    backgroundColor: "action.hover",
-                    "& .dismiss-button": { opacity: 1 },
-                  },
-                  display: "flex", alignItems: "flex-start", cursor: "pointer",
-                  py: 1.5, px: 2, gap: 1.5,
-                  // Add bottom border for separation, except for the last item
-                  borderBottom: index < unreadAlerts.length - 1 ? '1px solid' : 'none',
-                  borderColor: 'divider',
-                }}
-              >
-                {/* Status Icon */}
-                <ListItemIcon sx={{ minWidth: "auto", mt: 0.5, mr: 1 }}>
-                  <FiberManualRecordIcon
-                    fontSize="small"
-                    color={getAlertTypeColor(alert.type)} // Use util for color
-                  />
-                </ListItemIcon>
-
-                {/* Main Content (Website Name, Message, Timestamp) */}
-                <Box sx={{ flexGrow: 1, overflow: "hidden", mr: 1 }}>
-                  <Typography variant="body2" fontWeight={500} noWrap title={websiteName}>
-                    {websiteName}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", whiteSpace: 'normal' }}> {/* Allow message wrapping */}
-                    {alert.message}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
-                    {alertTime}
-                  </Typography>
-                </Box>
-
-                {/* Dismiss Button (Mark as Read) */}
-                <Tooltip title="Mark as read">
-                  {/* Disable button while marking *any* single item */}
+              {/* Dismiss Button */}
+              <Tooltip title="Dismiss this alert">
+                {/* Wrap IconButton to prevent click propagation issues when disabled */}
+                <span>
                   <IconButton
-                    aria-label="Mark as read"
+                    aria-label="Dismiss alert"
                     size="small"
                     className="dismiss-button"
-                    onClick={(event) => handleDismissAlert(event, alertId)} // Pass alertId
-                    // Disable if the mutation for marking *one* item is pending
-                    disabled={isMarkingOne}
+                    onClick={(event) => handleDismiss(event, alert.id)}
+                    disabled={isDismissingAlert} // Disable while any dismissal is happening
                     sx={{
                       opacity: 0, // Hidden initially
                       transition: (theme) => theme.transitions.create("opacity"),
                       flexShrink: 0,
-                      alignSelf: 'center', // Center vertically
-                      ml: 'auto', // Push to the far right
+                      alignSelf: 'center',
+                      ml: 'auto', // Push right
                     }}
                   >
                     <CloseIcon fontSize="inherit" />
                   </IconButton>
-                </Tooltip>
-              </MenuItem>
-            );
-          })
+                </span>
+              </Tooltip>
+            </MenuItem>
+          );
+        })}
+
+        {/* View All Button/Link */}
+        {hasMoreAlerts && (
+          <>
+            <Divider />
+            <MenuItem onClick={handleViewAllAlerts} sx={{ justifyContent: 'center', py: 1.5 }}>
+              <Typography variant="body2" color="primary">
+                View All {badgeCount} Alerts
+              </Typography>
+            </MenuItem>
+          </>
         )}
+      </>
+    );
+  };
+
+
+  return (
+    <>
+      {/* Icon Button */}
+      <Tooltip title={badgeCount > 0 ? `${badgeCount} Active Alert${badgeCount > 1 ? 's' : ''}` : "No active alerts"}>
+        <IconButton
+          id="alerts-button"
+          aria-label={`Show ${badgeCount} active alerts`}
+          aria-controls={isMenuOpen ? 'alerts-menu' : undefined}
+          aria-haspopup="true"
+          aria-expanded={isMenuOpen ? 'true' : undefined}
+          color="inherit"
+          onClick={handleOpenMenu}
+          // Optional: subtle indication of polling/loading
+          sx={{ opacity: isPolling ? 0.8 : 1 }}
+        >
+          <Badge badgeContent={badgeCount} color="error" max={99}>
+             <NotificationsIcon />
+          </Badge>
+        </IconButton>
+      </Tooltip>
+
+      {/* Menu */}
+      <Menu
+        id="alerts-menu"
+        anchorEl={anchorEl}
+        open={isMenuOpen}
+        onClose={handleCloseMenu}
+        PaperProps={{ sx: { maxHeight: "500px", width: "450px", overflowY: "auto", mt: 1.5, borderRadius: 2 } }} // Added border radius
+        MenuListProps={{ 'aria-labelledby': 'alerts-button', disablePadding: true /* Let items control padding */ }}
+        slotProps={{ paper: { elevation: 3 }}} // Slightly more shadow
+      >
+        {/* Header */}
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1.5, position: "sticky", top: 0, bgcolor: "background.paper", zIndex: 1 }}>
+          <Typography variant="subtitle1" fontWeight="bold">Active Alerts</Typography>
+          {/* Optional: Add a refresh button if polling is disabled or long */}
+          {/* {pollingInterval === false && <IconButton size="small" onClick={() => refetchActiveAlerts()} disabled={isQueryFetching}><RefreshIcon fontSize="small" /></IconButton>} */}
+        </Stack>
+        <Divider sx={{ mb: 0.5 }} />
+
+        {/* Dynamic Content */}
+        {renderMenuContent()}
+
       </Menu>
     </>
   );

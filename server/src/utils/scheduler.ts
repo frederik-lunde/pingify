@@ -1,184 +1,252 @@
+// server/src/utils/scheduler.ts
+
 import cron from 'node-cron';
-import { PrismaClient, Website } from '@prisma/client';
-import { CONCURRENCY, DEFAULT_INTERVAL } from '../config/config';
-import { WebsiteMonitor } from '../services/monitoringService';
+import { Website as PrismaWebsite, Prisma } from '@prisma/client';
+import {
+    CONCURRENCY,
+    DEFAULT_INTERVAL,
+    MONITORING_RESULTS_TO_KEEP
+} from '../config/config'; // Import config values (ensure path is correct)
+// Import the monitor class from the refactored monitoring service
+import { WebsiteMonitor } from '../services/monitoringService'; // Adjust path if needed
 import prisma from '../prisma/prismaClient'; // Adjust the path if needed
 
+// --- Configuration ---
+const BATCH_CONCURRENCY = CONCURRENCY ?? 5; // How many websites to check concurrently
+const DEFAULT_WEBSITE_INTERVAL = DEFAULT_INTERVAL ?? 300; // Default check interval if website.globalInterval is null
+const RESULTS_TO_KEEP_PER_WEBSITE = MONITORING_RESULTS_TO_KEEP ?? 2000; // How many recent results to retain per site
 
+// --- Website Monitoring Logic ---
 
 /**
- * Determines if a website is due for checking based on its global interval
+ * Determines if a website is due for checking based on its interval and last check time.
  */
-function isWebsiteDueForCheck(website: Website): boolean {
-  // If website has never been checked, it's due
-  if (!website.lastChecked) return true;
-  
-  // Calculate if the website's interval has passed
-  const intervalInSeconds = website.globalInterval || DEFAULT_INTERVAL;
+function isWebsiteDueForCheck(website: PrismaWebsite): boolean {
+  if (!website.lastChecked) { return true; } // Never checked
+
+  const intervalInSeconds = website.globalInterval ?? DEFAULT_WEBSITE_INTERVAL;
+  const effectiveIntervalSeconds = Math.max(30, intervalInSeconds); // Minimum interval 30s
+
   const millisecondsSinceLastCheck = Date.now() - new Date(website.lastChecked).getTime();
-  return millisecondsSinceLastCheck >= (intervalInSeconds * 1000);
+  return millisecondsSinceLastCheck >= (effectiveIntervalSeconds * 1000);
 }
 
 /**
- * Retrieves all active websites from the database
+ * Retrieves all websites marked as active from the database.
  */
-async function getActiveWebsites(): Promise<Website[]> {
-  // Simply get all websites marked as active.
-  // The isWebsiteDueForCheck function will handle the time logic.
+async function getActiveWebsites(): Promise<PrismaWebsite[]> {
   return prisma.website.findMany({
-    where: {
-      isActive: true,
-    },
+    where: { isActive: true },
   });
 }
 
 /**
- * Processes websites in batches to limit concurrency
+ * Processes websites in batches to limit concurrency during checks.
+ * Uses the static method from WebsiteMonitor.
  */
-async function processBatches(websites: Website[]): Promise<void> {
-  for (let i = 0; i < websites.length; i += CONCURRENCY) {
-    const batch = websites.slice(i, i + CONCURRENCY);
-    await Promise.all(batch.map(website => WebsiteMonitor.checkWebsite(website)));
+async function processBatches(websites: PrismaWebsite[]): Promise<void> {
+  console.log(`[Scheduler] Processing ${websites.length} websites in batches of ${BATCH_CONCURRENCY}...`);
+  for (let i = 0; i < websites.length; i += BATCH_CONCURRENCY) {
+    const batch = websites.slice(i, i + BATCH_CONCURRENCY);
+    const batchNum = Math.floor(i / BATCH_CONCURRENCY) + 1;
+    const totalBatches = Math.ceil(websites.length / BATCH_CONCURRENCY);
+    console.log(`[Scheduler] Starting batch ${batchNum}/${totalBatches} (Size: ${batch.length})`);
+
+    const results = await Promise.allSettled(batch.map(website => {
+        return WebsiteMonitor.checkWebsite(website).catch(err => {
+            console.error(`[Scheduler Batch Error] Unhandled error checking website ${website.id} (${website.url}):`, err);
+            return { websiteId: website.id, error: true };
+        });
+    }));
+
+    // Optional: Log detailed batch results if needed
+    results.forEach((result, index) => {
+        const websiteId = batch[index].id;
+        if (result.status === 'rejected') {
+            console.error(`[Scheduler Batch Result] Check Failed (Promise Rejected) for Website ID ${websiteId}:`, result.reason);
+        } else if (result.value && (result.value as any).error === true) {
+             console.warn(`[Scheduler Batch Result] Check Completed with Error for Website ID ${websiteId}. See previous logs.`);
+        }
+    });
+    console.log(`[Scheduler] Finished batch ${batchNum}/${totalBatches}.`);
   }
 }
 
 /**
- * Checks which websites are due for monitoring based on their intervals
+ * Main function executed by the cron job to find and check websites that are due.
  */
 export async function checkDueWebsites(): Promise<void> {
-  console.log('Checking for websites due for monitoring...');
-  
+  const startTime = Date.now();
+  console.log(`[Scheduler - ${new Date().toISOString()}] Starting check for due websites...`);
+
   try {
-    // Retrieve active websites
     const activeWebsites = await getActiveWebsites();
-    
-    // Filter for websites that are due for checking
+    if (activeWebsites.length === 0) {
+        console.log("[Scheduler] No active websites found.");
+        return;
+    }
+
     const dueWebsites = activeWebsites.filter(isWebsiteDueForCheck);
-    
     if (dueWebsites.length === 0) {
-      console.log('No websites due for checking');
+      console.log('[Scheduler] No websites currently due for checking.');
       return;
     }
-    
-    console.log(`Found ${dueWebsites.length} websites due for monitoring`);
-    
-    // Process websites in batches
+
+    console.log(`[Scheduler] Found ${dueWebsites.length} websites due for monitoring.`);
     await processBatches(dueWebsites);
-    
-    console.log(`Completed checking ${dueWebsites.length} websites`);
+
+    const duration = Date.now() - startTime;
+    console.log(`[Scheduler] Completed checking cycle for ${dueWebsites.length} websites in ${duration}ms.`);
+
   } catch (error) {
-    console.error('Failed to check due websites:', error);
+    console.error('[Scheduler] CRITICAL error during checkDueWebsites execution:', error);
   }
 }
 
+
+// --- Cleanup Tasks ---
+
 /**
- * Checks for websites without any users and deactivates them
+ * Deactivates websites that are marked active but have no associated users.
  */
 export async function cleanupUnusedWebsites(): Promise<void> {
-  console.log('Checking for websites without any users...');
+  const startTime = Date.now();
+  console.log(`[Scheduler Cleanup - ${new Date().toISOString()}] Starting cleanup of unused websites...`);
   try {
-    const whereClause = {
+    const whereClause: Prisma.WebsiteWhereInput = {
       isActive: true,
-      websiteUsers: {
-        none: {},
-      },
+      websiteUsers: { none: {} },
     };
 
-    // First, optionally find them if you need to log URLs (or count first)
     const unusedWebsites = await prisma.website.findMany({
       where: whereClause,
-      select: { id: true, url: true } // Select only needed fields
+      select: { id: true, url: true }
     });
 
     if (unusedWebsites.length === 0) {
-      console.log('No unused websites found');
+      console.log('[Scheduler Cleanup] No unused websites found to deactivate.');
       return;
     }
 
-    console.log(`Found ${unusedWebsites.length} websites without users. Deactivating...`);
-    // Log URLs before deactivation if needed
-    unusedWebsites.forEach(w => console.log(`Found unused: ID: ${w.id}, URL: ${w.url}`));
+    console.log(`[Scheduler Cleanup] Found ${unusedWebsites.length} active websites without any users. Deactivating...`);
+    unusedWebsites.forEach(w => console.log(`  - Deactivating ID: ${w.id}, URL: ${w.url}`));
 
-
-    // Deactivate all found websites in one go
     const updateResult = await prisma.website.updateMany({
-      where: whereClause, // Use the same criteria to ensure atomicity
+      where: whereClause,
       data: { isActive: false },
     });
 
-    console.log(`Deactivated ${updateResult.count} unused websites.`); // updateMany returns a count
-    console.log('Unused website cleanup complete');
+    const duration = Date.now() - startTime;
+    console.log(`[Scheduler Cleanup] Deactivated ${updateResult.count} unused websites in ${duration}ms.`);
+
   } catch (error) {
-    console.error('Failed to cleanup unused websites:', error);
+    console.error('[Scheduler Cleanup] Failed to cleanup unused websites:', error);
   }
 }
 
 /**
- * Purges old monitoring results to prevent database bloat
- * Keeps the most recent X results per website
+ * Purges old monitoring results for each website, keeping only the most recent N records.
  */
-export async function purgeOldMonitoringResults(resultsToKeep = 1000): Promise<void> {
-  console.log('Purging old monitoring results...');
-  
+export async function purgeOldMonitoringResults(resultsToKeep: number = RESULTS_TO_KEEP_PER_WEBSITE): Promise<void> {
+  const startTime = Date.now();
+  console.log(`[Scheduler Purge - ${new Date().toISOString()}] Starting purge of old monitoring results (keeping last ${resultsToKeep} per website)...`);
+
   try {
-    // Get all websites
     const websites = await prisma.website.findMany({
       select: { id: true }
     });
-    
-    let totalPurged = 0;
-    
-    // For each website, identify and delete old results
-    for (const website of websites) {
-      // Get the IDs of results to keep (most recent ones)
-      const recentResults = await prisma.monitoringResult.findMany({
-        where: { websiteId: website.id },
-        orderBy: { checkedAt: 'desc' },
-        take: resultsToKeep,
-        select: { id: true }
-      });
-      
-      const recentResultIds = recentResults.map(r => r.id);
-      
-      // Delete older results
-      const deleteResult = await prisma.monitoringResult.deleteMany({
-        where: {
-          websiteId: website.id,
-          id: { notIn: recentResultIds }
-        }
-      });
-      
-      totalPurged += deleteResult.count;
+
+    if (websites.length === 0) {
+        console.log("[Scheduler Purge] No websites found. Skipping monitoring results purge.");
+        return;
     }
-    
-    if (totalPurged > 0) {
-      console.log(`Purged ${totalPurged} old monitoring results`);
+
+    let totalPurgedCount = 0;
+    let websitesProcessed = 0;
+
+    for (const website of websites) {
+      try {
+        const recentResults = await prisma.monitoringResult.findMany({
+          where: { websiteId: website.id },
+          orderBy: { checkedAt: 'desc' },
+          take: resultsToKeep,
+          select: { id: true }
+        });
+
+        const resultIdsToKeep = recentResults.map(r => r.id);
+
+        // Only delete if the number of results exceeds the keep threshold
+        const totalCount = await prisma.monitoringResult.count({ where: { websiteId: website.id } });
+
+        if (totalCount > resultsToKeep) {
+            const deleteResult = await prisma.monitoringResult.deleteMany({
+              where: {
+                websiteId: website.id,
+                id: { notIn: resultIdsToKeep }
+              }
+            });
+
+            if (deleteResult.count > 0) {
+              totalPurgedCount += deleteResult.count;
+            }
+        }
+        websitesProcessed++;
+      } catch (innerError) {
+          console.error(`[Scheduler Purge] Error purging results for website ${website.id}:`, innerError);
+      }
+    } // End loop
+
+    const duration = Date.now() - startTime;
+    if (totalPurgedCount > 0) {
+      console.log(`[Scheduler Purge] Purged a total of ${totalPurgedCount} old monitoring results across ${websitesProcessed} websites in ${duration}ms.`);
     } else {
-      console.log('No old monitoring results to purge');
+      console.log(`[Scheduler Purge] No old monitoring results found to purge across ${websitesProcessed} websites in ${duration}ms.`);
     }
   } catch (error) {
-    console.error('Failed to purge old monitoring results:', error);
+    console.error('[Scheduler Purge] Failed during the overall process of purging old monitoring results:', error);
   }
 }
 
+
+// --- Scheduler Setup ---
+
 /**
- * Schedule all maintenance tasks
+ * Initializes and starts all scheduled cron jobs.
  */
 export function scheduleMonitoring(): void {
-  // Run monitoring check every 10 seconds
-  cron.schedule('*/30 * * * * *', checkDueWebsites);
-  console.log('Website monitoring scheduler started - checking every 10 seconds for due websites');
-  
-  // Run website cleanup hourly
-  cron.schedule('0 * * * *', cleanupUnusedWebsites);
-  console.log('Unused website cleanup scheduler started - running hourly');
-  
-  // Run database maintenance daily (at 2 AM)
-  cron.schedule('0 2 * * *', () => purgeOldMonitoringResults());
-  console.log('Database maintenance scheduler started - running daily at 2 AM');
+  console.log("[Scheduler] Initializing schedulers...");
+
+  // 1. Website Monitoring Check (Runs frequently)
+  const monitorCron = '*/30 * * * * *'; // Every 30 seconds
+  if (cron.validate(monitorCron)) {
+      cron.schedule(monitorCron, checkDueWebsites, { name: "websiteChecker" });
+      console.log(`[Scheduler] Website monitoring scheduler started: runs every 30 seconds ('${monitorCron}').`);
+  } else {
+      console.error(`[Scheduler] Invalid cron pattern for monitoring: ${monitorCron}`);
+  }
+
+  // 2. Unused Website Cleanup (Hourly)
+  const cleanupCron = '0 * * * *'; // Start of every hour
+   if (cron.validate(cleanupCron)) {
+      cron.schedule(cleanupCron, cleanupUnusedWebsites, { name: "unusedWebsiteCleanup" });
+      console.log(`[Scheduler] Unused website cleanup scheduler started: runs hourly ('${cleanupCron}').`);
+   } else {
+       console.error(`[Scheduler] Invalid cron pattern for cleanup: ${cleanupCron}`);
+   }
+
+  // 3. Old Monitoring Results Purge (Daily)
+  const purgeCron = '0 2 * * *'; // 2:00 AM daily
+   if (cron.validate(purgeCron)) {
+      cron.schedule(purgeCron, () => purgeOldMonitoringResults(RESULTS_TO_KEEP_PER_WEBSITE), { name: "resultsPurge" });
+      console.log(`[Scheduler] Database monitoring results purge scheduler started: runs daily at 2 AM ('${purgeCron}'), keeping ${RESULTS_TO_KEEP_PER_WEBSITE} results.`);
+   } else {
+       console.error(`[Scheduler] Invalid cron pattern for purge: ${purgeCron}`);
+   }
+
+   console.log("[Scheduler] All schedulers initialized.");
 }
 
-// For manual testing
-export const runMonitoring = checkDueWebsites;
-export const runCleanup = cleanupUnusedWebsites;
-export const runPurge = purgeOldMonitoringResults;
+// --- Manual Execution Exports ---
+export const runMonitoringCheck = checkDueWebsites;
+export const runUnusedCleanup = cleanupUnusedWebsites;
+export const runResultsPurge = () => purgeOldMonitoringResults(RESULTS_TO_KEEP_PER_WEBSITE);
