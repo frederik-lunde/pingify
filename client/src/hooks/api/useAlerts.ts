@@ -1,5 +1,5 @@
 // src/hooks/query/useAlerts.ts
-import { useQuery, useMutation, useQueryClient, QueryKey, UseQueryOptions } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, QueryKey } from '@tanstack/react-query';
 import { Alert, AlertStats, AlertQueryOptions, ApiError } from "../../types"; // Adjust path
 import {
     fetchUserAlerts,
@@ -120,12 +120,12 @@ export function useAlertActions() {
 
     const dismissAlertMutation = useMutation<void, ApiError, number, AlertDismissMutationContext | undefined>({
         mutationFn: dismissAlertAPI,
-        onMutate: async (alertId): Promise<AlertDismissMutationContext | undefined> => {
+        onMutate: async (): Promise<AlertDismissMutationContext | undefined> => {
             await queryClient.cancelQueries({ queryKey: userAlertListsQueryKeyPattern });
             // Using simpler invalidation strategy - no optimistic update here
             return undefined;
         },
-         onError: (error, alertId, context) => {
+         onError: (error, alertId, ) => {
             console.error(`Failed to dismiss alert ${alertId}:`, error.message);
             queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern });
         },

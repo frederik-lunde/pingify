@@ -53,11 +53,12 @@ export const fetchWebsiteStats = async (websiteId: number, period: TimeframeKey 
  * Triggers an immediate check for a website.
  * Endpoint: POST /monitoring/check/:websiteId
  */
-export const triggerWebsiteCheck = async (websiteId: number): Promise<{ message: string }> => {
-     if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
-       throw new Error("Invalid website ID provided for triggering check.");
-    }
-    return apiClient.post<{ message: string }>(`/monitoring/check/${websiteId}`);
+export const triggerWebsiteCheck = async (websiteId: number): Promise<MonitoringResult> => { // <--- FIX: Changed return type here
+    if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
+      throw new Error("Invalid website ID provided for triggering check.");
+   }
+   // Backend controller returns the full SharedMonitoringResult object
+   return apiClient.post<MonitoringResult>(`/monitoring/check/${websiteId}`); // <-- FIX: Changed expected response type
 };
 
 /**
