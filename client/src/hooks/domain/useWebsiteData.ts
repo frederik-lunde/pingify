@@ -101,12 +101,7 @@ export function useWebsiteData(
         return newProcessedWebsites;
 
     // Dependency array: Depend on success status and data references
-    }, [
-        websitesQuery.isSuccess,
-        resultsQuery.isSuccess,
-        websitesQuery.data,
-        resultsQuery.data
-    ]);
+    }, [websitesQuery.status, websitesQuery.data, websitesQuery.isSuccess, resultsQuery.status, resultsQuery.data, resultsQuery.isSuccess]);
 
     // --- Refetch Function ---
     const refetch = useCallback(async () => {

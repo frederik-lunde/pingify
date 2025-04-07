@@ -1,50 +1,61 @@
-//client\src\hooks\api\useWebsites.ts
 import { useState, useCallback } from "react";
 import {
     useQuery,
     useMutation,
     useQueryClient,
-    UseQueryOptions // <-- Import UseQueryOptions
+    UseQueryOptions
 } from '@tanstack/react-query';
 import {
     fetchUserWebsites,
     fetchUserWebsite,
-    searchWebsites as apiSearchWebsites, // Renamed import
+    searchWebsites as apiSearchWebsites,
     createWebsite,
     updateWebsite,
     deleteWebsite,
-} from '../../api/websitesApi'; // Adjust path
+} from '../../api/websitesApi'; // Adjust path if needed
 import {
-    WebsiteUser,        
-    AddWebsiteUserDTO,  
+    WebsiteUser,
+    AddWebsiteUserDTO,
     UpdateWebsiteUserDTO,
     Website,
     ApiError,
-} from "../../types"; // Adjust path
+    MonitoringResult // Import MonitoringResult if needed for types, though not directly used here
+} from "../../types"; // Adjust path if needed
+import { useAuth } from '../../context/AuthContext'; // <--- ADJUST PATH AS NEEDED
+
+// --- Import Monitoring hooks/keys ---
+import { monitoringQueryKeys, useWebsiteCheckMutation } from './useMonitoring'; // <--- ADJUST PATH AS NEEDED
 
 // Query Keys
 export const websiteQueryKeys = {
     all: ['websites'] as const,
-    lists: () => [...websiteQueryKeys.all, 'list'] as const, // For user's dashboard list
+    lists: (userId: number | undefined) => [...websiteQueryKeys.all, 'list', { userId }] as const,
     details: () => [...websiteQueryKeys.all, 'detail'] as const,
-    detail: (id: number | undefined) => [...websiteQueryKeys.details(), id] as const, // For single website detail
-    search: (query: string) => [...websiteQueryKeys.all, 'search', query] as const, // For search results (if using useQuery for search)
+    detail: (id: number | undefined, userId: number | undefined) => [...websiteQueryKeys.details(), id, { userId }] as const,
+    search: (query: string) => [...websiteQueryKeys.all, 'search', query] as const,
 };
 
-// Define a type for standard query options, omitting keys set internally
+// Define a type for standard query options
 type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
     UseQueryOptions<TQueryFnData, TError>,
-    'queryKey' | 'queryFn' // Omit keys that are defined within the hook
+    'queryKey' | 'queryFn'
 >;
 
 /**
  * Hook for fetching the user's list of websites.
  */
 export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>) {
+    const { user } = useAuth();
+    const userId = user?.id;
+
     return useQuery<WebsiteUser[], ApiError>({
-        queryKey: websiteQueryKeys.lists(),
-        queryFn: fetchUserWebsites,
-        // NO initialData should be passed or set here by default
+        queryKey: websiteQueryKeys.lists(userId),
+        queryFn: () => {
+            if (!userId) return Promise.resolve([]);
+            return fetchUserWebsites();
+        },
+        enabled: options?.enabled === undefined ? !!userId : options.enabled,
+        staleTime: 0, // <--- SET STALE TIME TO 0
         ...options,
     });
 }
@@ -53,11 +64,16 @@ export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>
  * Hook for fetching a single user website by ID.
  */
 export function useUserWebsiteQuery(websiteId: number | undefined, options?: CustomQueryOptions<WebsiteUser>) {
+    const { user } = useAuth();
+    const userId = user?.id;
+
     return useQuery<WebsiteUser, ApiError>({
-        queryKey: websiteQueryKeys.detail(websiteId),
-        queryFn: () => fetchUserWebsite(websiteId!),
-        enabled: options?.enabled ?? (!!websiteId && websiteId > 0),
-        // NO initialData here either unless explicitly needed and handled
+        queryKey: websiteQueryKeys.detail(websiteId, userId),
+        queryFn: () => {
+            if (!userId || !websiteId) return Promise.reject(new Error("Missing user or website ID for query"));
+            return fetchUserWebsite(websiteId);
+        },
+        enabled: options?.enabled === undefined ? (!!userId && !!websiteId && websiteId > 0) : options.enabled,
         ...options,
     });
 }
@@ -98,19 +114,60 @@ export function useWebsiteSearch(limit: number = 10) {
 
 /**
  * Hook for website CRUD mutations.
+ * Invalidates relevant caches and triggers initial check on creation.
  */
 export function useWebsiteMutations() {
     const queryClient = useQueryClient();
+    const { user } = useAuth(); // Get user for invalidations
+    const userId = user?.id;
+    // Get the check mutation function
+    const { mutateAsync: triggerCheck, isPending: isChecking } = useWebsiteCheckMutation(); // Get mutateAsync and loading state
 
     // CREATE Mutation
     const createMutation = useMutation<WebsiteUser, ApiError, AddWebsiteUserDTO>({
         mutationFn: createWebsite,
-        onSuccess: (newWebsite) => {
-            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
+        // Make onSuccess async to await the triggerCheck
+        onSuccess: async (newWebsite) => {
             console.log('Website created:', newWebsite);
+            const newWebsiteId = newWebsite?.websiteId; // Safely access ID
+
+            // --- Invalidation ---
+            console.log(`Invalidating caches for user ${userId}...`);
+            // 1. Invalidate the user's website list
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists(userId) });
+
+            // 2. Invalidate the user's overall monitoring results (to include the new site eventually)
+            // Use slice(0, 3) to target ['monitoring', 'userResults', { userId }]
+            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId).slice(0, 3) });
+
+            // 3. Invalidate the user's overall stats (total websites changed)
+            // Use slice(0, 4) to target ['monitoring', 'stats', 'user', { userId }]
+            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userStats(undefined, userId).slice(0, 4) });
+
+            console.log('Caches invalidated.');
+
+            // --- Trigger Initial Check (Recommended) ---
+            if (newWebsiteId && userId) { // Ensure we have IDs
+                try {
+                    console.log(`Triggering initial check for new website ${newWebsiteId}...`);
+                    // Call the mutation function from useWebsiteCheckMutation
+                    await triggerCheck(newWebsiteId);
+                    console.log(`Initial check triggered for website ${newWebsiteId}.`);
+                    // Optional: Could invalidate results again after a short delay, but refetchOnWindowFocus might handle it.
+                    // setTimeout(() => {
+                    //    queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId).slice(0, 3) });
+                    // }, 2000); // e.g., wait 2 seconds
+                } catch (checkError) {
+                    console.error(`Failed to trigger initial check for website ${newWebsiteId}:`, checkError);
+                    // Handle error (e.g., show notification to user)
+                }
+            } else {
+                 console.warn("Could not trigger initial check: New website ID or User ID not found.");
+            }
         },
         onError: (error) => {
             console.error("Error creating website:", error.message);
+            // Handle error (e.g., show notification to user)
         },
     });
 
@@ -118,8 +175,11 @@ export function useWebsiteMutations() {
     const updateMutation = useMutation<WebsiteUser, ApiError, { websiteId: number, websiteData: UpdateWebsiteUserDTO }>({
         mutationFn: updateWebsite,
         onSuccess: (updatedWebsite, variables) => {
-            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
-            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(variables.websiteId) });
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists(userId) });
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(variables.websiteId, userId) });
+            // Consider invalidating monitoring details/stats if relevant fields changed
+            // queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.details({ websiteId: variables.websiteId }, userId) });
+            // queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.websiteStats(variables.websiteId, undefined, userId).slice(0, 4) });
             console.log('Website updated:', updatedWebsite);
         },
         onError: (error, variables) => {
@@ -128,24 +188,37 @@ export function useWebsiteMutations() {
     });
 
     // DELETE Mutation
-    const deleteMutation = useMutation<void, ApiError, number>({ // Variable is websiteId (number)
+    const deleteMutation = useMutation<void, ApiError, number>({
         mutationFn: deleteWebsite,
         onSuccess: (_, websiteId) => {
-            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
-            queryClient.removeQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
-            console.log(`Website deleted: ${websiteId}`);
+            console.log(`Deleting website ${websiteId} for user ${userId}...`);
+            // Invalidate the specific user's list
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists(userId) });
+
+            // Remove the specific user's detail query for this website from cache
+            queryClient.removeQueries({ queryKey: websiteQueryKeys.detail(websiteId, userId) });
+
+            // Also invalidate monitoring results and stats as the website is gone
+            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId).slice(0, 3) });
+            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userStats(undefined, userId).slice(0, 4) });
+
+            // Remove specific stats/details for the deleted website for this user
+            queryClient.removeQueries({ queryKey: ['monitoring', 'stats', 'website', websiteId, { userId }] });
+            queryClient.removeQueries({ queryKey: ['monitoring', 'details', websiteId, { userId }] });
+
+            console.log(`Website ${websiteId} deleted and associated caches invalidated/removed.`);
         },
         onError: (error, websiteId) => {
             console.error(`Error deleting website ${websiteId}:`, error.message);
         },
     });
 
-     // Utility mutation for toggling alerts (uses the update mutation)
+     // Utility mutation for toggling alerts
      const toggleAlertEnabledMutation = useMutation<WebsiteUser, ApiError, { websiteId: number, currentStatus: boolean }>({
         mutationFn: ({ websiteId, currentStatus }) => updateWebsite({ websiteId, websiteData: { alertEnabled: !currentStatus } }),
          onSuccess: (updatedWebsite, variables) => {
-            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
-            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(variables.websiteId) });
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists(userId) });
+            queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(variables.websiteId, userId) });
              console.log('Website alert status toggled:', updatedWebsite);
         },
         onError: (error, variables) => {
@@ -158,10 +231,12 @@ export function useWebsiteMutations() {
         update: updateMutation.mutateAsync,
         remove: deleteMutation.mutateAsync,
         toggleAlertEnabled: toggleAlertEnabledMutation.mutateAsync,
+        // Expose loading/error states including the check trigger
         isCreating: createMutation.isPending,
         isUpdating: updateMutation.isPending,
         isDeleting: deleteMutation.isPending,
         isTogglingAlert: toggleAlertEnabledMutation.isPending,
+        isTriggeringCheck: isChecking, // Add loading state for the check
         errorCreating: createMutation.error,
         errorUpdating: updateMutation.error,
         errorDeleting: deleteMutation.error,

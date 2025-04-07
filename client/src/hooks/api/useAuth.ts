@@ -6,8 +6,8 @@ import {
   getAuthToken,
   storeAuthToken,
   removeAuthToken,
-} from "../../utils/authTokenUtils"; // Adjust path
-import { User, AuthContextType, ApiError } from "../../types"; // Adjust path
+} from "../../utils/authTokenUtils"; // Adjust path if needed
+import { User, AuthContextType, ApiError } from "../../types"; // Adjust path if needed
 import {
     fetchCurrentUser,
     loginUser,
@@ -15,7 +15,7 @@ import {
     AuthResponse,
     LoginCredentials,
     RegistrationData
-} from "../../api/authApi"; // Adjust path
+} from "../../api/authApi"; // Adjust path if needed
 
 // Query Keys
 export const authQueryKeys = {
@@ -43,98 +43,108 @@ export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
       isLoading: isUserQueryLoading,
       isSuccess: isUserQuerySuccess,
       isError: isUserQueryError,
-      error: userQueryErrorData, // Rename for clarity
-      isFetching: isUserQueryFetching, // Indicates background fetching
+      error: userQueryErrorData,
+      isFetching: isUserQueryFetching,
   } = useQuery<{ user: User }, ApiError>({
       queryKey: authQueryKeys.me,
       queryFn: fetchCurrentUser,
-      enabled: !!token, // Only run if token exists
-      staleTime: 1000 * 60 * 30, // 30 minutes
-      gcTime: 1000 * 60 * 60,    // 1 hour
+      enabled: !!token,
+      staleTime: 1000 * 60 * 30,
+      gcTime: 1000 * 60 * 60,
       retry: (failureCount, error) => {
-         if (error?.status === 401 || error?.status === 403) return false; // No retry on auth errors for /me
-         return failureCount < 1; // Retry once for other errors
+         if (error?.status === 401 || error?.status === 403) return false;
+         return failureCount < 1;
       },
       refetchOnWindowFocus: true,
   });
 
   // Derived State for Context
   const user = userData?.user || null;
+  const userId = user?.id; // Extract userId for convenience elsewhere if needed
 
   // Determine completion of the initial auth check
   useEffect(() => {
     if (isInitialCheckComplete) return;
     if (!token) {
-      setIsInitialCheckComplete(true); // No token, check complete
+      setIsInitialCheckComplete(true);
     } else if (isUserQuerySuccess || isUserQueryError) {
-      setIsInitialCheckComplete(true); // Token existed, query finished
+      setIsInitialCheckComplete(true);
     }
-    // Otherwise, still loading the initial user query
   }, [token, isUserQuerySuccess, isUserQueryError, isInitialCheckComplete]);
 
-  // Loading state for ProtectedRoute: True until initial check is done.
+  // Loading state for ProtectedRoute
   const loading = !isInitialCheckComplete;
 
-  // Error state: Report error only if check is complete, token existed, and query failed.
+  // Error state
   const error = (isInitialCheckComplete && token && isUserQueryError)
       ? (userQueryErrorData?.message || "Failed to load user data.")
       : null;
 
-  // Global Auth Error Listener (handles 401s from *other* API calls)
+  // Global Auth Error Listener
   useEffect(() => {
     const handleGlobalAuthError = () => {
       console.debug("useAuthCore handling auth-error event (likely 401 from non-auth endpoint)");
+      const userWasLoggedIn = !!getAuthToken(); // Check before removing
       removeAuthToken();
       setToken(null);
-      queryClient.setQueryData(authQueryKeys.me, null); // Clear user cache immediately
-      queryClient.removeQueries({ queryKey: authQueryKeys.me }); // Remove query to prevent retries
-      setIsInitialCheckComplete(true); // Mark check as complete (failed auth)
-      navigate("/login", { replace: true });
+      // ---> Clear the entire cache on auth error too <---
+      queryClient.clear();
+      setIsInitialCheckComplete(true);
+      if (userWasLoggedIn) {
+          navigate("/login", { replace: true });
+      }
     };
     window.addEventListener("auth-error", handleGlobalAuthError);
     return () => window.removeEventListener("auth-error", handleGlobalAuthError);
-  }, [navigate, queryClient]);
+    // Ensure queryClient is stable or add to dependencies if needed, though unlikely to change
+  }, [navigate, queryClient]); // Added queryClient dependency
 
-  // Token Synchronization Listener (for multi-tab consistency)
+  // Token Synchronization Listener
   useEffect(() => {
     const syncToken = (event: StorageEvent) => {
-        // Check if the 'authToken' key changed in localStorage or sessionStorage
         if (event.key === "authToken" || (event.storageArea === sessionStorage && event.key === null)) {
-             // Re-read token from storage
              const currentToken = getAuthToken();
-             // Only update state if the token actually changed
              if (token !== currentToken) {
                  setToken(currentToken);
-                 // If token was removed, clear user data immediately
-                 if (!currentToken) {
-                    queryClient.setQueryData(authQueryKeys.me, null);
-                 }
-                 // Invalidate the 'me' query to refetch user data if a token now exists
+                 // Invalidate 'me' query to refetch user if token changes/appears
+                 // No need to clear cache here, just refetch auth state
                  queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
              }
         }
     };
     window.addEventListener('storage', syncToken);
     return () => window.removeEventListener('storage', syncToken);
-  }, [queryClient, token]); // Depend on queryClient and token
+  }, [queryClient, token]);
 
   // Logout Function
   const logout = useCallback(() => {
+    const userWasLoggedIn = !!getAuthToken(); // Check if someone was actually logged in before clearing
+    console.log("Logout initiated...");
+
     removeAuthToken();
     setToken(null);
-    queryClient.setQueryData(authQueryKeys.me, null); // Clear user data immediately
-    queryClient.removeQueries({ queryKey: authQueryKeys.me }); // Remove the query
-    setIsInitialCheckComplete(true); // Check is complete (no user)
-    // Consider resetting other queries if needed: queryClient.resetQueries();
-    navigate("/login", { replace: true });
-  }, [navigate, queryClient]);
+
+    // ---> Clear the ENTIRE React Query cache <---
+    // This removes ALL cached data (websites, stats, results, auth, etc.)
+    // ensuring a clean slate for the next login.
+    queryClient.clear();
+
+    setIsInitialCheckComplete(true); // Reset auth check state
+
+    console.log("User logged out, QueryClient cache cleared.");
+
+    // Navigate after clearing cache, only if someone was logged in
+    if (userWasLoggedIn) {
+        navigate("/login", { replace: true });
+    }
+  }, [navigate, queryClient]); // queryClient is a dependency
 
   // Return Value for Context Provider
   return {
     user,
     token,
-    loading, // Crucial state for initial load indication
-    error,   // Error state primarily from the user fetch query
+    loading,
+    error,
     logout,
   };
 }
@@ -144,11 +154,10 @@ export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
 
 /**
  * Hook providing a mutation for user login.
- * Handles API call, token storage, and cache invalidation upon success.
  */
 export function useLoginMutation() {
     const queryClient = useQueryClient();
-    const navigate = useNavigate(); // To redirect after login
+    const navigate = useNavigate();
 
     return useMutation<AuthResponse, ApiError, LoginCredentials & { rememberMe?: boolean }>({
         mutationFn: (credentials) => loginUser(credentials),
@@ -156,39 +165,47 @@ export function useLoginMutation() {
             storeAuthToken(data.token, variables.rememberMe || false);
             // Set user data in cache immediately for faster UI update
             queryClient.setQueryData(authQueryKeys.me, { user: data.user });
-            // Invalidate to ensure it fetches fresh data if needed or confirms the cached data
-            queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
+            // Invalidate *just in case* but setQueryData usually suffices
+            // queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
+
+            // ---> Crucially, invalidate other potentially stale user data from previous sessions if any existed <---
+            // Or rely on the fact that new queries with the correct userId will run.
+            // A simple invalidate might be good practice after login.
+            queryClient.invalidateQueries({ queryKey: ['websites'] }); // Invalidate website lists
+            queryClient.invalidateQueries({ queryKey: ['monitoring'] }); // Invalidate monitoring data
+
             console.log("Login successful via mutation hook");
-            // Navigate after state update seems likely
-            navigate("/"); // Redirect to dashboard on successful login
+            navigate("/");
         },
         onError: (error) => {
              console.error("Login mutation failed:", error.message);
-             // Error is returned by the hook for the component to display
         }
     });
 }
 
 /**
  * Hook providing a mutation for user registration.
- * Handles API call, token storage, and cache invalidation upon success.
  */
 export function useRegisterMutation() {
     const queryClient = useQueryClient();
-    const navigate = useNavigate(); // To redirect after registration
+    const navigate = useNavigate();
 
     return useMutation<AuthResponse, ApiError, RegistrationData>({
         mutationFn: registerUser,
         onSuccess: (data) => {
-            storeAuthToken(data.token, false); // Session only for registration
+            storeAuthToken(data.token, false);
             queryClient.setQueryData(authQueryKeys.me, { user: data.user });
-            queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
+            // queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
+
+            // Invalidate other data areas as well after registration
+            queryClient.invalidateQueries({ queryKey: ['websites'] });
+            queryClient.invalidateQueries({ queryKey: ['monitoring'] });
+
             console.log("Registration successful via mutation hook");
-            navigate("/"); // Redirect to dashboard
+            navigate("/");
         },
         onError: (error) => {
             console.error("Registration mutation failed:", error.message);
-            // Error is returned by the hook for the component to display
         }
     });
 }
