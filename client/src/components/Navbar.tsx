@@ -222,7 +222,6 @@ function Navbar() {
             <AlertsDropdown
               options={{
                 limit: 50, // How many alerts to fetch initially
-                isResolved: false, // Only show unresolved alerts in the dropdown count/list
               }}
               pollingInterval={60000} // e.g., Refetch every 60 seconds when dropdown is open
             />

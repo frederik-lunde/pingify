@@ -108,7 +108,6 @@ export function useAlertStatsQuery(
 }
 
 
-// --- Mutation Hooks --- (remain the same as the previously corrected version)
 
 interface AlertDismissMutationContext {
     queryKey: QueryKey;

@@ -45,7 +45,7 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
     enabled: true, // Fetch immediately
     // Poll only when the menu is open to save resources, or always if badge needs live updates
     refetchInterval: isMenuOpen ? pollingInterval : false,
-    staleTime: 1000 * 30, // Data considered fresh for 30s
+    staleTime: 0, // Data considered fresh for 30s
   });
 
   // --- Use Alert Action Mutations ---
