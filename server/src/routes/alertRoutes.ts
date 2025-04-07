@@ -1,28 +1,29 @@
+// server/src/routes/alertRoutes.ts
 import { Router } from 'express';
-import * as alertController from '../controllers/alertController';
-import { authenticate } from '../middleware/authMiddleware';
+import * as alertController from '../controllers/alertController'; // Ensure controller filename is correct
+import { authenticate } from '../middleware/authMiddleware'; // Ensure path is correct
 
 const router = Router();
 
-// Apply authentication to all alert routes
+// Apply authentication middleware to all alert routes
 router.use(authenticate);
 
-// --- Admin Routes (Optional: Add admin role check middleware if needed) ---
-router.get('/admin/all', alertController.getRecentAlerts); // Get all alerts system-wide
-router.get('/admin/stats', alertController.getAlertStats); // Get system-wide stats
+// --- User Specific Routes ---
+// GET active alerts for the logged-in user (can filter by websiteId in query)
+router.get('/user', alertController.getUserAlerts);
+// GET active alert statistics for the logged-in user
+router.get('/user/stats', alertController.getUserAlertStats);
 
-// --- Website Specific (Needs Auth + Ownership/Access Check) ---
-// This route was missing but is useful, controller already exists
+// --- User Actions ---
+// DELETE (dismiss) a specific alert owned by the user
+router.delete('/:alertId', alertController.dismissAlert);
+
+// --- Website Specific Routes (Requires Auth + Access Check in Controller) ---
+// GET active alerts associated with a specific website (user must have access)
 router.get('/website/:websiteId', alertController.getAlertsByWebsite);
 
-// --- User Specific Routes ---
-router.get('/user', alertController.getUserAlerts); // Get alerts linked to the user
-router.get('/user/unread', alertController.getUserUnreadAlerts); // Get unread AlertUser links
-router.get('/user/stats', alertController.getUserAlertStats); // Get user-specific stats
-
-// User Actions
-router.post('/user/read/:alertId', alertController.markAlertAsRead); // Mark one as read
-router.post('/user/read-all', alertController.markAllAlertsAsRead); // Mark all as read
-router.delete('/user/:alertId', alertController.deleteAlertForUser); // NEW: Dismiss alert for user
+// --- Admin Routes (Optional - Add back if needed with admin role checks) ---
+// Example: router.get('/admin/all', ensureAdmin, alertController.getAdminAllAlerts);
+// Example: router.get('/admin/stats', ensureAdmin, alertController.getAdminAlertStats);
 
 export default router;

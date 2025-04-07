@@ -1,243 +1,315 @@
 // server/src/controllers/websiteController.ts
 import { Request, Response, NextFunction } from 'express';
 import * as websiteService from '../services/websiteService';
-import { AddWebsiteUserDTO } from '../types';
+// Import needed DTOs and response types from shared types
+import { AddWebsiteUserDTO, UpdateWebsiteUserDTO, Website, WebsiteUser } from '../types';
+
+// Helper for safe ID parsing
+const parseIdParam = (idParam: string | undefined): number | null => {
+    if (!idParam) return null;
+    const id = parseInt(idParam, 10);
+    return !isNaN(id) && id > 0 ? id : null;
+};
 
 /**
- * Get all websites (admin function)
+ * GET /api/websites/admin/all - Get all websites (admin function)
  */
 export const getAllWebsites = async (
-  req: Request, 
-  res: Response, 
-  next: NextFunction
+    req: Request,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const websites = await websiteService.getAllWebsites();
-    res.json(websites);
-  } catch (error) {
-    next(error);
-  }
+    try {
+        const websites: Website[] = await websiteService.getAllWebsites();
+        res.json(websites);
+    } catch (error) {
+        next(error);
+    }
 };
 
 /**
- * Get websites for the authenticated user
+ * GET /api/websites/user/dashboard - Get websites for the authenticated user
  */
 export const getUserWebsites = async (
-  req: Request, 
-  res: Response, 
-  next: NextFunction
+    req: Request,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const websiteUsers = await websiteService.getWebsitesForUser(userId);
-    res.json(websiteUsers);
-  } catch (error) {
-    next(error);
-  }
+    try {
+        const userId = req.user!.id;
+        const websiteUsers: WebsiteUser[] = await websiteService.getWebsitesForUser(userId);
+        res.json(websiteUsers);
+    } catch (error) {
+        next(error);
+    }
 };
 
 /**
- * Get website by ID
+ * GET /api/websites/:id - Get website by ID
  */
 export const getWebsiteById = async (
-  req: Request<{ id: string }>,
-  res: Response,
-  next: NextFunction
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const website = await websiteService.getWebsiteById(parseInt(id, 10));
-    
-    if (!website) {
-      res.status(404).json({ message: 'Website not found' });
-      return;
+    try {
+        const websiteId = parseIdParam(req.params.id);
+        if (websiteId === null) {
+            res.status(400).json({ message: 'Invalid Website ID format.' });
+            return;
+        }
+        const website: Website | null = await websiteService.getWebsiteById(websiteId);
+        if (!website) {
+            res.status(404).json({ message: 'Website not found' });
+            return;
+        }
+        res.json(website);
+    } catch (error) {
+        next(error);
     }
-    
-    res.json(website);
-  } catch (error) {
-    next(error);
-  }
 };
 
 /**
- * Get user's website configuration by ID
+ * GET /api/websites/user/dashboard/:id - Get user's specific website configuration by ID
  */
 export const getUserWebsiteById = async (
-  req: Request<{ id: string }>,
-  res: Response,
-  next: NextFunction
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
-    const websiteId = parseInt(id, 10);
-    
-    const userWebsite = await websiteService.getUserWebsiteById(userId, websiteId);
-    
-    if (!userWebsite) {
-      res.status(404).json({ message: 'Website not found in your dashboard' });
-      return;
+    try {
+        const userId = req.user!.id;
+        const websiteId = parseIdParam(req.params.id);
+        if (websiteId === null) {
+            res.status(400).json({ message: 'Invalid Website ID format.' });
+            return;
+        }
+        const userWebsite: WebsiteUser | null = await websiteService.getUserWebsiteById(userId, websiteId);
+        if (!userWebsite) {
+            res.status(404).json({ message: 'Website not found in your dashboard' });
+            return;
+        }
+        res.json(userWebsite);
+    } catch (error) {
+        next(error);
     }
-    
-    res.json(userWebsite);
-  } catch (error) {
-    next(error);
-  }
 };
 
 /**
- * Create a new website (admin function)
+ * POST /api/websites/admin/create - Create a new website (admin function)
  */
 export const createWebsite = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
+    req: Request,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const website = await websiteService.createWebsite(req.body);
-    res.status(201).json(website);
-  } catch (error) {
-    next(error);
-  }
+    try {
+        const { url, interval } = req.body;
+        if (!url || typeof url !== 'string') {
+             res.status(400).json({ message: 'Missing or invalid URL in request body.' });
+             return;
+        }
+         if (interval !== undefined && (typeof interval !== 'number' || interval <= 0)) {
+            res.status(400).json({ message: 'Invalid interval format. Must be a positive number.' });
+            return;
+        }
+
+        const createData = { url, interval };
+        const website: Website = await websiteService.createWebsite(createData);
+        res.status(201).json(website);
+    } catch (error: any) {
+        if (error.message?.includes('already exists')) {
+            res.status(409).json({ message: error.message });
+        } else if (error.message?.includes('Invalid URL')) {
+             res.status(400).json({ message: error.message });
+        } else {
+            next(error);
+        }
+    }
 };
 
 /**
- * Update a website's core properties (admin function)
+ * PUT /api/websites/admin/:id - Update a website's core properties (admin function)
  */
 export const updateWebsite = async (
-  req: Request<{ id: string }>,
-  res: Response,
-  next: NextFunction
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const website = await websiteService.updateWebsiteCore(parseInt(id, 10), req.body);
-    res.json(website);
-  } catch (error) {
-    next(error);
-  }
+    try {
+        const websiteId = parseIdParam(req.params.id);
+        if (websiteId === null) {
+            res.status(400).json({ message: 'Invalid Website ID format.' });
+            return;
+        }
+        const updateData = req.body; // Should match Partial<{ url: string; isActive?: boolean }>
+        const website: Website | null = await websiteService.updateWebsiteCore(websiteId, updateData);
+        if (!website) {
+             res.status(404).json({ message: 'Website not found' });
+             return;
+        }
+        res.json(website);
+    } catch (error: any) {
+        if (error.message?.includes('already exists')) {
+            res.status(409).json({ message: error.message });
+        } else if (error.message?.includes('Invalid URL')) {
+            res.status(400).json({ message: error.message });
+        } else {
+            next(error);
+        }
+    }
 };
 
 /**
- * Update a user's website configuration
+ * PUT /api/websites/user/dashboard/:id - Update a user's website configuration
  */
 export const updateUserWebsite = async (
-  req: Request<{ id: string }>,
-  res: Response,
-  next: NextFunction
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
-    const websiteId = parseInt(id, 10);
-    
-    // Validate if user has access to this website
-    const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
-    
-    if (!hasAccess) {
-      res.status(404).json({ message: 'Website not found in your dashboard' });
-      return;
+    try {
+        const userId = req.user!.id;
+        const websiteId = parseIdParam(req.params.id);
+        if (websiteId === null) {
+            res.status(400).json({ message: 'Invalid Website ID format.' });
+            return;
+        }
+        // TODO: Add input validation (e.g., using Zod) for req.body against UpdateWebsiteUserDTO
+        const updateDto = req.body as UpdateWebsiteUserDTO;
+
+        const userWebsite: WebsiteUser | null = await websiteService.updateUserWebsite(
+            userId,
+            websiteId,
+            updateDto
+        );
+
+        if (!userWebsite) {
+            res.status(404).json({ message: 'Website not found in your dashboard for update' });
+            return;
+        }
+        res.json(userWebsite);
+    } catch (error) {
+        next(error);
     }
-    
-    // Cast to Partial<WebsiteUserDTO> to make types compatible
-    const userWebsite = await websiteService.updateUserWebsite(
-      userId, 
-      websiteId, 
-      req.body as Partial<AddWebsiteUserDTO>
-    );
-    
-    res.json(userWebsite);
-  } catch (error) {
-    next(error);
-  }
 };
 
 /**
- * Delete a website (admin function)
+ * DELETE /api/websites/admin/:id - Delete a website (admin function)
  */
 export const deleteWebsite = async (
-  req: Request<{ id: string }>,
-  res: Response,
-  next: NextFunction
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
-    await websiteService.deleteWebsite(parseInt(id, 10));
-    res.status(204).send();
-  } catch (error) {
-    next(error);
-  }
+    try {
+        const websiteId = parseIdParam(req.params.id);
+        if (websiteId === null) {
+            res.status(400).json({ message: 'Invalid Website ID format.' });
+            return;
+        }
+        const deletedWebsite = await websiteService.deleteWebsite(websiteId);
+        if (!deletedWebsite) {
+             res.status(404).json({ message: 'Website not found for deletion' });
+             return;
+        }
+        res.status(204).send();
+    } catch (error) {
+        next(error);
+    }
 };
 
 /**
- * Toggle a website's active status (admin function)
+ * PATCH /api/websites/admin/:id/toggle - Toggle a website's active status (admin function)
  */
 export const toggleWebsiteStatus = async (
-  req: Request<{ id: string }>,
-  res: Response,
-  next: NextFunction
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const website = await websiteService.toggleWebsiteStatus(parseInt(id, 10));
-    res.json(website);
-  } catch (error) {
-    next(error);
-  }
+    try {
+        const websiteId = parseIdParam(req.params.id);
+        if (websiteId === null) {
+            res.status(400).json({ message: 'Invalid Website ID format.' });
+            return;
+        }
+        const website: Website | null = await websiteService.toggleWebsiteStatus(websiteId);
+        if (!website) {
+            res.status(404).json({ message: 'Website not found for toggle' });
+            return;
+        }
+        res.json(website);
+    } catch (error) {
+        next(error);
+    }
 };
 
 
 /**
- * Add a website to user's dashboard
+ * POST /api/websites/user/dashboard - Add a website to user's dashboard
  */
 export const addWebsiteToUser = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
+    req: Request,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const websiteData = req.body as AddWebsiteUserDTO;
-    
-    const websiteUser = await websiteService.addWebsiteToUser(userId, websiteData);
-    res.status(201).json(websiteUser);
-  } catch (error) {
-    next(error);
-  }
+    try {
+        const userId = req.user!.id;
+        // TODO: Add input validation for req.body against AddWebsiteUserDTO
+        const websiteData = req.body as AddWebsiteUserDTO;
+
+        const websiteUser: WebsiteUser = await websiteService.addWebsiteToUser(userId, websiteData);
+        res.status(201).json(websiteUser);
+    } catch (error: any) {
+        if (error.message?.includes('Invalid URL')) {
+            res.status(400).json({ message: error.message });
+        } else if (error.message?.includes('Failed to add website')) {
+             res.status(500).json({ message: error.message });
+        } else {
+            next(error);
+        }
+    }
 };
 
 /**
- * Remove a website from user's dashboard
+ * DELETE /api/websites/user/dashboard/:id - Remove a website from user's dashboard
  */
 export const removeWebsiteFromUser = async (
-  req: Request<{ id: string }>,
-  res: Response,
-  next: NextFunction
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
-    
-    await websiteService.removeWebsiteFromUser(userId, parseInt(id, 10));
-    res.status(204).send();
-  } catch (error) {
-    next(error);
-  }
+    try {
+        const userId = req.user!.id;
+        const websiteId = parseIdParam(req.params.id);
+        if (websiteId === null) {
+            res.status(400).json({ message: 'Invalid Website ID format.' });
+            return;
+        }
+        await websiteService.removeWebsiteFromUser(userId, websiteId);
+        res.status(204).send();
+    } catch (error) {
+        next(error);
+    }
 };
 
 /**
- * Search websites
+ * GET /api/websites/search - Search websites by URL
  */
 export const searchWebsites = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
+    req: Request,
+    res: Response,
+    next: NextFunction
 ): Promise<void> => {
-  try {
-    const { query } = req.query;
-    const websites = await websiteService.searchWebsites(query as string);
-    res.json(websites);
-  } catch (error) {
-    next(error);
-  }
+    try {
+        const { query } = req.query;
+        if (typeof query !== 'string' || query.trim().length < 2) {
+             res.status(400).json({ message: 'Search query must be at least 2 characters long.' });
+             return;
+        }
+        const websites: Website[] = await websiteService.searchWebsites(query);
+        res.json(websites);
+    } catch (error) {
+        next(error);
+    }
 };
