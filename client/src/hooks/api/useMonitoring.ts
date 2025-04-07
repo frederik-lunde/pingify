@@ -4,7 +4,7 @@ import {
     useMutation,
     useQueryClient,
     UseQueryOptions,
-    QueryFilters // Import QueryFilters for setQueriesData
+    QueryKey // Import QueryKey type
 } from '@tanstack/react-query';
 import {
     fetchWebsiteDetails,
@@ -22,126 +22,104 @@ import {
     ApiError,
     TimeframeKey
 } from '../../types'; // Adjust path if needed
-import { useAuth } from '../../context/AuthContext'; // <--- IMPORT useAuth (ADJUST PATH AS NEEDED)
+import { useAuth } from '../../context/AuthContext'; // Adjust path as needed
 
 // Query Keys
 export const monitoringQueryKeys = {
     all: ['monitoring'] as const,
-    // Add userId to relevant keys
-    details: (params: FetchWebsiteDetailsParams, userId: number | undefined) => [...monitoringQueryKeys.all, 'details', params.websiteId, { userId }, params] as const,
-    userStats: (period: TimeframeKey | string, userId: number | undefined) => [...monitoringQueryKeys.all, 'stats', 'user', { period, userId }] as const,
-    websiteStats: (websiteId: number | undefined, period: TimeframeKey | string, userId: number | undefined) => [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { period, userId }] as const,
-    userResults: (limit: number | undefined, userId: number | undefined) => [...monitoringQueryKeys.all, 'userResults', { limit, userId }] as const,
+    // Details for a specific website (includes user ID for context)
+    details: (params: FetchWebsiteDetailsParams, userId: number | undefined) =>
+        [...monitoringQueryKeys.all, 'details', params.websiteId, { userId, timeframe: params.timeframe, limit: params.limit }] as const,
+    // User's overall dashboard stats
+    userStats: (period: TimeframeKey | string, userId: number | undefined) =>
+        [...monitoringQueryKeys.all, 'stats', 'user', { userId, period }] as const,
+    // Stats for a specific website (includes user ID for context)
+    websiteStats: (websiteId: number | undefined, period: TimeframeKey | string, userId: number | undefined) =>
+        [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { userId, period }] as const,
+    // User's recent monitoring results list
+    userResults: (limit: number | undefined, userId: number | undefined) =>
+        [...monitoringQueryKeys.all, 'userResults', { userId, limit }] as const,
 };
 
-// Define the helper type
+// Define the helper type for custom query options
 type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
     UseQueryOptions<TQueryFnData, TError>,
-    'queryKey' | 'queryFn'
+    'queryKey' | 'queryFn' // Exclude keys managed by the hook
 >;
 
 /**
  * Hook to fetch detailed data for the Website Details page.
- * Includes userId in query key for user-specific caching/invalidation.
  */
 export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, options?: CustomQueryOptions<WebsiteDetailsData>) {
     const { user } = useAuth();
     const userId = user?.id;
-    // Use the updated query key function including userId
     const queryKey = monitoringQueryKeys.details(params, userId);
 
     return useQuery<WebsiteDetailsData, ApiError>({
         queryKey: queryKey,
         queryFn: () => {
-            // API likely uses token, params contains websiteId
             if (!userId || !params.websiteId) return Promise.reject(new Error("Missing user or website ID for query"));
-            return fetchWebsiteDetails(params);
+            return fetchWebsiteDetails(params); // API should handle auth implicitly
         },
-        // Enable only if userId and websiteId are valid
         enabled: options?.enabled === undefined ? (!!userId && !!params.websiteId && params.websiteId > 0) : options.enabled,
-        ...options,
+        staleTime: 1000 * 30, // Example: 30 seconds
+        gcTime: 1000 * 60 * 5, // Example: 5 minutes
+        ...options, // Spread any other options like refetchInterval, etc.
     });
 }
 
 /**
  * Hook for triggering an immediate website check (mutation).
- * Assumes the backend now returns the new MonitoringResult on success.
- * Attempts to update the cache immediately and invalidates for robustness.
+ * Invalidates relevant monitoring data on success using partial keys.
  */
 export function useWebsiteCheckMutation() {
     const queryClient = useQueryClient();
-    const { user } = useAuth(); // Get userId for invalidations and cache updates
-    const userId = user?.id;
+    const { user } = useAuth();
+    const userId = user?.id; // Needed for identifying user-specific data to invalidate
 
     // --- MODIFICATION: Expect MonitoringResult on success ---
     return useMutation< MonitoringResult, ApiError, number>({
         mutationFn: (websiteId: number) => triggerWebsiteCheck(websiteId),
-        // 'newCheckResult' is the MonitoringResult returned by the modified backend
-        onSuccess: (newCheckResult, websiteId) => {
-            console.log('Check completed successfully via API, received result:', newCheckResult);
+        onSuccess: (data, websiteId) => {
+            console.log(`[Mutation Success] Check triggered for website ${websiteId}:`, data.message);
 
-            // --- Attempt Immediate UI Update using setQueriesData ---
-            // Define a filter to target all active detail queries for this website and user
-            const detailsQueryFilter: QueryFilters = {
-                queryKey: ['monitoring', 'details', websiteId, { userId }],
-                // type: 'active', // Only update queries currently active on the screen
-                // exact: false // Match keys starting with the filter
-            };
+            // --- Invalidation Strategy using Partial Keys ---
 
-            console.log(`[setQueriesData] Attempting immediate update for queries matching filter: ${JSON.stringify(detailsQueryFilter.queryKey)}`);
+            // 1. Invalidate ALL details queries for this specific websiteId.
+            //    This covers different timeframes/limits fetched for the details page.
+            //    Structure: ['monitoring', 'details', websiteId]
+            const detailsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'details', websiteId];
+            queryClient.invalidateQueries({ queryKey: detailsKeyPattern });
+            console.log(`Invalidating details for website ${websiteId}:`, detailsKeyPattern);
 
-            // Use setQueriesData to update all matching cache entries
-            queryClient.setQueriesData<WebsiteDetailsData>(detailsQueryFilter, (oldData) => {
-                if (!oldData) {
-                    console.log("[setQueriesData] No old data found for a matching query, skipping update.");
-                    return oldData;
-                }
+            // 2. Invalidate ALL website-specific stats queries for this websiteId AND this userId.
+            //    This covers different periods fetched for this specific website's stats.
+            //    Structure: ['monitoring', 'stats', 'website', websiteId, { userId }]
+            //    We create a partial key up to the userId part.
+            const websiteStatsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { userId }];
+            queryClient.invalidateQueries({ queryKey: websiteStatsKeyPattern });
+            console.log(`Invalidating website stats for website ${websiteId}, user ${userId}:`, websiteStatsKeyPattern);
 
-                console.log(`[setQueriesData] Updating cache for key: ${JSON.stringify(oldData)}`); // Log the specific key being updated
-
-                // Create new data with updated latestResult and prepended recentCheck
-                // Ensure we don't exceed the limit the old data might have had (optional)
-                const currentLimit = oldData.recentChecks.length; // Or get limit from query key if stored there
-                const updatedRecentChecks = [newCheckResult, ...oldData.recentChecks].slice(0, currentLimit || 25); // Prepend and maintain limit
-
-                return {
-                    ...oldData,
-                    latestResult: newCheckResult, // Update latest result
-                    recentChecks: updatedRecentChecks,
-                    // Note: chartData and uptimePercent might become slightly stale here.
-                    // Invalidation below will handle refetching them if needed.
-                };
-            });
-            // --- End Immediate Update ---
+            // 3. Invalidate ALL user results list queries for this userId.
+            //    This covers lists with different limits.
+            //    Structure: ['monitoring', 'userResults', { userId }]
+            const userResultsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'userResults', { userId }];
+            queryClient.invalidateQueries({ queryKey: userResultsKeyPattern });
+            console.log(`Invalidating user results for user ${userId}:`, userResultsKeyPattern);
 
 
-            // --- Invalidation (Still useful as a fallback and for related data) ---
-            // Use predicate to ensure stats/charts etc related to this website are also refreshed
-            console.log(`Invalidating queries related to websiteId: ${websiteId} for user: ${userId} using predicate.`);
-            queryClient.invalidateQueries({
-                predicate: (query) => {
-                    const key = query.queryKey;
-                    const isMonitoringScope = key[0] === 'monitoring';
-                    // Invalidate details AND stats for this website
-                    const matchesType = key[1] === 'details' || key[1] === 'stats';
-                    const matchesWebsiteId = key[2] === websiteId;
-                    const matchesUser = userId
-                        ? key.some(k => typeof k === 'object' && k !== null && 'userId' in k && k.userId === userId)
-                        : true;
-                    return isMonitoringScope && matchesType && matchesWebsiteId && matchesUser;
-                }
-            });
+            // 4. Consider invalidating the user's OVERALL stats as well, as uptime/averages might change.
+            //    Structure: ['monitoring', 'stats', 'user', { userId }]
+            const userStatsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'stats', 'user', { userId }];
+            queryClient.invalidateQueries({ queryKey: userStatsKeyPattern });
+            console.log(`Invalidating overall user stats for user ${userId}:`, userStatsKeyPattern);
 
-            // Also invalidate the general user results list (e.g., for dashboard)
-            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId).slice(0, 3) });
 
-            console.log("Invalidation attempt complete using predicate.");
-            // ------------------------------------------
-
+            console.log(`[Invalidation Complete] Monitoring data related to website ${websiteId} for user ${userId}`);
         },
-        onError: (error) => {
-            console.error('Failed to trigger website check:', error.message);
-            // Consider adding user feedback here (e.g., toast notification)
+        onError: (error, websiteId) => {
+            console.error(`[Mutation Error] Failed to trigger check for website ${websiteId}:`, error.message);
+            // Consider showing a toast/notification to the user
         },
     });
 }
@@ -160,7 +138,8 @@ export function useUserStatsQuery(period: TimeframeKey | string = 'week', option
             return fetchUserStats(period);
         },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 0,
+        staleTime: 1000 * 60 * 5, // Example: 5 minutes stale time
+        gcTime: 1000 * 60 * 15, // Example: 15 minutes cache time
         ...options,
     });
 }
@@ -172,14 +151,19 @@ export function useWebsiteStatsQuery(websiteId: number | undefined, period: Time
     const { user } = useAuth();
     const userId = user?.id;
 
+    // Determine if the query should be enabled
+    const isQueryEnabled = (options?.enabled === undefined ? true : options.enabled) && (!!userId && !!websiteId && websiteId > 0);
+
     return useQuery<WebsiteStatsData, ApiError>({
         queryKey: monitoringQueryKeys.websiteStats(websiteId, period, userId),
         queryFn: () => {
+            // Check enabled status again within queryFn for type safety
             if (!userId || !websiteId) return Promise.reject(new Error("Missing user or website ID for website stats query"));
             return fetchWebsiteStats(websiteId, period);
         },
-        enabled: options?.enabled === undefined ? (!!userId && !!websiteId && websiteId > 0) : options.enabled,
-        staleTime: 1000 * 60 * 2,
+        enabled: isQueryEnabled, // Use the derived enabled status
+        staleTime: 1000 * 60 * 2, // Example: 2 minutes stale time
+        gcTime: 1000 * 60 * 10, // Example: 10 minutes cache time
         ...options,
     });
 }
@@ -194,11 +178,12 @@ export function useUserMonitoringResultsQuery(limit: number = 500, options?: Cus
     return useQuery<MonitoringResult[], ApiError>({
         queryKey: monitoringQueryKeys.userResults(limit, userId),
         queryFn: () => {
-             if (!userId) return Promise.resolve([]);
+             if (!userId) return Promise.resolve([]); // Return empty array if no user
              return fetchAllUserMonitoringResults(limit);
         },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 0,
+        staleTime: 1000 * 15, // Results change often, maybe shorter stale time (15s example)
+        gcTime: 1000 * 60 * 5, // Cache time 5 mins
         ...options,
     });
 }

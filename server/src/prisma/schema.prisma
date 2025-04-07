@@ -17,7 +17,7 @@ model User {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   websiteUsers WebsiteUser[] // Relation to the join table
-  UserAlert    AlertUser[]
+  Alert        Alert[]
 }
 
 model Website {
@@ -71,35 +71,17 @@ model MonitoringResult {
 }
 
 model Alert {
-  id           Int         @id @default(autoincrement())
-  websiteId    Int
-  message      String
-  type         String
-  //isRead       Boolean     @default(false)  // For backward compatibility BURDE FJERNE
-  isResolved   Boolean     @default(false)  // New field to track resolution
-  resolvedAt   DateTime?   // Track when the alert was resolved
-  createdAt    DateTime    @default(now())
-  website      Website     @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  alertUsers   AlertUser[] // Relation to junction table
+  id        Int      @id @default(autoincrement())
+  websiteId Int
+  userId    Int
+  message   String
+  type      String
+  createdAt DateTime @default(now())
+  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([websiteId])
+  @@index([userId])
   @@index([createdAt])
   @@index([type])
-  //@@index([isRead])
-  @@index([isResolved])
-}
-
-model AlertUser {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  alertId   Int
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  alert     Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, alertId]) // A user can only have one record per alert
-  @@index([userId])
-  @@index([alertId])
-  @@index([isRead])
 }

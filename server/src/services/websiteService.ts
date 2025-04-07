@@ -1,346 +1,367 @@
 // server/src/services/websiteService.ts
 import {
   PrismaClient,
-  Website as PrismaWebsite,         // Alias for internal use
-  WebsiteUser as PrismaWebsiteUser, // Alias for internal use
+  Website as PrismaWebsite,
+  WebsiteUser as PrismaWebsiteUser,
   Prisma
 } from '@prisma/client';
 import prisma from '../prisma/prismaClient'; // Adjust the path if needed
 
 // --- Import SHARED Types ---
-// Replace '@shared/types' with your actual path alias or relative path
 import {
-  CreateWebsiteDTO,    // Keep this if used internally/admin
-  AddWebsiteUserDTO as SharedAddWebsiteUserDTO, // Alias the shared DTO for adding
-  Website,             // Shared Website type (string dates)
-  WebsiteUser,         // Shared WebsiteUser type (string dates, nested Website)
-  UpdateWebsiteUserDTO // Shared DTO for updating user settings
-} from '../types';
+  AddWebsiteUserDTO,
+  Website,
+  WebsiteUser,
+  UpdateWebsiteUserDTO
+} from '../types'; // Adjust path if necessary
 
+
+// --- Mapping Helper Functions ---
+
+/**
+* Maps a Prisma Website object to the shared Website type.
+*/
+const mapPrismaWebsiteToShared = (website: PrismaWebsite | null): Website | null => {
+  if (!website) return null;
+  return {
+      id: website.id,
+      url: website.url,
+      isActive: website.isActive,
+      lastChecked: website.lastChecked?.toISOString() ?? null,
+      globalInterval: website.globalInterval,
+      createdAt: website.createdAt?.toISOString() ?? undefined,
+      updatedAt: website.updatedAt?.toISOString() ?? undefined,
+  };
+};
+
+/**
+* Maps a Prisma WebsiteUser object (optionally including nested Website)
+* to the shared WebsiteUser type.
+* FIX: Uses 'any' for the input parameter to bypass strict relation checking.
+*/
+const mapPrismaWebsiteUserToShared = (
+  websiteUser: any // Use 'any' here to allow access to included relations
+): WebsiteUser | null => {
+  if (!websiteUser) return null;
+
+  // Map nested website if included (accessing properties on 'any' bypasses TS checks)
+  const sharedWebsiteNested = websiteUser.website
+      ? mapPrismaWebsiteToShared(websiteUser.website)
+      : undefined;
+
+  return {
+      id: websiteUser.id,
+      userId: websiteUser.userId,
+      websiteId: websiteUser.websiteId,
+      name: websiteUser.name,
+      interval: websiteUser.interval,
+      alertEnabled: websiteUser.alertEnabled,
+      alertThreshold: websiteUser.alertThreshold,
+      notifyEmail: websiteUser.notifyEmail,
+      createdAt: websiteUser.createdAt.toISOString(),
+      website: sharedWebsiteNested ?? undefined,
+  };
+};
+
+
+// --- Service Functions ---
 
 /**
 * Get all websites (admin function).
-* Returns Prisma types. Controller should map to shared 'Website' if needed.
+* Returns array of SHARED Website type.
 */
-export async function getAllWebsites(): Promise<PrismaWebsite[]> {
-return prisma.website.findMany({
-  orderBy: { createdAt: 'desc' },
-});
+export async function getAllWebsites(): Promise<Website[]> {
+  const websitesPrisma = await prisma.website.findMany({
+      orderBy: { createdAt: 'desc' },
+  });
+  return websitesPrisma.map(w => mapPrismaWebsiteToShared(w)!);
 }
 
 /**
 * Get websites for a specific user, including nested Website data.
-* Returns data conforming to the shared 'WebsiteUser' type array.
+* Returns array of SHARED WebsiteUser type.
 */
 export async function getWebsitesForUser(userId: number): Promise<WebsiteUser[]> {
-  // Fetch Prisma types with relation
   const websiteUsersPrisma = await prisma.websiteUser.findMany({
       where: { userId },
       include: { website: true }, // Include the nested website data
       orderBy: { website: { url: 'asc' } }
   });
-
-  // Map Prisma results to the shared WebsiteUser type
-  return websiteUsersPrisma.map(wu => {
-      // Map nested website (handle if somehow null)
-      const sharedWebsiteNested = wu.website ? {
-          id: wu.website.id,
-          url: wu.website.url,
-          isActive: wu.website.isActive,
-          lastChecked: wu.website.lastChecked?.toISOString() ?? null, // Date -> string or null
-          globalInterval: wu.website.globalInterval,
-          createdAt: wu.website.createdAt?.toISOString(), // Date -> string (handle optional)
-          updatedAt: wu.website.updatedAt?.toISOString(), // Date -> string (handle optional)
-      } : undefined; // Or handle error if website is unexpectedly null
-
-      return {
-          // Base WebsiteUser fields
-          id: wu.id,
-          userId: wu.userId,
-          websiteId: wu.websiteId,
-          name: wu.name,
-          interval: wu.interval,
-          alertEnabled: wu.alertEnabled,
-          alertThreshold: wu.alertThreshold,
-          notifyEmail: wu.notifyEmail,
-          createdAt: wu.createdAt.toISOString(), // createdAt exists on WebsiteUserPrisma
-          website: sharedWebsiteNested!, // Use non-null assertion if include guarantees it exists
-      };
-  });
+  return websiteUsersPrisma.map(wu => mapPrismaWebsiteUserToShared(wu)!);
 }
 
 
 /**
 * Get website by ID.
-* Returns Prisma type. Controller should map if needed.
+* Returns SHARED Website type or null.
 */
-export async function getWebsiteById(id: number): Promise<PrismaWebsite | null> {
-return prisma.website.findUnique({
-  where: { id }
-});
+export async function getWebsiteById(id: number): Promise<Website | null> {
+  const websitePrisma = await prisma.website.findUnique({
+      where: { id }
+  });
+  return mapPrismaWebsiteToShared(websitePrisma);
 }
 
 /**
 * Get website by URL (exact match).
-* Returns Prisma type. Controller should map if needed.
+* Returns SHARED Website type or null.
 */
-export async function getWebsiteByUrl(url: string): Promise<PrismaWebsite | null> {
-return prisma.website.findUnique({
-  where: { url },
-});
+export async function getWebsiteByUrl(url: string): Promise<Website | null> {
+  const websitePrisma = await prisma.website.findUnique({
+      where: { url },
+  });
+  return mapPrismaWebsiteToShared(websitePrisma);
 }
 
 /**
 * Get user's website configuration by website ID, including nested website data.
-* Returns data conforming to the shared 'WebsiteUser' type or null.
+* Returns SHARED WebsiteUser type or null.
 */
 export async function getUserWebsiteById(userId: number, websiteId: number): Promise<WebsiteUser | null> {
-// Fetch Prisma type with relation
-// Use Prisma types for the fetch result
-const userWebsitePrisma = await prisma.websiteUser.findUnique({
-  where: { userId_websiteId: { userId, websiteId } },
-  include: { website: true } // Include nested PrismaWebsite
-});
-
-if (!userWebsitePrisma) {
-    return null;
-}
-
- // Map nested website (handle if somehow null)
- const sharedWebsiteNested = userWebsitePrisma.website ? {
-      id: userWebsitePrisma.website.id,
-      url: userWebsitePrisma.website.url,
-      isActive: userWebsitePrisma.website.isActive,
-      lastChecked: userWebsitePrisma.website.lastChecked?.toISOString() ?? null, // Date -> string or null
-      globalInterval: userWebsitePrisma.website.globalInterval,
-      createdAt: userWebsitePrisma.website.createdAt?.toISOString(), // Date -> string (handle optional)
-      updatedAt: userWebsitePrisma.website.updatedAt?.toISOString(), // Date -> string (handle optional)
-  } : undefined; // Or handle error if website is unexpectedly null
-
-// Map to shared WebsiteUser type
-return {
-    // Map fields from PrismaWebsiteUser
-    id: userWebsitePrisma.id,
-    userId: userWebsitePrisma.userId,
-    websiteId: userWebsitePrisma.websiteId,
-    name: userWebsitePrisma.name,
-    interval: userWebsitePrisma.interval,
-    alertEnabled: userWebsitePrisma.alertEnabled,
-    alertThreshold: userWebsitePrisma.alertThreshold,
-    notifyEmail: userWebsitePrisma.notifyEmail,
-    createdAt: userWebsitePrisma.createdAt.toISOString(), // Date -> string
-    website: sharedWebsiteNested!, // Use non-null assertion if include guarantees it exists
-};
+  const userWebsitePrisma = await prisma.websiteUser.findUnique({
+      where: { userId_websiteId: { userId, websiteId } },
+      include: { website: true }
+  });
+  return mapPrismaWebsiteUserToShared(userWebsitePrisma); // Mapper now accepts 'any'
 }
 
 
 /**
-* Create a new website (core entity). Internal function.
-* Returns Prisma type.
+* Create a new website (core entity). Internal/Admin function.
+* Returns SHARED Website type.
 */
-// Use backend-specific CreateWebsiteDTO if different from shared
-export async function createWebsite(data: CreateWebsiteDTO): Promise<PrismaWebsite> {
-return prisma.website.create({
-  data: {
-    url: data.url,
-    globalInterval: data.interval || 300,
-    isActive: true,
-  },
-});
+export async function createWebsite(data: { url: string; interval?: number }): Promise<Website> {
+  if (!data.url || !/^https?:\/\/.+/.test(data.url)) {
+      throw new Error('Invalid URL format provided for website creation.');
+  }
+  try {
+      const websitePrisma = await prisma.website.create({
+          data: {
+              url: data.url,
+              globalInterval: data.interval ?? 300,
+              isActive: true,
+          },
+      });
+      return mapPrismaWebsiteToShared(websitePrisma)!;
+  } catch (error) {
+       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          console.error(`Website creation failed: URL '${data.url}' already exists.`);
+          throw new Error(`Website with URL '${data.url}' already exists.`);
+       }
+       console.error("Error creating website:", error);
+       throw error;
+  }
 }
 
 /**
-* Updates the global interval for a website. Internal helper.
+* Updates the global interval for a website based on minimum user interval. Internal helper.
 */
 export async function updateGlobalInterval(websiteId: number): Promise<void> {
-const websiteUsers = await prisma.websiteUser.findMany({
-  where: { websiteId }, select: { interval: true }
-});
-const intervals = websiteUsers.map(wu => wu.interval).filter((i): i is number => i !== null && i > 0);
-if (intervals.length === 0) {
-    console.warn(`No valid user intervals found for website ${websiteId}. Global interval not updated.`);
-    // Optionally reset to default here if desired
-    // await prisma.website.update({ where: { id: websiteId }, data: { globalInterval: 300 } });
-    return;
-}
-const minInterval = Math.min(...intervals);
-const currentWebsite = await prisma.website.findUnique({ where: { id: websiteId }, select: { globalInterval: true }});
-// Only update if the interval has actually changed
-if (currentWebsite && currentWebsite.globalInterval !== minInterval) {
-    await prisma.website.update({
-        where: { id: websiteId }, data: { globalInterval: minInterval }
-    });
-    console.log(`Updated global interval for website ${websiteId} to ${minInterval} seconds.`);
-}
+  const websiteUsers = await prisma.websiteUser.findMany({
+      where: { websiteId }, select: { interval: true }
+  });
+
+  const intervals = websiteUsers
+      .map(wu => wu.interval)
+      .filter((i): i is number => i !== null && i > 0);
+
+  const newGlobalInterval = intervals.length > 0 ? Math.min(...intervals) : 300;
+
+  const currentWebsite = await prisma.website.findUnique({
+      where: { id: websiteId },
+      select: { globalInterval: true }
+  });
+
+  if (currentWebsite && currentWebsite.globalInterval !== newGlobalInterval) {
+      try {
+          await prisma.website.update({
+              where: { id: websiteId }, data: { globalInterval: newGlobalInterval }
+          });
+          console.log(`[Interval Update] Updated global interval for website ${websiteId} to ${newGlobalInterval} seconds.`);
+      } catch (error) {
+           console.error(`[Interval Update] Failed to update global interval for website ${websiteId}:`, error);
+      }
+  }
 }
 
 /**
 * Update a website's core properties (e.g., URL, isActive - typically an admin action).
-* Returns Prisma type. Controller should map if needed.
+* Returns SHARED Website type or null if not found.
 */
-export async function updateWebsiteCore(id: number, data: Partial<{ url: string; isActive?: boolean }>): Promise<PrismaWebsite> {
-return prisma.website.update({ where: { id }, data });
+export async function updateWebsiteCore(id: number, data: Partial<{ url: string; isActive?: boolean }>): Promise<Website | null> {
+  try {
+      if (data.url !== undefined && (data.url === null || !/^https?:\/\/.+/.test(data.url))) {
+          throw new Error('Invalid URL format provided for website update.');
+      }
+      const websitePrisma = await prisma.website.update({
+          where: { id },
+          data
+      });
+      return mapPrismaWebsiteToShared(websitePrisma);
+  } catch (error) {
+       if (error instanceof Prisma.PrismaClientKnownRequestError) {
+           if (error.code === 'P2025') {
+               console.warn(`Website with ID ${id} not found for update.`);
+               return null;
+           }
+           if (error.code === 'P2002') {
+               console.error(`Website update failed: URL '${data.url}' already exists.`);
+              throw new Error(`Another website with URL '${data.url}' already exists.`);
+           }
+       }
+      console.error(`Error updating core website ${id}:`, error);
+      throw error;
+  }
 }
 
 /**
 * Update a user's specific configuration/settings for a website they monitor.
-* Expects the shared UpdateWebsiteUserDTO. Returns the updated PrismaWebsiteUser type.
+* Expects the shared UpdateWebsiteUserDTO. Returns the updated SHARED WebsiteUser type.
 */
 export async function updateUserWebsite(
-userId: number,
-websiteId: number,
-data: UpdateWebsiteUserDTO // Use shared DTO for input shape
-): Promise<PrismaWebsiteUser> { // Returns Prisma type (controller can map if needed)
+  userId: number,
+  websiteId: number,
+  data: UpdateWebsiteUserDTO
+): Promise<WebsiteUser | null> {
 
-  const prismaUpdateData: Prisma.WebsiteUserUpdateInput = {};
-
-  // Use explicit checks for undefined before assigning
+  const prismaUpdateData: Prisma.WebsiteUserUpdateWithoutUserInput = {};
   if (data.name !== undefined) prismaUpdateData.name = data.name;
   if (data.interval !== undefined) prismaUpdateData.interval = data.interval;
   if (data.alertThreshold !== undefined) prismaUpdateData.alertThreshold = data.alertThreshold;
   if (data.notifyEmail !== undefined) prismaUpdateData.notifyEmail = data.notifyEmail;
-
-  // *** CORRECTED: Handle boolean update correctly ***
-  // Only include alertEnabled in update if it's explicitly true or false
   if (typeof data.alertEnabled === 'boolean') {
       prismaUpdateData.alertEnabled = data.alertEnabled;
   }
 
-  // Prevent updating with an empty object if no fields were provided in DTO
   if (Object.keys(prismaUpdateData).length === 0) {
       console.warn(`No update data provided for user ${userId}, website ${websiteId}. Skipping update.`);
-      const existing = await prisma.websiteUser.findUniqueOrThrow({ where: { userId_websiteId: { userId, websiteId }}});
-      return existing;
+      return getUserWebsiteById(userId, websiteId);
   }
 
-  const result = await prisma.websiteUser.update({
-      where: { userId_websiteId: { userId, websiteId } },
-      data: prismaUpdateData,
-  });
+  try {
+      const updatedWebsiteUserPrisma = await prisma.websiteUser.update({
+          where: { userId_websiteId: { userId, websiteId } },
+          data: prismaUpdateData,
+          include: { website: true }
+      });
 
-  // Recalculate global interval only if the user's interval was actually part of the update
-  if (data.interval !== undefined) {
-      await updateGlobalInterval(websiteId);
+      if (data.interval !== undefined) {
+          updateGlobalInterval(websiteId).catch(err => console.error("Error updating global interval post-update:", err));
+      }
+
+      return mapPrismaWebsiteUserToShared(updatedWebsiteUserPrisma); // Mapper accepts 'any'
+
+  } catch (error) {
+       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+          console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for update.`);
+          return null;
+       }
+      console.error(`Error updating user website settings for user ${userId}, website ${websiteId}:`, error);
+      throw error;
   }
-
-  return result; // Return the updated Prisma object
 }
 
 /**
-* Delete a website entirely (admin function - removes core Website and all relations).
-* Returns Prisma type.
+* Delete a website entirely (admin function - removes core Website and relations via cascade).
+* Returns the deleted SHARED Website type or null if not found.
 */
-export async function deleteWebsite(id: number): Promise<PrismaWebsite> {
-// Note: Ensure cascade deletes are set up in your Prisma schema if you want
-// related WebsiteUser, MonitoringResult, Alert records to be deleted automatically.
-return prisma.website.delete({ where: { id } });
+export async function deleteWebsite(id: number): Promise<Website | null> {
+  try {
+      const websitePrisma = await prisma.website.delete({ where: { id } });
+      return mapPrismaWebsiteToShared(websitePrisma);
+  } catch (error) {
+       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+          console.warn(`Website with ID ${id} not found for deletion.`);
+          return null;
+       }
+      console.error(`Error deleting website ${id}:`, error);
+      throw error;
+  }
 }
 
 /**
 * Toggle a website's active status globally (admin function).
-* Returns Prisma type. Controller should map if needed.
+* Returns the updated SHARED Website type or null if not found.
 */
-export async function toggleWebsiteStatus(id: number): Promise<PrismaWebsite> {
-const website = await prisma.website.findUnique({ where: { id } });
-if (!website) throw new Error(`Website with ID ${id} not found`);
-return prisma.website.update({
-  where: { id }, data: { isActive: !website.isActive },
-});
+export async function toggleWebsiteStatus(id: number): Promise<Website | null> {
+  try {
+      const updatedWebsitePrisma = await prisma.$transaction(async (tx) => {
+          const website = await tx.website.findUnique({
+              where: { id },
+              select: { isActive: true }
+          });
+          if (!website) {
+               throw new Error(`Website with ID ${id} not found`);
+          }
+          return tx.website.update({
+              where: { id },
+              data: { isActive: !website.isActive },
+          });
+      });
+      return mapPrismaWebsiteToShared(updatedWebsitePrisma);
+  } catch (error: any) {
+       if (error.message?.includes('not found')) {
+           console.warn(`Website with ID ${id} not found for toggle.`);
+           return null;
+       }
+       console.error(`Error toggling status for website ${id}:`, error);
+       throw error;
+  }
 }
 
 /**
 * Adds a website to a user's dashboard.
-* Creates the core Website if it doesn't exist, otherwise links the existing one.
-* Sets up the WebsiteUser relationship with the user's settings.
-* Returns data conforming to the shared 'WebsiteUser' type.
+* Returns the added/updated SHARED WebsiteUser type.
 */
-// Use aliased shared DTO for input, return shared type
-export async function addWebsiteToUser(userId: number, websiteData: SharedAddWebsiteUserDTO): Promise<WebsiteUser> {
-try {
-  // Transaction uses Prisma types internally
-  const websiteUserPrisma = await prisma.$transaction(async (tx) => {
-      let website = await tx.website.upsert({
-          where: { url: websiteData.url },
-          update: { isActive: true }, // Ensure it's active if re-adding
-          create: {
-              url: websiteData.url,
-              globalInterval: websiteData.interval || 300, // Use provided interval or default
-              isActive: true,
-          },
-      });
-
-      // Step 2: Create or Update the WebsiteUser relationship
-      const websiteUser = await tx.websiteUser.upsert({
-          where: { userId_websiteId: { userId, websiteId: website.id } },
-          update: { // Update settings if user re-adds
-              name: websiteData.name, // Use ?? null for explicit null setting if needed
-              interval: websiteData.interval,
-              alertThreshold: websiteData.alertThreshold,
-              alertEnabled: websiteData.alertEnabled ?? false, // Default to false if not provided
-              notifyEmail: websiteData.notifyEmail,
-           },
-          create: { // Create new relationship
-               userId,
-               websiteId: website.id,
-               name: websiteData.name,
-               interval: websiteData.interval,
-               alertThreshold: websiteData.alertThreshold,
-               alertEnabled: websiteData.alertEnabled ?? false, // Default to false
-               notifyEmail: websiteData.notifyEmail,
-          },
-          include: { website: true } // Include nested website (PrismaWebsite) initially
-      });
-
-      // Step 3: Update the global interval based on all users for this website
-      await updateGlobalInterval(website.id); // Use the helper function
-
-      // Re-fetch website in case globalInterval was updated by the helper
-      const finalWebsite = await tx.website.findUniqueOrThrow({ where: { id: website.id }});
-      websiteUser.website = finalWebsite; // Attach potentially updated website
-
-      return websiteUser; // Return PrismaWebsiteUser & { website: PrismaWebsite }
-  }); // End Transaction
-
-  // Map the final Prisma result to the shared WebsiteUser type
-   const sharedWebsiteNested = websiteUserPrisma.website ? {
-        id: websiteUserPrisma.website.id,
-        url: websiteUserPrisma.website.url,
-        isActive: websiteUserPrisma.website.isActive,
-        lastChecked: websiteUserPrisma.website.lastChecked?.toISOString() ?? null,
-        globalInterval: websiteUserPrisma.website.globalInterval,
-        createdAt: websiteUserPrisma.website.createdAt?.toISOString(),
-        updatedAt: websiteUserPrisma.website.updatedAt?.toISOString(),
-    } : undefined; // Should exist
-
-  return {
-      id: websiteUserPrisma.id,
-      userId: websiteUserPrisma.userId,
-      websiteId: websiteUserPrisma.websiteId,
-      name: websiteUserPrisma.name,
-      interval: websiteUserPrisma.interval,
-      alertEnabled: websiteUserPrisma.alertEnabled,
-      alertThreshold: websiteUserPrisma.alertThreshold,
-      notifyEmail: websiteUserPrisma.notifyEmail,
-      createdAt: websiteUserPrisma.createdAt.toISOString(),
-      website: sharedWebsiteNested!, // Use non-null assertion
-  };
-
-} catch (error) {
-  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      console.warn(`Unique constraint violation for user ${userId} and URL ${websiteData.url}. Attempting to fetch existing.`);
-      try {
-          const existingWebsite = await getWebsiteByUrl(websiteData.url);
-          if (existingWebsite) {
-              const existingUserWebsite = await getUserWebsiteById(userId, existingWebsite.id);
-              if (existingUserWebsite) return existingUserWebsite; // Return the existing record (already mapped)
-          }
-      } catch (fetchError) {
-          console.error("Error fetching existing record after P2002:", fetchError);
-      }
+export async function addWebsiteToUser(userId: number, websiteData: AddWebsiteUserDTO): Promise<WebsiteUser> {
+  if (!websiteData.url || !/^https?:\/\/.+/.test(websiteData.url)) {
+      throw new Error('Invalid URL format provided.');
   }
-  console.error("Error in addWebsiteToUser:", error);
-  throw error; // Re-throw other errors
-}
+
+  try {
+      const websiteUserPrisma = await prisma.$transaction(async (tx) => {
+          let website = await tx.website.upsert({
+              where: { url: websiteData.url },
+              update: { isActive: true },
+              create: {
+                  url: websiteData.url,
+                  globalInterval: websiteData.interval ?? 300,
+                  isActive: true,
+              },
+          });
+
+          const websiteUser = await tx.websiteUser.upsert({
+              where: { userId_websiteId: { userId, websiteId: website.id } },
+              update: {
+                  name: websiteData.name,
+                  interval: websiteData.interval,
+                  alertThreshold: websiteData.alertThreshold,
+                  alertEnabled: websiteData.alertEnabled ?? false,
+                  notifyEmail: websiteData.notifyEmail,
+               },
+              create: {
+                   userId,
+                   websiteId: website.id,
+                   name: websiteData.name,
+                   interval: websiteData.interval,
+                   alertThreshold: websiteData.alertThreshold,
+                   alertEnabled: websiteData.alertEnabled ?? false,
+                   notifyEmail: websiteData.notifyEmail,
+              },
+              include: { website: true } // Include for mapping return value
+          });
+
+          updateGlobalInterval(website.id).catch(err => console.error("Error updating global interval post-add:", err));
+
+          return websiteUser;
+      });
+
+      return mapPrismaWebsiteUserToShared(websiteUserPrisma)!; // Mapper accepts 'any'
+
+  } catch (error) {
+      console.error(`Error in addWebsiteToUser for user ${userId}, URL ${websiteData.url}:`, error);
+      throw new Error(`Failed to add website '${websiteData.url}' to your dashboard. Please try again.`);
+  }
 }
 
 
@@ -349,55 +370,53 @@ try {
 * Returns void.
 */
 export async function removeWebsiteFromUser(userId: number, websiteId: number): Promise<void> {
-// Transaction logic remains the same, using Prisma types internally
-await prisma.$transaction(async (tx) => {
   try {
-      await tx.websiteUser.delete({ where: { userId_websiteId: { userId, websiteId } } });
-      console.log(`Removed website ${websiteId} from user ${userId}`);
+      await prisma.$transaction(async (tx) => {
+          await tx.websiteUser.delete({
+               where: { userId_websiteId: { userId, websiteId } }
+          });
+          console.log(`[User Website] Removed website ${websiteId} from user ${userId}`);
+          updateGlobalInterval(websiteId).catch(err => console.error("Error updating global interval post-remove:", err));
+      });
   } catch (error: any) {
        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-          // Record to delete not found - potentially already deleted, safe to ignore
-          console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for deletion.`);
+          console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for deletion (already removed?).`);
        } else {
-           throw error; // Re-throw unexpected errors
+           console.error(`Error removing website ${websiteId} from user ${userId}:`, error);
+           throw error;
        }
   }
-  // Recalculate global interval regardless of whether delete succeeded or record was missing
-  await updateGlobalInterval(websiteId);
-});
 }
 
 /**
 * Check if a specific user has a specific website in their dashboard. Returns boolean.
 */
 export async function hasUserWebsite(userId: number, websiteId: number): Promise<boolean> {
-const count = await prisma.websiteUser.count({
-  where: { userId: userId, websiteId: websiteId }
-});
-return count > 0;
+  const count = await prisma.websiteUser.count({
+      where: { userId: userId, websiteId: websiteId }
+  });
+  return count > 0;
 }
 
 /**
 * Search websites based on URL containing the search term.
-* Returns array of shared Website type.
+* Returns array of SHARED Website type.
 */
-export async function searchWebsites(searchTerm: string, limit = 10): Promise<Website[]> { // Return shared type
-if (!searchTerm || searchTerm.trim() === '') return [];
+export async function searchWebsites(searchTerm: string, limit = 10): Promise<Website[]> {
+  if (!searchTerm || searchTerm.trim().length < 2) {
+      return [];
+  }
 
-// Fetch Prisma types
-const websitesPrisma = await prisma.website.findMany({
-  where: { url: { contains: searchTerm /* mode: 'insensitive' - Requires DB/Prisma support */ } },
-  take: limit, orderBy: { url: 'asc' }
-});
+  const websitesPrisma = await prisma.website.findMany({
+      where: {
+          url: {
+               contains: searchTerm,
+               // mode: 'insensitive' // Uncomment if DB supports it
+          }
+      },
+      take: limit,
+      orderBy: { url: 'asc' }
+  });
 
-// Map to shared Website type
-return websitesPrisma.map(w => ({
-    id: w.id,
-    url: w.url,
-    isActive: w.isActive,
-    lastChecked: w.lastChecked?.toISOString() ?? null, // Date -> string or null
-    globalInterval: w.globalInterval,
-    createdAt: w.createdAt?.toISOString(), // Date -> string
-    updatedAt: w.updatedAt?.toISOString(), // Date -> string
-}));
+  return websitesPrisma.map(w => mapPrismaWebsiteToShared(w)!);
 }

@@ -1,22 +1,29 @@
 // server/src/routes/alertRoutes.ts
 import { Router } from 'express';
-import * as alertController from '../controllers/alertController';
-import { authenticate } from '../middleware/authMiddleware';
+import * as alertController from '../controllers/alertController'; // Ensure controller filename is correct
+import { authenticate } from '../middleware/authMiddleware'; // Ensure path is correct
 
 const router = Router();
 
-// Apply authentication to all routes
+// Apply authentication middleware to all alert routes
 router.use(authenticate);
 
-// Admin routes
-router.get('/admin/all', alertController.getRecentAlerts);
-router.get('/admin/stats', alertController.getAlertStats);
-
-// User routes
+// --- User Specific Routes ---
+// GET active alerts for the logged-in user (can filter by websiteId in query)
 router.get('/user', alertController.getUserAlerts);
-router.get('/user/unread', alertController.getUserUnreadAlerts);
-router.post('/user/read/:alertId', alertController.markAlertAsRead);
-router.post('/user/read-all', alertController.markAllAlertsAsRead);
+// GET active alert statistics for the logged-in user
 router.get('/user/stats', alertController.getUserAlertStats);
+
+// --- User Actions ---
+// DELETE (dismiss) a specific alert owned by the user
+router.delete('/:alertId', alertController.dismissAlert);
+
+// --- Website Specific Routes (Requires Auth + Access Check in Controller) ---
+// GET active alerts associated with a specific website (user must have access)
+router.get('/website/:websiteId', alertController.getAlertsByWebsite);
+
+// --- Admin Routes (Optional - Add back if needed with admin role checks) ---
+// Example: router.get('/admin/all', ensureAdmin, alertController.getAdminAllAlerts);
+// Example: router.get('/admin/stats', ensureAdmin, alertController.getAdminAlertStats);
 
 export default router;
