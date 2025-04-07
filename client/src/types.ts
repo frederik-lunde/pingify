@@ -54,6 +54,7 @@ export interface WebsiteUser {
     alertThreshold: number | null; // User's custom threshold
     notifyEmail: string | null; // User's notification email for this site
     createdAt: string; // ISO 8601 date string
+    isPinned: boolean; // <-- Added isPinned field
     // Nested Website object is commonly included when fetching user's dashboard data
     website?: Website;
 }
@@ -115,6 +116,7 @@ export interface AddWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean;
   notifyEmail?: string | null;
+  isPinned?: boolean; // <-- Added isPinned field
 }
 
 // DTO for UPDATING a user's settings for a website
@@ -124,7 +126,14 @@ export interface UpdateWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean | null;
   notifyEmail?: string | null;
+  isPinned?: boolean; // <-- Added isPinned field
 }
+
+// DTO specifically for updating the pin status via PATCH
+export interface SetPinStatusDTO {
+    isPinned: boolean;
+}
+
 
 // DTOs for Auth
 export interface LoginCredentials {
@@ -241,9 +250,9 @@ export interface AuthContextType {
   logout: () => void;
 }
 
-// Example combined type for dashboard cards
+// Example combined type for dashboard cards/hooks
 export interface WebsiteWithDetails {
-  userWebsite: WebsiteUser; // User's settings + nested Website core data
+  userWebsite: WebsiteUser; // User's settings (now includes isPinned) + nested Website core data
   latestResult?: MonitoringResult; // Latest check result
   activeAlertCount?: number; // Example: Count of active alerts for this site/user
 }

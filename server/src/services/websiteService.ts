@@ -12,7 +12,8 @@ import {
   AddWebsiteUserDTO,
   Website,
   WebsiteUser,
-  UpdateWebsiteUserDTO
+  UpdateWebsiteUserDTO,
+  SetPinStatusDTO
 } from '../types'; // Adjust path if necessary
 
 
@@ -59,6 +60,7 @@ const mapPrismaWebsiteUserToShared = (
       alertThreshold: websiteUser.alertThreshold,
       notifyEmail: websiteUser.notifyEmail,
       createdAt: websiteUser.createdAt.toISOString(),
+      isPinned: websiteUser.isPinned, // <-- Map isPinned
       website: sharedWebsiteNested ?? undefined,
   };
 };
@@ -79,13 +81,18 @@ export async function getAllWebsites(): Promise<Website[]> {
 
 /**
 * Get websites for a specific user, including nested Website data.
+* Pinned websites are returned first, then sorted by URL.
 * Returns array of SHARED WebsiteUser type.
 */
 export async function getWebsitesForUser(userId: number): Promise<WebsiteUser[]> {
   const websiteUsersPrisma = await prisma.websiteUser.findMany({
       where: { userId },
       include: { website: true }, // Include the nested website data
-      orderBy: { website: { url: 'asc' } }
+      // Sort by pinned status (descending, so true comes first), then by URL
+      orderBy: [
+          { isPinned: 'desc' },
+          { website: { url: 'asc' } }
+      ]
   });
   return websiteUsersPrisma.map(wu => mapPrismaWebsiteUserToShared(wu)!);
 }
@@ -232,6 +239,10 @@ export async function updateUserWebsite(
   if (typeof data.alertEnabled === 'boolean') {
       prismaUpdateData.alertEnabled = data.alertEnabled;
   }
+  // Handle the isPinned field
+  if (typeof data.isPinned === 'boolean') {
+      prismaUpdateData.isPinned = data.isPinned;
+  }
 
   if (Object.keys(prismaUpdateData).length === 0) {
       console.warn(`No update data provided for user ${userId}, website ${websiteId}. Skipping update.`);
@@ -245,6 +256,7 @@ export async function updateUserWebsite(
           include: { website: true }
       });
 
+      // Update global interval only if user interval was changed
       if (data.interval !== undefined) {
           updateGlobalInterval(websiteId).catch(err => console.error("Error updating global interval post-update:", err));
       }
@@ -258,6 +270,32 @@ export async function updateUserWebsite(
        }
       console.error(`Error updating user website settings for user ${userId}, website ${websiteId}:`, error);
       throw error;
+  }
+}
+
+/**
+* Sets the pinned status for a user's website.
+* Returns the updated SHARED WebsiteUser type or null if not found.
+*/
+export async function setPinStatusForUser(
+  userId: number,
+  websiteId: number,
+  isPinned: boolean
+): Promise<WebsiteUser | null> {
+  try {
+    const updatedWebsiteUserPrisma = await prisma.websiteUser.update({
+      where: { userId_websiteId: { userId, websiteId } },
+      data: { isPinned: isPinned },
+      include: { website: true },
+    });
+    return mapPrismaWebsiteUserToShared(updatedWebsiteUserPrisma);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for pin update.`);
+      return null;
+    }
+    console.error(`Error setting pin status for user ${userId}, website ${websiteId}:`, error);
+    throw error;
   }
 }
 
@@ -338,6 +376,7 @@ export async function addWebsiteToUser(userId: number, websiteData: AddWebsiteUs
                   alertThreshold: websiteData.alertThreshold,
                   alertEnabled: websiteData.alertEnabled ?? false,
                   notifyEmail: websiteData.notifyEmail,
+                  isPinned: websiteData.isPinned ?? false, // <-- Handle isPinned on update
                },
               create: {
                    userId,
@@ -347,11 +386,15 @@ export async function addWebsiteToUser(userId: number, websiteData: AddWebsiteUs
                    alertThreshold: websiteData.alertThreshold,
                    alertEnabled: websiteData.alertEnabled ?? false,
                    notifyEmail: websiteData.notifyEmail,
+                   isPinned: websiteData.isPinned ?? false, // <-- Handle isPinned on create
               },
               include: { website: true } // Include for mapping return value
           });
 
-          updateGlobalInterval(website.id).catch(err => console.error("Error updating global interval post-add:", err));
+          // Update global interval if user interval was set/changed
+          if (websiteData.interval !== undefined) {
+              updateGlobalInterval(website.id).catch(err => console.error("Error updating global interval post-add:", err));
+          }
 
           return websiteUser;
       });
@@ -376,6 +419,7 @@ export async function removeWebsiteFromUser(userId: number, websiteId: number): 
                where: { userId_websiteId: { userId, websiteId } }
           });
           console.log(`[User Website] Removed website ${websiteId} from user ${userId}`);
+          // Trigger interval update after removal
           updateGlobalInterval(websiteId).catch(err => console.error("Error updating global interval post-remove:", err));
       });
   } catch (error: any) {
@@ -411,7 +455,7 @@ export async function searchWebsites(searchTerm: string, limit = 10): Promise<We
       where: {
           url: {
                contains: searchTerm,
-               // mode: 'insensitive' // Uncomment if DB supports it
+               // mode: 'insensitive' // Uncomment if DB supports it and you need case-insensitivity
           }
       },
       take: limit,

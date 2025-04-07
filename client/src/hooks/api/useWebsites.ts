@@ -15,11 +15,13 @@ import {
     createWebsite as apiAddWebsiteToUser,       // Renamed import for clarity
     updateWebsite as apiUpdateUserWebsite,     // Renamed import for clarity
     deleteWebsite as apiRemoveWebsiteFromUser, // Renamed import for clarity
+    setWebsitePinStatus as apiSetPinStatus,    // <-- Import new API function
 } from '../../api/websitesApi'; // Adjust path if needed
 import {
     WebsiteUser,
     AddWebsiteUserDTO,
     UpdateWebsiteUserDTO,
+    SetPinStatusDTO, // <-- Import DTO
     Website,
     ApiError,
     // MonitoringResult // Not directly used here
@@ -49,6 +51,7 @@ export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>
     const { user } = useAuth();
     const userId = user?.id;
     return useQuery<WebsiteUser[], ApiError>({
+        // Fetch user websites (backend sorts by pin status)
         queryKey: websiteQueryKeys.lists(userId),
         queryFn: () => { if (!userId) return Promise.resolve([]); return fetchUserWebsites(); },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
@@ -82,7 +85,7 @@ export function useWebsiteSearch(limit: number = 10) {
 
 /**
  * Hook for website CRUD mutations related to the current user.
- * Invalidates relevant caches using partial keys and triggers initial check on creation.
+ * Includes pin status management.
  */
 export function useWebsiteMutations() {
     const queryClient = useQueryClient();
@@ -101,7 +104,8 @@ export function useWebsiteMutations() {
     const addWebsiteMutation = useMutation<WebsiteUser, ApiError, AddWebsiteUserDTO>({
         mutationFn: (websiteData) => {
              if (!userId) return Promise.reject(new Error("User not authenticated for adding website"));
-             return apiAddWebsiteToUser(websiteData); // API handles mapping userId via token
+             // Include isPinned (defaults to false if not provided)
+             return apiAddWebsiteToUser({ ...websiteData, isPinned: websiteData.isPinned ?? false });
         },
         onSuccess: async (newWebsiteUser) => {
             console.log('[Mutation Success] Website added for user:', newWebsiteUser);
@@ -111,7 +115,7 @@ export function useWebsiteMutations() {
             if (!userId) return;
 
             console.log(`Invalidating caches for user ${userId} after add...`);
-            // 1. Invalidate the user's website list
+            // 1. Invalidate the user's website list (will refetch with new item, sorted correctly)
             queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
             console.log(`Invalidating user website list:`, userWebsiteListKey);
 
@@ -148,6 +152,7 @@ export function useWebsiteMutations() {
         mutationFn: (vars) => {
              if (!userId) return Promise.reject(new Error("User not authenticated for updating website settings"));
              // API function expects { websiteId, websiteData }
+             // isPinned can be updated here too if sent in websiteData
              return apiUpdateUserWebsite(vars);
         },
         onSuccess: (updatedWebsiteUser, variables) => {
@@ -158,7 +163,7 @@ export function useWebsiteMutations() {
             // --- Invalidation & Data Setting ---
             console.log(`Updating/Invalidating caches for user ${userId}, website ${websiteId} after update...`);
 
-            // 1. Invalidate the user's website list
+            // 1. Invalidate the user's website list (refetches sorted list if pin status changed)
             queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
             console.log(`Invalidating user website list:`, userWebsiteListKey);
 
@@ -184,6 +189,35 @@ export function useWebsiteMutations() {
         },
     });
 
+    // --- SET PIN STATUS Mutation ---
+    const setPinStatusMutation = useMutation<WebsiteUser, ApiError, { websiteId: number; isPinned: boolean }>({
+        mutationFn: ({ websiteId, isPinned }) => {
+            if (!userId) return Promise.reject(new Error("User not authenticated for setting pin status"));
+            const pinData: SetPinStatusDTO = { isPinned };
+            return apiSetPinStatus({ websiteId, pinData });
+        },
+        onSuccess: (updatedWebsiteUser, variables) => {
+            const { websiteId, isPinned } = variables;
+            console.log(`[Mutation Success] Pin status set to ${isPinned} for website ${websiteId}.`, updatedWebsiteUser);
+            if (!userId || !updatedWebsiteUser) return;
+
+            // --- Invalidation & Cache Update ---
+            console.log(`Updating/Invalidating caches for user ${userId}, website ${websiteId} after pin update...`);
+
+            // 1. Invalidate the user's website list (will refetch with updated pin order)
+            queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
+            console.log(`Invalidating user website list:`, userWebsiteListKey);
+
+            // 2. Update the specific detail query cache with the new data
+            const detailKey: QueryKey = websiteQueryKeys.detail(websiteId, userId);
+            queryClient.setQueryData(detailKey, updatedWebsiteUser);
+            console.log(`Setting website detail cache after pin update:`, detailKey);
+        },
+        onError: (error, variables) => {
+            console.error(`[Mutation Error] Error setting pin status for website ${variables.websiteId}:`, error.message);
+        },
+    });
+
     // --- DELETE Mutation (Removes website FROM USER) ---
     const removeWebsiteMutation = useMutation<void, ApiError, number>({
         mutationFn: (websiteId: number) => {
@@ -191,8 +225,9 @@ export function useWebsiteMutations() {
              // API function takes websiteId, userId is implicit via auth token
              return apiRemoveWebsiteFromUser(websiteId);
         },
+        // Use onSettled or onSuccess for cache updates
         onSuccess: (_, websiteId) => {
-            console.log(`[Mutation Success] Website ${websiteId} removed for user ${userId}.`);
+            console.log(`[Mutation Success] Website ${websiteId} removal initiated for user ${userId}.`);
             if (!userId) return;
 
             // --- Invalidation & Cache Removal using DEFINED Keys/Patterns ---
@@ -219,11 +254,9 @@ export function useWebsiteMutations() {
             console.log(`Removing website stats query from cache:`, websiteStatsKeyPattern);
 
             // Remove monitoring details queries specific to this user for this website
-            // (Note: If details key didn't include userId, the pattern below would be simpler)
             const detailsKeyPatternForUser: QueryKey = [...monitoringQueryKeys.all, 'details', websiteId, { userId }];
             queryClient.removeQueries({ queryKey: detailsKeyPatternForUser, exact: false }); // Use exact: false to match subsets if params vary
             console.log(`Removing monitoring details query for user from cache:`, detailsKeyPatternForUser);
-
 
             console.log(`Website ${websiteId} deletion cleanup complete.`);
         },
@@ -261,15 +294,18 @@ export function useWebsiteMutations() {
         updateSettings: updateSettingsMutation.mutateAsync,
         removeWebsite: removeWebsiteMutation.mutateAsync,
         toggleAlertEnabled: toggleAlertEnabledMutation.mutateAsync,
+        setPinStatus: setPinStatusMutation.mutateAsync, // <-- Expose new mutation
         // Expose loading/error states
         isAdding: addWebsiteMutation.isPending,
         isUpdating: updateSettingsMutation.isPending,
         isRemoving: removeWebsiteMutation.isPending,
         isTogglingAlert: toggleAlertEnabledMutation.isPending,
+        isSettingPin: setPinStatusMutation.isPending, // <-- Expose loading state
         isTriggeringCheck: isChecking, // Loading state from the check mutation
         errorAdding: addWebsiteMutation.error,
         errorUpdating: updateSettingsMutation.error,
         errorRemoving: removeWebsiteMutation.error,
         errorToggling: toggleAlertEnabledMutation.error,
+        errorSettingPin: setPinStatusMutation.error, // <-- Expose error state
     };
 }

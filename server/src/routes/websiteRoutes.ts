@@ -25,4 +25,7 @@ router.post('/user/dashboard', websiteController.addWebsiteToUser);
 router.put('/user/dashboard/:id', websiteController.updateUserWebsite);
 router.delete('/user/dashboard/:id', websiteController.removeWebsiteFromUser);
 
+// New route for pinning/unpinning a website for the user
+router.patch('/user/dashboard/:id/pin', websiteController.setPinStatus); // Sets the isPinned status
+
 export default router;
