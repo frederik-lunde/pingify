@@ -8,7 +8,5 @@ export * from "./api/useAlerts";
 
 // Domain hooks
 export * from "./domain/useWebsiteData";
-export * from "./domain/useAlertData";
-
 // UI hooks
 export * from "./ui/useChart";
