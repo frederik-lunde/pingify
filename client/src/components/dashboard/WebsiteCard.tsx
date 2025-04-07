@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
   Card, CardContent, Typography, Box, Chip, IconButton,
-  Tooltip, useTheme, CircularProgress
+  Tooltip, useTheme
 } from "@mui/material";
 import {
   CheckCircleOutline as CheckIcon,

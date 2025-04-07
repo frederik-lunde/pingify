@@ -1,6 +1,6 @@
 // src/utils/statusUtils.ts
-import { AlertColor } from '@mui/material'; // Ensure AlertColor is imported
-import { AlertType } from "../types"; // Use types from central types file
+import { AlertColor } from '@mui/material';
+import { AlertType } from "../types";
 
 /**
  * Determines a status color based on uptime percentage.
@@ -10,13 +10,16 @@ import { AlertType } from "../types"; // Use types from central types file
 export function getStatusColor(
   uptime: number | null | undefined,
 ): 'success' | 'warning' | 'error' | 'default' {
-  if (uptime === null || uptime === undefined) return 'default'; // Unknown status
-  if (uptime >= 99.9) return 'success'; // Excellent
-  if (uptime >= 99) return 'warning'; // Okay/Needs Attention
-  // Consider 0% uptime also an error? Or just very low?
-  // if (uptime <= 0) return 'error'; // Explicitly handle 0 or negative if possible
-  if (uptime >= 95) return 'error'; // Poor
-  return 'error'; // Very Poor / Down significantly (Adjust threshold as needed)
+  if (uptime === null || uptime === undefined || isNaN(uptime)) return 'default'; // Handle NaN as well
+  // Clamp value for safety, although formatting already does this
+  const clampedUptime = Math.max(0, Math.min(100, uptime));
+
+  if (clampedUptime >= 99.9) return 'success'; // Excellent
+  if (clampedUptime >= 99) return 'warning'; // Okay/Needs Attention
+  // Removed the >= 95 check for error, as anything below 99 is warning or error
+  if (clampedUptime < 99 && clampedUptime >= 95) return 'error'; // Poor (Adjust threshold if needed)
+  if (clampedUptime < 95) return 'error'; // Very Poor / Down significantly
+  return 'default'; // Should not be reached if logic is correct, but safe fallback
 }
 
 /**
@@ -27,7 +30,7 @@ export function getStatusColor(
 export function getResponseTimeColor(
   time: number | null | undefined,
 ): 'success' | 'warning' | 'error' | 'default' {
-  if (time === null || time === undefined) return 'default'; // No response time data
+  if (time === null || time === undefined || isNaN(time)) return 'default'; // Handle NaN
   if (time <= 500) return 'success';  // Fast
   if (time <= 1500) return 'warning'; // Acceptable
   return 'error';                   // Slow
@@ -40,21 +43,21 @@ export function getResponseTimeColor(
  * @returns An MUI AlertColor ('success', 'warning', 'error', 'info').
  */
 export function getAlertTypeColor(
-  type: AlertType | string | undefined, // Allow potentially undefined or broader string
-): AlertColor { // Return MUI AlertColor type
-  switch (type?.toLowerCase()) { // Use optional chaining and handle potential undefined
+  type: AlertType | string | undefined,
+): AlertColor {
+  switch (type?.toLowerCase()) {
     case 'down':
       return 'error';
     case 'slow':
       return 'warning';
     case 'recovered':
       return 'success';
-     case 'ssl': // Added common alert types
+     case 'ssl':
        return 'warning';
      case 'dns':
        return 'error';
     default:
-      return 'info'; // Default for unknown or other types
+      return 'info';
   }
 }
 
@@ -67,12 +70,9 @@ export function formatResponseTime(ms: number | null | undefined): string {
   if (ms === null || ms === undefined || isNaN(ms)) return "N/A";
 
   if (ms < 1000) {
-    // Show milliseconds directly if under 1 second
     return `${Math.round(ms)} ms`;
   } else {
-    // Show seconds with 1 or 2 decimal places if 1 second or more
     const seconds = ms / 1000;
-    // Use fewer decimals for whole numbers or numbers close to whole
     const decimals = seconds % 1 === 0 ? 0 : (seconds < 10 ? 2 : 1);
     return `${seconds.toFixed(decimals)} s`;
   }
@@ -80,18 +80,19 @@ export function formatResponseTime(ms: number | null | undefined): string {
 
 /**
  * Formats uptime percentage for display (e.g., "99.95%", "100%").
+ * Adds the '%' symbol.
  * @param uptime Uptime percentage (0-100). Can be null or undefined.
  * @returns Formatted string with '%' symbol or "N/A".
  */
 export function formatUptime(uptime: number | null | undefined): string {
   if (uptime === null || uptime === undefined || isNaN(uptime)) return "N/A";
 
-  // Clamp value between 0 and 100
   const clampedUptime = Math.max(0, Math.min(100, uptime));
 
-  // Show "100%" without decimals, otherwise show 2 decimal places
+  // Show "100" without decimals, otherwise show 2 decimal places
   const formatted = clampedUptime === 100 ? "100" : clampedUptime.toFixed(2);
-  return `${formatted}`;
+  // Return only the number part, the % sign is added in the Navbar component for clarity
+  return formatted;
 }
 
 
@@ -123,6 +124,6 @@ export function getAlertTypeDescription(type: AlertType | string | undefined): s
      case 'dns':
        return "DNS resolution problem detected.";
     default:
-      return "An alert was triggered."; // Generic fallback
+      return "An alert was triggered.";
   }
 }
