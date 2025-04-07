@@ -71,6 +71,7 @@ export function useUserWebsiteQuery(websiteId: number | undefined, options?: Cus
         staleTime: 1000 * 60 * 1, // Example: 1 min stale time for detail
         gcTime: 1000 * 60 * 5,
         ...options,
+
     });
 }
 
