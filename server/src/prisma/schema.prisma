@@ -47,6 +47,7 @@ model WebsiteUser {
   alertEnabled   Boolean  @default(false)
   notifyEmail    String? // User's email for notifications
   createdAt      DateTime @default(now())
+  isPinned       Boolean  @default(false) // For pinning websites in the UI
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   website        Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 

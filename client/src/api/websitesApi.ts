@@ -1,11 +1,17 @@
 // src/api/websitesApi.ts
-// No changes needed in API functions themselves.
 import apiClient from './client';
-import { WebsiteUser, AddWebsiteUserDTO, UpdateWebsiteUserDTO, Website } from '../types'; // Adjust path, add ApiError
+import {
+    WebsiteUser,
+    AddWebsiteUserDTO,
+    UpdateWebsiteUserDTO,
+    SetPinStatusDTO, // <-- Import DTO
+    Website
+} from '../types'; // Adjust path, add ApiError
 
 /**
  * Fetches all websites for the user's dashboard.
  * Endpoint: GET /websites/user/dashboard
+ * Note: Backend sorts this by isPinned desc, url asc
  */
 export const fetchUserWebsites = async (): Promise<WebsiteUser[]> => {
     return apiClient.get<WebsiteUser[]>('/websites/user/dashboard');
@@ -46,10 +52,21 @@ export const updateWebsite = async ({ websiteId, websiteData }: { websiteId: num
 };
 
 /**
+ * Sets the pin status for a user's website.
+ * Endpoint: PATCH /websites/user/dashboard/:websiteId/pin
+ */
+export const setWebsitePinStatus = async ({ websiteId, pinData }: { websiteId: number, pinData: SetPinStatusDTO }): Promise<WebsiteUser> => {
+    if (!websiteId) throw new Error("Website ID is required to set pin status.");
+    return apiClient.patch<WebsiteUser>(`/websites/user/dashboard/${websiteId}/pin`, pinData);
+};
+
+
+/**
  * Deletes a website entry for the user.
  * Endpoint: DELETE /websites/user/dashboard/:websiteId
  */
 export const deleteWebsite = async (websiteId: number): Promise<void> => {
      if (!websiteId) throw new Error("Website ID is required for deletion.");
-    await apiClient.delete<void>(`/websites/user/dashboard/${websiteId}`);
+    // Ensure the response is handled correctly (might be 204 No Content)
+    await apiClient.delete<any>(`/websites/user/dashboard/${websiteId}`);
 };

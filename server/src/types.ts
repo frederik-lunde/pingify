@@ -1,5 +1,4 @@
 // server/src/types.ts
-
 // --- SECTION 1: Prisma Type Re-exports (Minimal Required) ---
 import {
   Website as PrismaWebsite,
@@ -58,6 +57,7 @@ export interface WebsiteUser {
     alertThreshold: number | null;
     notifyEmail: string | null;
     createdAt: string; // ISO 8601 date string
+    isPinned: boolean; // <-- Added isPinned field
     website?: Website; // Often included when fetching user's monitored sites
     user?: User;       // Less common to include
 }
@@ -118,6 +118,7 @@ export interface AddWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean;
   notifyEmail?: string | null;
+  isPinned?: boolean; // Already included - correct
 }
 
 export interface UpdateWebsiteUserDTO {
@@ -126,6 +127,12 @@ export interface UpdateWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean | null;
   notifyEmail?: string | null;
+  isPinned?: boolean; // Already included - correct
+}
+
+// DTO specifically for updating the pin status
+export interface SetPinStatusDTO {
+    isPinned: boolean;
 }
 
 export interface LoginCredentials {
