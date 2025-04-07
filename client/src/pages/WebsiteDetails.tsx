@@ -14,7 +14,7 @@ const WebsiteCharts = React.lazy(() => import('../components/details/WebsiteChar
 export type SortableColumn = 'isAvailable' | 'timestamp' | 'statusCode' | 'responseTime';
 export type SortDirection = 'asc' | 'desc';
 
-// --- Skeletons & Fallbacks (Keep as is) ---
+// --- Skeletons & Fallbacks ---
 const PageSkeleton = () => (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         {/* Example skeleton structure */}
@@ -50,18 +50,18 @@ const WebsiteDetails: React.FC = () => {
         return isNaN(id) ? undefined : id;
     }, [websiteIdParam]);
 
-    // --- Local UI State (Keep as is) ---
+    // --- Local UI State ---
     const [timeframeKey, setTimeframeKey] = useState<TimeframeKey>('day');
     const [checkLimit, setCheckLimit] = useState<number>(25);
     const [sortBy, setSortBy] = useState<SortableColumn>('timestamp');
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
+    // --- Data Fetching ---
     const {
         data: websiteDetails,
-        isPending: isInitialLoading,
+        isPending: isInitialLoading, // Use isPending for the very first load state
         error: detailsError,
-        // Explicitly use isFetching for background loading states (e.g., refetch after mutation or window focus)
-        isFetching: isDetailsRefetching,
+        isFetching: isDetailsRefetching, // Tracks background query fetching
         refetch: refetchDetails,
     } = useWebsiteDetailsQuery({
         websiteId: numericWebsiteId!,
@@ -73,12 +73,13 @@ const WebsiteDetails: React.FC = () => {
         enabled: !!numericWebsiteId && numericWebsiteId > 0,
         staleTime: 1000 * 60, // 1 minute
         refetchOnWindowFocus: true,
-        placeholderData: keepPreviousData, // Keep showing old data while fetching new
+        placeholderData: keepPreviousData,
     });
 
-    const { mutate: checkWebsite, isPending: isChecking } = useWebsiteCheckMutation();
+    // --- Mutation ---
+    const { mutate: checkWebsite, isPending: isChecking } = useWebsiteCheckMutation(); // isPending tracks the mutation state
 
-    // --- Event Handlers (Keep as is, including corrected handleSort) ---
+    // --- Event Handlers ---
     const handleTimeframeChange = useCallback((event: SelectChangeEvent<TimeframeKey>) => {
         setTimeframeKey(event.target.value as TimeframeKey);
     }, []);
@@ -95,20 +96,25 @@ const WebsiteDetails: React.FC = () => {
             setSortBy(column);
             setSortDir('desc');
         }
-    }, [sortBy]); // sortDir is implicitly handled by the logic, sortBy is the trigger
+    }, [sortBy]);
 
+    // *** MODIFIED handleCheckNow ***
     const handleCheckNow = useCallback(() => {
-        // Disable checkNow if a manual check is pending OR a background refetch is happening
-        if (!isChecking && !isDetailsRefetching && numericWebsiteId) {
+        // Only prevent clicking if the check *mutation* itself is already pending
+        if (!isChecking && numericWebsiteId) {
+            console.log("Triggering checkWebsite mutation..."); // Add log for debugging
             checkWebsite(numericWebsiteId);
+        } else {
+            console.log("Check skipped. isChecking:", isChecking, "numericWebsiteId:", numericWebsiteId); // Add log
         }
-    }, [isChecking, isDetailsRefetching, numericWebsiteId, checkWebsite]);
+    // Removed isDetailsRefetching from dependencies
+    }, [isChecking, numericWebsiteId, checkWebsite]);
 
     const handleSettingsClick = useCallback(() => {
         if (numericWebsiteId) { navigate(`/website/${numericWebsiteId}/settings`); }
     }, [navigate, numericWebsiteId]);
 
-    // --- Derived Data (Keep as is) ---
+    // --- Derived Data ---
     const name = websiteDetails?.name ?? (isInitialLoading ? 'Loading...' : 'N/A');
     const url = websiteDetails?.url ?? '';
     const latestResult = websiteDetails?.latestResult ?? null;
@@ -116,25 +122,28 @@ const WebsiteDetails: React.FC = () => {
     const recentChecks = websiteDetails?.recentChecks ?? [];
     const uptimePercent = websiteDetails?.uptimePercent ?? 0;
 
-    // *** Define loading states more granularly ***
-    // General background processing (query refetch or mutation) - useful for disabling fetch-triggering controls
+    // --- Loading States ---
+    // Tracks if *any* data processing is happening (query refetch or mutation)
     const isProcessingData = isDetailsRefetching || isChecking;
     // Specific state for the manual "Check Now" action being in progress
-    const isManualChecking = isChecking;
-    // Specific state for background data refreshing (e.g., stale data refetch, window focus refetch)
-    const isBackgroundRefetching = isDetailsRefetching && !isChecking; // Only true if refetching but not due to manual check
+    const isManualChecking = isChecking; // Use the mutation's isPending state directly
+    // Specific state for background data refreshing (query refetching, not the manual check)
+    const isBackgroundRefetching = isDetailsRefetching && !isChecking;
 
 
+    // --- Render Logic ---
+
+    // Invalid ID Handling
     if (websiteIdParam !== undefined && numericWebsiteId === undefined) {
         return <Container sx={{ mt: 4 }}><Alert severity="error">Invalid Website ID provided in URL.</Alert></Container>;
     }
 
-    // Skeleton Loading State (Use isInitialLoading for the *first* load)
+    // Skeleton Loading State
     if (isInitialLoading) {
         return <PageSkeleton />;
     }
 
-    // Error State (Keep as is)
+    // Error State
     if (detailsError && !websiteDetails) {
         const errorMessage = (detailsError as any)?.message || 'An unknown error occurred';
         return (
@@ -146,41 +155,38 @@ const WebsiteDetails: React.FC = () => {
         );
     }
 
-    // Handle case where refetch fails but we have placeholder data (from keepPreviousData)
+    // Handle case where refetch fails but we have placeholder data
     const showInlineError = detailsError && !!websiteDetails;
 
-    // No Data State (Keep as is) - Check after initial load and potential refetches
+    // No Data State
     if (!isInitialLoading && !isDetailsRefetching && !websiteDetails) {
        return <Container sx={{ mt: 4 }}><Alert severity="warning">Could not find data for this website.</Alert></Container>;
     }
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            {/* Inline error for failed refetches (Keep as is) */}
+            {/* Inline error for failed refetches */}
             {showInlineError && (
                 <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => refetchDetails()}>Retry</Button>}>
                     Could not refresh data: {(detailsError as any)?.message || 'Unknown error'}. Displaying last known data.
                 </Alert>
             )}
 
-            {/* Pass specific loading states to Header */}
+            {/* Pass the specific loading state for the manual check */}
             <WebsiteDetailsHeader
                 name={name}
                 url={url}
                 latestResult={latestResult}
-                // isChecking specifically tracks the manual "Check Now" mutation
+                // isChecking should primarily control the "Check Now" button's disabled state/indicator
                 isChecking={isManualChecking}
-                // isRefetching tracks background data updates (not the manual check)
+                // isRefetching can optionally add a subtle indicator that background data is updating
                 isRefetching={isBackgroundRefetching}
                 onCheckNow={handleCheckNow}
                 onSettingsClick={handleSettingsClick}
-                // Header internal logic should disable "Check Now" if isChecking or isRefetching is true.
-                // Settings button might only be disabled during isChecking, or not at all.
             />
 
             {/* Suspense boundary for lazy-loaded charts */}
              <Suspense fallback={<LoadingFallback />}>
-                 {/* Charts: Timeframe select SHOULD be disabled during any data processing */}
                 <WebsiteCharts
                     chartData={chartData}
                     uptimePercent={uptimePercent}
@@ -201,8 +207,6 @@ const WebsiteDetails: React.FC = () => {
                 isLoading={isProcessingData}
                 onCheckLimitChange={handleCheckLimitChange}
                 onSort={handleSort}
-                // List internal logic should use `isLoading` to disable the 'Limit' Select.
-                // Sorting headers should likely remain enabled even during loading.
             />
         </Container>
     );

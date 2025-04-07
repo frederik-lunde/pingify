@@ -1,8 +1,7 @@
 // server/src/controllers/monitoringController.ts
-import { PrismaClient, Prisma } from '@prisma/client'; // Keep Prisma imports for backend use
+import { PrismaClient, Prisma, MonitoringResult as PrismaMonitoringResult } from '@prisma/client'; // Keep Prisma imports for backend use
 import { Request, Response, NextFunction } from 'express';
 
-// --- Import Services ---
 // Assuming ChartDataPoint is exported from monitoringService or imported there
 import { ResultsManager, WebsiteMonitor, StatsCalculator } from '../services/monitoringService';
 import * as websiteService from '../services/websiteService';
@@ -12,10 +11,10 @@ import * as websiteService from '../services/websiteService';
 import {
     WebsiteDetailsData,
     TimeframeKey,
-    MonitoringResult, // Import shared MonitoringResult for explicit mapping
+    MonitoringResult as SharedMonitoringResult, // Alias shared type
     WebsiteStatsData, // Import if needed for other functions
     OverallStats      // Import if needed for other functions
-} from '../types';
+} from '../types'; // Adjust path as needed
 // If ChartDataPoint isn't exported/imported via monitoringService, import it here too:
 // import { ChartDataPoint } from '@shared/types';
 
@@ -33,6 +32,24 @@ const getStartDateForTimeframe = (timeframe: TimeframeKey): Date => {
         case 'month': return subDays(now, 30);
         case 'year': return subYears(now, 1);
     }
+};
+
+// Helper function to map Prisma result to Shared result type
+const mapPrismaResultToShared = (prismaResult: PrismaMonitoringResult | null): SharedMonitoringResult | null => {
+    // Handle null case explicitly
+    if (!prismaResult) {
+        return null;
+    }
+    return {
+        id: prismaResult.id,
+        websiteId: prismaResult.websiteId,
+        checkedAt: prismaResult.checkedAt.toISOString(), // Convert Date to ISO string
+        responseTime: prismaResult.responseTime,
+        isAvailable: prismaResult.isAvailable,
+        statusCode: prismaResult.statusCode,
+        errorMessage: prismaResult.errorMessage,
+        // Explicitly exclude relations like 'website' unless the shared type includes them
+    };
 };
 
 
@@ -103,50 +120,79 @@ export const getResultsByWebsite = async ( req: Request<{ websiteId: string }>, 
       });
 
     // Map to shared MonitoringResult type before sending
-    const responseData: MonitoringResult[] = results.map(check => ({
-        id: check.id,
-        websiteId: check.websiteId,
-        checkedAt: check.checkedAt.toISOString(), // Date -> string
-        responseTime: check.responseTime,
-        isAvailable: check.isAvailable,
-        statusCode: check.statusCode,
-        errorMessage: check.errorMessage,
-        // Explicitly exclude relations if not needed by this specific endpoint's consumer
-    }));
+    // Use the helper function for mapping
+    const responseData: (SharedMonitoringResult | null)[] = results.map(mapPrismaResultToShared);
 
-    res.json(responseData);
+    // Filter out potential nulls if mapPrismaResultToShared could return null
+    // and the endpoint guarantees an array of MonitoringResult
+    const nonNullResponseData = responseData.filter(r => r !== null) as SharedMonitoringResult[];
+
+    res.json(nonNullResponseData);
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * Trigger an immediate check for a website (requires user access)
+ * Trigger an immediate check for a website (requires user access).
+ * Waits for the check to complete and returns the new result.
  */
 export const triggerWebsiteCheck = async ( req: Request<{ websiteId: string }>, res: Response, next: NextFunction ): Promise<void> => {
   try {
      const { websiteId: websiteIdParam } = req.params;
      const userId = req.user!.id;
      const websiteId = parseInt(websiteIdParam, 10);
+
      if (isNaN(websiteId) || websiteId <= 0) {
         res.status(400).json({ message: 'Invalid Website ID format.' });
         return;
      }
+
+     // Verify user access
      const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
      if (!hasAccess) {
         res.status(404).json({ message: 'Website not found or access denied.' });
         return;
      }
+
+     // Get website core data needed for the check
      const website = await websiteService.getWebsiteById(websiteId); // Returns WebsitePrisma
      if (!website) {
+        // This case might be redundant if hasUserWebsite already checks existence, but good for safety
         res.status(404).json({ message: 'Website core data not found.' });
         return;
      }
-     // Pass WebsitePrisma to service
-     WebsiteMonitor.checkWebsite(website);
-     res.json({ message: 'Check triggered successfully. Results will update shortly.' });
+
+     console.log(`[triggerWebsiteCheck] Starting check for website ID: ${websiteId}`);
+
+     // --- MODIFICATION START ---
+     // Await the actual check execution from the service.
+     // Assumes WebsiteMonitor.checkWebsite is async and returns the created PrismaMonitoringResult.
+     const newPrismaResult: PrismaMonitoringResult = await WebsiteMonitor.checkWebsite(website);
+     console.log(`[triggerWebsiteCheck] Check completed for website ID: ${websiteId}. Result ID: ${newPrismaResult?.id}`);
+
+     // Map the Prisma result object to the shared DTO/type for the response
+     // Use the helper function which handles potential nulls
+     const newSharedResult: SharedMonitoringResult | null = mapPrismaResultToShared(newPrismaResult);
+
+     // Check if mapping was successful (it should be if checkWebsite returns a valid result)
+     if (!newSharedResult) {
+         // This indicates an unexpected issue either in checkWebsite or the mapping
+         console.error(`[triggerWebsiteCheck] Failed to map Prisma result for website ID: ${websiteId}`);
+         // Send a server error response
+         res.status(500).json({ message: 'Failed to process check result after execution.' });
+         return;
+     }
+
+     // Respond with the newly created check result object
+     res.status(200).json(newSharedResult);
+     // --- MODIFICATION END ---
+
   } catch (error) {
-    next(error);
+     // Log the error for debugging on the server
+     console.error(`[triggerWebsiteCheck] Error checking website ID ${req.params.websiteId}:`, error);
+     // Pass error to the global error handler
+     next(error);
   }
 };
 
@@ -279,29 +325,11 @@ export const getWebsiteDetails = async (
             // Use data from fetched userWebsite (assume WebsiteUserPrisma compatible enough with shared WebsiteUser for these fields)
             name: userWebsite.name || userWebsite.website.url,
             url: userWebsite.website.url,
-            // Map latestResultData (Prisma type) to shared MonitoringResult type
-            latestResult: latestResultData ? {
-                id: latestResultData.id,
-                websiteId: latestResultData.websiteId,
-                checkedAt: latestResultData.checkedAt.toISOString(), // Date -> string
-                responseTime: latestResultData.responseTime,
-                isAvailable: latestResultData.isAvailable,
-                statusCode: latestResultData.statusCode,
-                errorMessage: latestResultData.errorMessage,
-                // Explicitly exclude relations unless needed by frontend ('website' field is optional in shared MonitoringResult)
-            } : null,
+            // Map latestResultData (Prisma type) to shared MonitoringResult type using helper
+            latestResult: mapPrismaResultToShared(latestResultData),
             chartData: chartDataResult, // Already ChartDataPoint[] from service
-            // Map recentChecksData (Prisma type[]) to shared MonitoringResult type[]
-            recentChecks: recentChecksData.map(check => ({
-                 id: check.id,
-                 websiteId: check.websiteId,
-                 checkedAt: check.checkedAt.toISOString(), // Date -> string
-                 responseTime: check.responseTime,
-                 isAvailable: check.isAvailable,
-                 statusCode: check.statusCode,
-                 errorMessage: check.errorMessage,
-                 // Explicitly exclude relations ('website' field is optional in shared MonitoringResult)
-            })),
+            // Map recentChecksData (Prisma type[]) to shared MonitoringResult type[] using helper
+            recentChecks: recentChecksData.map(mapPrismaResultToShared).filter(r => r !== null) as SharedMonitoringResult[], // Map and filter nulls
             uptimePercent: uptimePercentData,
         };
 

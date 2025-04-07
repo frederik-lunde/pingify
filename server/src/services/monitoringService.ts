@@ -46,48 +46,91 @@ export class WebsiteMonitor {
       const response = await axios.get(url, {
         timeout: TIMEOUT_MS,
         headers: { 'User-Agent': 'Website-Monitor/1.0' },
-        validateStatus: () => true,
+        validateStatus: () => true, // Validate all status codes to get the actual code
       });
       responseTime = Math.round(performance.now() - start);
       statusCode = response.status;
-      isAvailable = statusCode >= 200 && statusCode < 400;
+      isAvailable = statusCode >= 200 && statusCode < 400; // Consider 2xx/3xx as available
     } catch (error: any) {
-      responseTime = Math.round(performance.now() - start);
+      responseTime = Math.round(performance.now() - start); // Still record time taken
       errorMessage = this.parseErrorMessage(error);
+      // Attempt to get status code even from error response if available
+      if (axios.isAxiosError(error) && error.response) {
+        statusCode = error.response.status;
+      }
+      isAvailable = false; // Explicitly set to false on error
     }
     return { responseTime, isAvailable, statusCode, errorMessage };
   }
 
+  /**
+   * Parses common axios error types into a readable string.
+   */
   private static parseErrorMessage(error: any): string {
-    if (error.response) return `HTTP Error: ${error.response.status}`;
-    if (error.code === 'ECONNABORTED') return 'Request timed out';
-    if (error.code === 'ENOTFOUND') return 'DNS lookup failed';
-    return error.message || 'Unknown error';
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        // Include status code in the error message from response
+        return `HTTP Error: ${error.response.status}`;
+      } else if (error.request) {
+        // Request was made but no response received
+        if (error.code === 'ECONNABORTED') {
+          return `Request timed out after ${TIMEOUT_MS}ms`;
+        }
+        return 'No response received from server';
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        return error.message || 'Request setup error';
+      }
+    }
+    // Fallback for non-axios errors
+    return error.message || 'Unknown check error';
   }
 
   /**
-   * Checks a single website and records the result
+   * Checks a single website, records the result, and triggers alerts.
+   * Returns the newly created PrismaMonitoringResult.
    */
   // Expects Prisma types from the DB query
-  static async checkWebsite(website: PrismaWebsite): Promise<void> {
-    console.log(`Checking website: ${website.url}`);
-    try {
-      const result = await this.performWebsiteCheck(website.url);
-      await ResultsManager.saveResult(website.id, result);
+  // --- MODIFIED SIGNATURE ---
+  static async checkWebsite(website: PrismaWebsite): Promise<PrismaMonitoringResult> {
+    console.log(`[checkWebsite] Starting check for: ${website.url} (ID: ${website.id})`);
+    let savedResult: PrismaMonitoringResult; // Variable to hold the result
 
+    try {
+      const checkResponse = await this.performWebsiteCheck(website.url);
+
+      // Save the result using the ResultsManager
+      // saveResult should ideally return the created PrismaMonitoringResult
+      savedResult = await ResultsManager.saveResult(website.id, checkResponse);
+      console.log(`[checkWebsite] Result saved for ${website.url}, Result ID: ${savedResult.id}`);
+
+      // Fetch users associated with alerts *after* saving the result
       const websiteUsers = await prisma.websiteUser.findMany({
         where: { websiteId: website.id, alertEnabled: true }
       });
 
-      // processAlerts likely expects Prisma types
+      // Process alerts for each relevant user
+      // Pass the saved result's data (or the original checkResponse)
       for (const websiteUser of websiteUsers) {
+        console.log(`[checkWebsite] Processing alerts for user ${websiteUser.userId}, website ${website.id}`);
         await processAlerts(
-          website, websiteUser, result.isAvailable, result.responseTime,
-          result.statusCode, result.errorMessage
+          website,
+          websiteUser,
+          savedResult.isAvailable, // Use data from saved result
+          savedResult.responseTime,
+          savedResult.statusCode,
+          savedResult.errorMessage
         );
       }
+
+      // --- MODIFIED: RETURN THE SAVED RESULT ---
+      return savedResult;
+
     } catch (error: any) {
-      console.error(`Failed to process monitoring for ${website.url}:`, error.message);
+      console.error(`[checkWebsite] Failed to process monitoring for ${website.url}:`, error.message || error);
+      // Re-throw the error so the calling controller knows something went wrong
+      // The controller's catch block will handle the final response
+      throw error;
     }
   }
 
@@ -98,27 +141,41 @@ export class WebsiteMonitor {
   static async getWebsitesToCheck(): Promise<PrismaWebsite[]> {
     return prisma.website.findMany({ where: { isActive: true } });
   }
-}
+} // End of WebsiteMonitor Class
 
 // --- ResultsManager Class ---
 // Methods generally return Prisma types as they interact directly with the DB
 export class ResultsManager {
   /**
-   * Saves the monitoring result to the database
+   * Saves the monitoring result to the database within a transaction.
+   * Returns the created PrismaMonitoringResult.
    */
    // Returns Prisma type
   static async saveResult(
     websiteId: number,
     result: MonitoringResponse // Expects internal MonitoringResponse type
-  ): Promise<PrismaMonitoringResult> {
+  ): Promise<PrismaMonitoringResult> { // Ensure return type matches
     const { responseTime, isAvailable, statusCode, errorMessage } = result;
+    // Use transaction to update lastChecked and create result atomically
     return prisma.$transaction(async (tx) => {
+      // 1. Update the website's lastChecked timestamp
       await tx.website.update({
-        where: { id: websiteId }, data: { lastChecked: new Date() },
+        where: { id: websiteId },
+        data: { lastChecked: new Date() },
       });
+
+      // 2. Create the monitoring result record
       const monitoringResult = await tx.monitoringResult.create({
-        data: { websiteId, responseTime, isAvailable, statusCode, errorMessage },
+        data: {
+            websiteId: websiteId, // Ensure relation is set via ID
+            responseTime: responseTime,
+            isAvailable: isAvailable,
+            statusCode: statusCode,
+            errorMessage: errorMessage
+        },
       });
+       console.log(`[saveResult] Saved result ID: ${monitoringResult.id} for website ID: ${websiteId}`);
+      // 3. Return the created result
       return monitoringResult;
     });
   }
@@ -212,7 +269,7 @@ export class ResultsManager {
       }
     });
   }
-}
+} // End of ResultsManager Class
 
 
 // --- StatsCalculator Class ---
@@ -413,7 +470,7 @@ export class StatsCalculator {
                 startDate = subHours(endDate, 1);
                 const rawResults = await prisma.monitoringResult.findMany({
                     where: { websiteId, checkedAt: { gte: startDate, lte: endDate } },
-                    orderBy: { checkedAt: 'asc' }, take: 1000,
+                    orderBy: { checkedAt: 'asc' }, take: 1000, // Adjust take limit if needed
                 });
                 chartData = rawResults.map(r => ({
                     label: format(new Date(r.checkedAt), 'HH:mm'),
@@ -428,9 +485,10 @@ export class StatsCalculator {
                 startDate = subDays(endDate, 1);
                 const rawResults = await prisma.monitoringResult.findMany({
                     where: { websiteId, checkedAt: { gte: startDate, lte: endDate } },
-                    orderBy: { checkedAt: 'asc' }, take: 1000,
+                    orderBy: { checkedAt: 'asc' }, take: 1000, // Adjust take limit if needed
                 });
-                const limitedResults = rawResults.length > 48 ? rawResults.slice(-48) : rawResults;
+                 // Limit points for better chart rendering if too many results
+                const limitedResults = rawResults.length > 96 ? rawResults.slice(-96) : rawResults; // e.g., Limit to 96 points (every 15 min)
                 chartData = limitedResults.map(r => ({
                     label: format(new Date(r.checkedAt), 'HH:mm'),
                     timestamp: getUnixTime(new Date(r.checkedAt)),
@@ -509,6 +567,7 @@ export class StatsCalculator {
                 break;
             }
         }
+        // Ensure data is sorted by timestamp regardless of calculation method
         chartData.sort((a, b) => a.timestamp - b.timestamp);
         return chartData; // Returns ChartDataPoint[]
     }
