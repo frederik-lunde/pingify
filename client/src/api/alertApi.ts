@@ -1,73 +1,114 @@
-import apiClient from './client';
-import { Alert, AlertStats, AlertQueryOptions, AlertUser } from '../types';
+// src/api/alertApi.ts
+import apiClient from './client'; // Your configured axios instance which returns data directly
+// Import types from the *updated* types file
+import { Alert, AlertStats, AlertQueryOptions, ApiError } from '../types'; // Adjust path as needed
+
+/**
+ * Constructs query parameters object, omitting undefined values.
+ */
+const buildAlertQueryParams = (options: AlertQueryOptions): Record<string, string | number | boolean> => {
+    const params: Record<string, string | number | boolean> = {};
+    if (options.limit !== undefined) params.limit = options.limit;
+    if (options.type !== undefined) params.type = options.type;
+    // Convert Dates from query options to ISO strings for the API call
+    if (options.from instanceof Date) params.from = options.from.toISOString();
+    if (options.to instanceof Date) params.to = options.to.toISOString();
+    if (options.websiteId !== undefined) params.websiteId = options.websiteId;
+    return params;
+};
+
+/**
+ * Helper to log API errors (interceptor already creates/rejects with ApiError).
+ */
+const logApiError = (error: any, context: string): void => {
+    // Check if it's the structured ApiError from the interceptor
+    if (error instanceof Error && 'status' in error && 'url' in error) {
+        const apiError = error as ApiError;
+         console.error(`API Error (${apiError.status ?? 'Unknown'}) ${context}: ${apiError.message} on ${apiError.method} ${apiError.url}`);
+    } else {
+        // Log generic errors
+        console.error(`API Error (Unexpected Type) ${context}:`, error);
+    }
+};
+
 
 /**
  * Fetches alerts for the authenticated user based on query options.
  * Endpoint: GET /alerts/user
+ * **Uses apiClient which returns data directly**
  */
 export const fetchUserAlerts = async (options: AlertQueryOptions = {}): Promise<Alert[]> => {
-    // ... (implementation remains the same)
-    const params: any = { /* ... construct params ... */ };
-    return (await apiClient.get<Alert[]>("/alerts/user", { params })) ?? []; // Ensure array return
-};
-
-/**
- * Fetches unread alerts specifically associated with the authenticated user.
- * Endpoint: GET /alerts/user/unread
- * Returns AlertUser[] which include the nested Alert object.
- */
-export const fetchUserUnreadAlerts = async (options: AlertQueryOptions = {}): Promise<AlertUser[]> => {
-    // ... (implementation remains the same)
-    const params: any = { /* ... construct params ... */ };
-    // API returns AlertUser[] directly
-    return (await apiClient.get<AlertUser[]>("/alerts/user/unread", { params })) ?? []; // Ensure array return
+    const url = "/alerts/user";
+    try {
+        const params = buildAlertQueryParams(options);
+        // apiClient.get ALREADY returns the data (Alert[]) directly
+        const data = await apiClient.get<Alert[]>(url, { params });
+        // Return the data or empty array if client returns null/undefined for some reason
+        return data ?? [];
+    } catch (error: any) {
+        // The interceptor already formats and rejects with ApiError
+        logApiError(error, 'fetching user alerts');
+        throw error; // Re-throw the ApiError from the interceptor
+    }
 };
 
 /**
  * Fetches alerts related to a specific website ID.
  * Endpoint: GET /alerts/website/:websiteId
+ * **Uses apiClient which returns data directly**
  */
 export const fetchWebsiteAlerts = async (websiteId: number, options: AlertQueryOptions = {}): Promise<Alert[]> => {
-    // ... (implementation remains the same)
-    if (!websiteId) throw new Error("Website ID is required");
-    const params: any = { /* ... construct params ... */ };
-    return (await apiClient.get<Alert[]>(`/alerts/website/${websiteId}`, { params })) ?? []; // Ensure array return
+    if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
+        // Throwing here prevents the API call and can be caught by React Query
+        throw new Error("Valid Website ID is required for fetching website alerts.");
+    }
+    const url = `/alerts/website/${websiteId}`;
+    try {
+        const params = buildAlertQueryParams(options);
+        // apiClient.get ALREADY returns the data (Alert[]) directly
+        const data = await apiClient.get<Alert[]>(url, { params });
+        return data ?? [];
+    } catch (error: any) {
+        logApiError(error, `fetching alerts for website ${websiteId}`);
+        throw error; // Re-throw the ApiError from the interceptor
+    }
 };
 
 /**
  * Fetches alert statistics for the authenticated user.
  * Endpoint: GET /alerts/user/stats
+ * **Uses apiClient which returns data directly**
  */
 export const fetchAlertStats = async (days: number = 7): Promise<AlertStats> => {
-    // ... (implementation remains the same)
-    const stats = await apiClient.get<AlertStats>("/alerts/user/stats", { params: { days } });
-    // Provide default structure if API returns null/undefined unexpectedly
-    return stats ?? { totalAlerts: 0, resolvedAlerts: 0, unresolvedAlerts: 0, byType: {}, byWebsite: [] };
+    const url = "/alerts/user/stats";
+    try {
+        // apiClient.get ALREADY returns the data (AlertStats) directly
+        const data = await apiClient.get<AlertStats>(url, { params: { days } });
+        // Return the data, providing a default structure if the client returns null/undefined
+        return data ?? { totalAlerts: 0, byType: {}, byWebsite: [] };
+    } catch (error: any) {
+        logApiError(error, 'fetching alert stats');
+        throw error; // Re-throw the ApiError from the interceptor
+    }
 };
 
 /**
- * Marks a specific alert as read for the authenticated user.
- * Endpoint: POST /alerts/user/read/:alertId
+ * Dismisses (deletes) a specific alert for the authenticated user.
+ * Endpoint: DELETE /alerts/:alertId
+ * **Uses apiClient which returns data (likely null/undefined for 204) directly**
  */
-export const markAlertAsRead = async (alertId: number): Promise<void> => {
-     if (!alertId || isNaN(alertId)) throw new Error("Valid Alert ID is required.");
-    await apiClient.post<void>(`/alerts/user/read/${alertId}`);
-};
-
-/**
- * Marks all unread alerts as read for the authenticated user.
- * Endpoint: POST /alerts/user/read-all
- */
-export const markAllAlertsAsRead = async (): Promise<void> => {
-    await apiClient.post<void>("/alerts/user/read-all");
-};
-
-// NEW: Dismiss (delete) an alert for the authenticated user.
-/**
- * Deletes the AlertUser link for a specific alert for the authenticated user.
- * Endpoint: DELETE /alerts/user/:alertId
- */
-export const deleteAlertForUser = async (alertId: number): Promise<void> => {
-    if (!alertId || isNaN(alertId)) throw new Error("Valid Alert ID is required.");
-    await apiClient.delete<void>(`/alerts/user/${alertId}`);
+export const dismissAlert = async (alertId: number): Promise<void> => {
+    if (!alertId || isNaN(alertId) || alertId <= 0) {
+        throw new Error("Valid Alert ID is required for dismissing an alert.");
+    }
+    const url = `/alerts/${alertId}`;
+    try {
+        // apiClient.delete returns response.data. Since backend sends 204,
+        // response.data will likely be undefined or null. The void return type handles this.
+        // We don't need to store or use the return value here.
+        await apiClient.delete<void>(url);
+    } catch (error: any) {
+        logApiError(error, `dismissing alert ${alertId}`);
+        throw error; // Re-throw the ApiError from the interceptor
+    }
 };

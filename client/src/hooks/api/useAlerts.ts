@@ -1,214 +1,143 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, AlertStats, AlertQueryOptions, AlertUser, ApiError } from "../../types"; // Adjust path if needed
-// Import API functions
+// src/hooks/query/useAlerts.ts
+import { useQuery, useMutation, useQueryClient, QueryKey, UseQueryOptions } from '@tanstack/react-query';
+import { Alert, AlertStats, AlertQueryOptions, ApiError } from "../../types"; // Adjust path
 import {
     fetchUserAlerts,
-    fetchUserUnreadAlerts,
     fetchWebsiteAlerts,
     fetchAlertStats,
-    markAlertAsRead as markAlertAsReadAPI,
-    markAllAlertsAsRead as markAllAlertsAsReadAPI,
-    deleteAlertForUser as deleteAlertForUserAPI
-} from '../../api/alertApi'; // Adjust path if needed
+    dismissAlert as dismissAlertAPI
+} from '../../api/alertApi'; // Adjust path
 
-// --- Query Keys ---
+// --- Query Keys --- (remain the same)
 export const alertQueryKeys = {
     all: ['alerts'] as const,
     lists: () => [...alertQueryKeys.all, 'list'] as const,
-    list: (options: AlertQueryOptions = {}) => [...alertQueryKeys.lists(), options] as const,
-    userUnread: (options: AlertQueryOptions = {}) => [...alertQueryKeys.all, 'user', 'unread', options] as const,
+    list: (options: AlertQueryOptions = {}) => [...alertQueryKeys.lists(), 'user', options] as const,
     website: (websiteId: number | undefined, options: AlertQueryOptions = {}) => [...alertQueryKeys.all, 'website', websiteId, options] as const,
-    stats: (days?: number) => [...alertQueryKeys.all, 'stats', { days }] as const,
+    stats: (days?: number) => [...alertQueryKeys.all, 'stats', 'user', { days }] as const,
 };
 
-// --- Query Hook Options ---
-interface AlertQueryHookOptions {
+// --- Custom Hook Options Interface ---
+// Define options the CALLING component might typically control
+interface UseAlertsHookOptions {
     enabled?: boolean;
     refetchInterval?: number | false;
-    staleTime?: number;
+    staleTime?: number; // Allow overriding default staleTime if needed
+    // gcTime is usually best set as a default inside the hook
 }
 
+// Default cache times (can be adjusted)
+const DEFAULT_LIST_STALE_TIME = 1000 * 60; // 1 minute
+const DEFAULT_LIST_GC_TIME = 1000 * 60 * 5; // 5 minutes
+const DEFAULT_STATS_STALE_TIME = 1000 * 60 * 5; // 5 minutes
+const DEFAULT_STATS_GC_TIME = 1000 * 60 * 15; // 15 minutes
 
 // --- Query Hooks ---
 
+/**
+ * Hook to fetch the authenticated user's active alerts.
+ * Encapsulates default caching, allows component to control enabled/refetchInterval.
+ */
 export function useUserAlertsQuery(
-    options: AlertQueryOptions = {},
-    queryOptions?: AlertQueryHookOptions
+    // 1st arg: API filter options
+    apiOptions: AlertQueryOptions = {},
+    // 2nd arg: Options for the hook wrapper / query behavior control
+    hookOptions?: UseAlertsHookOptions
 ) {
-    const queryKey = alertQueryKeys.list(options);
+    const queryKey = alertQueryKeys.list(apiOptions);
     return useQuery<Alert[], ApiError>({
         queryKey: queryKey,
-        queryFn: () => fetchUserAlerts(options),
-        enabled: queryOptions?.enabled,
-        refetchInterval: queryOptions?.refetchInterval,
-        staleTime: queryOptions?.staleTime ?? 1000 * 60,
-        initialData: [],
+        queryFn: () => fetchUserAlerts(apiOptions),
+        // --- React Query Options ---
+        // Controlled primarily by the component via hookOptions:
+        enabled: hookOptions?.enabled, // Let component enable/disable
+        refetchInterval: hookOptions?.refetchInterval, // Let component control polling
+        // Defaults defined here, but overrideable via hookOptions:
+        staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME,
+        // Defaults defined here (less likely to be overridden):
+        gcTime: DEFAULT_LIST_GC_TIME,
+        initialData: [], // Provide initial data
     });
 }
 
-export function useUserUnreadAlertsQuery(
-    options: AlertQueryOptions = {},
-    queryOptions?: AlertQueryHookOptions
-) {
-    const queryFnOptions = { isResolved: false, ...options };
-    const queryKey = alertQueryKeys.userUnread(queryFnOptions);
-
-    return useQuery<AlertUser[], ApiError>({
-        queryKey: queryKey,
-        queryFn: () => fetchUserUnreadAlerts(queryFnOptions),
-        enabled: queryOptions?.enabled,
-        refetchInterval: queryOptions?.refetchInterval,
-        staleTime: queryOptions?.staleTime ?? 1000 * 30,
-        initialData: [],
-    });
-}
-
+/**
+ * Hook to fetch active alerts for a specific website.
+ */
 export function useWebsiteAlertsQuery(
     websiteId: number | undefined,
-    options: AlertQueryOptions = {},
-    queryOptions?: AlertQueryHookOptions
+    apiOptions: AlertQueryOptions = {},
+    hookOptions?: UseAlertsHookOptions
 ) {
-    const queryKey = alertQueryKeys.website(websiteId, options);
+    const queryKey = alertQueryKeys.website(websiteId, apiOptions);
+    const isQueryEnabled = (hookOptions?.enabled ?? true) && typeof websiteId === 'number' && websiteId > 0;
+
     return useQuery<Alert[], ApiError>({
         queryKey: queryKey,
-        queryFn: () => fetchWebsiteAlerts(websiteId!, options),
-        enabled: (queryOptions?.enabled ?? true) && typeof websiteId === 'number' && websiteId > 0,
-        refetchInterval: queryOptions?.refetchInterval,
-        staleTime: queryOptions?.staleTime ?? 1000 * 60 * 5,
+        queryFn: () => {
+            // Should not run if not enabled, but check defensively
+            if (!websiteId) return Promise.resolve([]);
+            return fetchWebsiteAlerts(websiteId, apiOptions);
+        },
+        // --- React Query Options ---
+        enabled: isQueryEnabled, // Derived enabled state
+        refetchInterval: hookOptions?.refetchInterval, // Controlled by component
+        staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME, // Default + override
+        gcTime: DEFAULT_LIST_GC_TIME, // Default
         initialData: [],
     });
 }
 
+/**
+ * Hook to fetch the authenticated user's alert statistics.
+ */
 export function useAlertStatsQuery(
     days = 7,
-    queryOptions?: AlertQueryHookOptions
+    hookOptions?: UseAlertsHookOptions // Can still pass enabled/staleTime etc.
 ) {
     const queryKey = alertQueryKeys.stats(days);
     return useQuery<AlertStats, ApiError>({
         queryKey: queryKey,
         queryFn: () => fetchAlertStats(days),
-        enabled: queryOptions?.enabled,
-        refetchInterval: queryOptions?.refetchInterval,
-        staleTime: queryOptions?.staleTime ?? 1000 * 60 * 15,
-        initialData: () => ({
-            totalAlerts: 0, resolvedAlerts: 0, unresolvedAlerts: 0, byType: {}, byWebsite: []
-        }),
+        // --- React Query Options ---
+        enabled: hookOptions?.enabled,
+        refetchInterval: hookOptions?.refetchInterval,
+        staleTime: hookOptions?.staleTime ?? DEFAULT_STATS_STALE_TIME, // Use stats default
+        gcTime: DEFAULT_STATS_GC_TIME, // Use stats default
+        initialData: () => ({ totalAlerts: 0, byType: {}, byWebsite: [] }),
     });
 }
 
 
-// --- Mutation Hooks ---
+// --- Mutation Hooks --- (remain the same as the previously corrected version)
 
-/**
- * Defines the expected shape of the context object returned by onMutate.
- */
-interface AlertMutationContext {
-    previousUnreadAlerts?: AlertUser[]; // Make it optional as onMutate might fail before returning
+interface AlertDismissMutationContext {
+    queryKey: QueryKey;
+    previousAlerts?: Alert[];
 }
-
 
 export function useAlertActions() {
     const queryClient = useQueryClient();
+    const userAlertListsQueryKeyPattern = alertQueryKeys.list();
 
-    const unreadListBaseQueryKey = alertQueryKeys.userUnread({ isResolved: false });
-    const generalListBaseQueryKey = alertQueryKeys.list({});
-
-    // --- Mutation: Mark ONE alert as read ---
-    const markOneAsReadMutation = useMutation<void, ApiError, number, AlertMutationContext>({ // Add context type
-        mutationFn: markAlertAsReadAPI,
-        onMutate: async (alertId): Promise<AlertMutationContext> => { // Ensure return type matches context
-            await queryClient.cancelQueries({ queryKey: unreadListBaseQueryKey });
-            const previousUnreadAlerts = queryClient.getQueryData<AlertUser[]>(unreadListBaseQueryKey);
-            queryClient.setQueryData<AlertUser[]>(
-                unreadListBaseQueryKey,
-                (oldData = []) => oldData.filter(alertUser => alertUser.alertId !== alertId)
-            );
-            // Return the context object *successfully*
-            return { previousUnreadAlerts };
-        },
-        onError: (error, alertId, context) => {
-            console.error(`Failed to mark alert ${alertId} as read:`, error.message);
-            // FIX: Check if context and the property exist before using it
-            if (context?.previousUnreadAlerts) {
-                queryClient.setQueryData(unreadListBaseQueryKey, context.previousUnreadAlerts);
-            } else {
-                // If context is missing, invalidate to be safe (refetch from server)
-                queryClient.invalidateQueries({ queryKey: unreadListBaseQueryKey });
-            }
-        },
-        onSettled: (data, error, alertId) => {
-            console.log(`MarkAsRead mutation settled for alert ${alertId}. Error: ${error?.message ?? 'None'}`);
-            queryClient.invalidateQueries({ queryKey: unreadListBaseQueryKey });
-            queryClient.invalidateQueries({ queryKey: generalListBaseQueryKey });
-        },
-    });
-
-    // --- Mutation: Mark ALL alerts as read ---
-    const markAllAsReadMutation = useMutation<void, ApiError, void, AlertMutationContext>({ // Add context type
-        mutationFn: markAllAlertsAsReadAPI,
-        onMutate: async (): Promise<AlertMutationContext> => { // Ensure return type matches context
-            await queryClient.cancelQueries({ queryKey: unreadListBaseQueryKey });
-            const previousUnreadAlerts = queryClient.getQueryData<AlertUser[]>(unreadListBaseQueryKey);
-            queryClient.setQueryData<AlertUser[]>(unreadListBaseQueryKey, () => []);
-            return { previousUnreadAlerts };
-        },
-        onError: (error, _variables, context) => {
-            console.error("Failed to mark all alerts as read:", error.message);
-             // FIX: Check if context and the property exist before using it
-            if (context?.previousUnreadAlerts) {
-                queryClient.setQueryData(unreadListBaseQueryKey, context.previousUnreadAlerts);
-            } else {
-                queryClient.invalidateQueries({ queryKey: unreadListBaseQueryKey });
-            }
-        },
-        onSettled: (data, error) => {
-             console.log(`MarkAllAsRead mutation settled. Error: ${error?.message ?? 'None'}`);
-            queryClient.invalidateQueries({ queryKey: unreadListBaseQueryKey });
-            queryClient.invalidateQueries({ queryKey: generalListBaseQueryKey });
-        },
-    });
-
-    // --- Mutation: Dismiss (delete AlertUser link) ONE alert for the user ---
-    const dismissAlertMutation = useMutation<void, ApiError, number, AlertMutationContext>({ // Add context type
-        mutationFn: deleteAlertForUserAPI,
-        onMutate: async (alertId): Promise<AlertMutationContext> => { // Ensure return type matches context
-            await queryClient.cancelQueries({ queryKey: unreadListBaseQueryKey });
-            const previousUnreadAlerts = queryClient.getQueryData<AlertUser[]>(unreadListBaseQueryKey);
-            queryClient.setQueryData<AlertUser[]>(
-                unreadListBaseQueryKey,
-                (oldData = []) => oldData.filter(alertUser => alertUser.alertId !== alertId)
-            );
-            return { previousUnreadAlerts };
+    const dismissAlertMutation = useMutation<void, ApiError, number, AlertDismissMutationContext | undefined>({
+        mutationFn: dismissAlertAPI,
+        onMutate: async (alertId): Promise<AlertDismissMutationContext | undefined> => {
+            await queryClient.cancelQueries({ queryKey: userAlertListsQueryKeyPattern });
+            // Using simpler invalidation strategy - no optimistic update here
+            return undefined;
         },
          onError: (error, alertId, context) => {
             console.error(`Failed to dismiss alert ${alertId}:`, error.message);
-            // FIX: Check if context and the property exist before using it
-            if (context?.previousUnreadAlerts) {
-                queryClient.setQueryData(unreadListBaseQueryKey, context.previousUnreadAlerts);
-            } else {
-                 queryClient.invalidateQueries({ queryKey: unreadListBaseQueryKey });
-            }
+            queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern });
         },
         onSettled: (data, error, alertId) => {
             console.log(`DismissAlert mutation settled for alert ${alertId}. Error: ${error?.message ?? 'None'}`);
-            queryClient.invalidateQueries({ queryKey: unreadListBaseQueryKey });
-            queryClient.invalidateQueries({ queryKey: generalListBaseQueryKey });
+            queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern });
+            queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats() });
         },
     });
 
-
-    // --- Return Value ---
     return {
-        markAsRead: markOneAsReadMutation.mutate,
-        markAsReadAsync: markOneAsReadMutation.mutateAsync,
-        isMarkingAsRead: markOneAsReadMutation.isPending,
-        errorMarkingAsRead: markOneAsReadMutation.error,
-
-        markAllAsRead: markAllAsReadMutation.mutate,
-        markAllAsReadAsync: markAllAsReadMutation.mutateAsync,
-        isMarkingAllAsRead: markAllAsReadMutation.isPending,
-        errorMarkingAllAsRead: markAllAsReadMutation.error,
-
         dismissAlert: dismissAlertMutation.mutate,
         dismissAlertAsync: dismissAlertMutation.mutateAsync,
         isDismissingAlert: dismissAlertMutation.isPending,
