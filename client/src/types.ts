@@ -1,4 +1,4 @@
-// types/index.ts (Frontend - Shared Location)
+// client/src/types.ts
 
 // --- SECTION 1: Keep Basic Prisma Type Names if helpful for context, but don't rely on backend structure ---
 // These are just illustrative names now for the concepts
@@ -54,9 +54,15 @@ export interface WebsiteUser {
     alertThreshold: number | null; // User's custom threshold
     notifyEmail: string | null; // User's notification email for this site
     createdAt: string; // ISO 8601 date string
-    isPinned: boolean; // <-- Added isPinned field
+    isPinned: boolean;
     // Nested Website object is commonly included when fetching user's dashboard data
     website?: Website;
+    // --- ADDED DOWNTIME FIELDS (Optional) ---
+    // These fields are populated by the backend API (`/websites/user/dashboard`)
+    // ONLY when the latest status is determined to be 'down'.
+    consecutiveFailures?: number;
+    downtimeStartedAt?: string | null; // ISO 8601 date string
+    // --- END ADDED ---
 }
 
 // --- UPDATED ALERT TYPES ---
@@ -116,7 +122,7 @@ export interface AddWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean;
   notifyEmail?: string | null;
-  isPinned?: boolean; // <-- Added isPinned field
+  isPinned?: boolean;
 }
 
 // DTO for UPDATING a user's settings for a website
@@ -126,7 +132,7 @@ export interface UpdateWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean | null;
   notifyEmail?: string | null;
-  isPinned?: boolean; // <-- Added isPinned field
+  isPinned?: boolean;
 }
 
 // DTO specifically for updating the pin status via PATCH
@@ -211,6 +217,7 @@ export interface ChartDataPoint {
 }
 
 // Detailed view for a single website page
+// Backend includes these fields if latestResult is down
 export interface WebsiteDetailsData {
   websiteId: number;
   name: string;
@@ -219,6 +226,10 @@ export interface WebsiteDetailsData {
   chartData: ChartDataPoint[];
   recentChecks: MonitoringResult[]; // Uses shared MonitoringResult
   uptimePercent: number;
+  // --- ADDED DOWNTIME FIELDS (Optional) ---
+  consecutiveFailures?: number;
+  downtimeStartedAt?: string | null; // ISO 8601 date string
+  // --- END ADDED ---
 }
 
 // Auth API response
@@ -251,13 +262,16 @@ export interface AuthContextType {
 }
 
 // Example combined type for dashboard cards/hooks
+// This type is used by useWebsiteData hook and passed to WebsiteGrid/WebsiteCard
+// It uses the updated WebsiteUser type which includes optional downtime fields
 export interface WebsiteWithDetails {
-  userWebsite: WebsiteUser; // User's settings (now includes isPinned) + nested Website core data
+  userWebsite: WebsiteUser; // User's settings + nested Website core data + OPTIONAL DOWNTIME INFO
   latestResult?: MonitoringResult; // Latest check result
   activeAlertCount?: number; // Example: Count of active alerts for this site/user
 }
 
 // Example structure returned by a high-level dashboard data hook
+// This uses WebsiteWithDetails above
 export interface WebsiteDataSummary {
     websitesWithDetails: WebsiteWithDetails[];
     overallStats: OverallStats | null;
@@ -265,4 +279,6 @@ export interface WebsiteDataSummary {
     isFetching: boolean;
     error: ApiError | null;
     refetch: () => Promise<any>; // Function to refetch dashboard data
+    totalWebsitesCount: number;
+    upWebsitesCount: number;
 }

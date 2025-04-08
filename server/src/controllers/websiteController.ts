@@ -1,4 +1,3 @@
-// server/src/controllers/websiteController.ts
 import { Request, Response, NextFunction } from 'express';
 import * as websiteService from '../services/websiteService';
 // Import needed DTOs and response types from shared types
@@ -7,7 +6,8 @@ import {
     UpdateWebsiteUserDTO,
     Website,
     WebsiteUser,
-    SetPinStatusDTO // <-- Import new DTO
+     // <-- Import new DTO
+    SetPinStatusDTO
 } from '../types';
 
 // Helper for safe ID parsing
@@ -34,7 +34,8 @@ export const getAllWebsites = async (
 };
 
 /**
- * GET /api/websites/user/dashboard - Get websites for the authenticated user (sorted by pin)
+ * GET /api/websites/user/dashboard - Get websites for the authenticated user (sorted by pin, includes status/downtime)
+ * Relies on the updated websiteService.getWebsitesForUser
  */
 export const getUserWebsites = async (
     req: Request,
@@ -43,7 +44,7 @@ export const getUserWebsites = async (
 ): Promise<void> => {
     try {
         const userId = req.user!.id;
-        // Service function now handles sorting by pin status
+        // Service function now handles sorting and adding status/downtime info
         const websiteUsers: WebsiteUser[] = await websiteService.getWebsitesForUser(userId);
         res.json(websiteUsers);
     } catch (error) {
@@ -149,7 +150,8 @@ export const updateWebsite = async (
             res.status(400).json({ message: 'Invalid Website ID format.' });
             return;
         }
-        const updateData = req.body; // Should match Partial<{ url: string; isActive?: boolean }>
+         // Should match Partial<{ url: string; isActive?: boolean }>
+        const updateData = req.body;
         const website: Website | null = await websiteService.updateWebsiteCore(websiteId, updateData);
         if (!website) {
              res.status(404).json({ message: 'Website not found' });

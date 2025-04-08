@@ -7,24 +7,25 @@ import {
 } from "@mui/material";
 import {
   CheckCircleOutline as CheckIcon,
-  ErrorOutline as ErrorIcon, // Can be used for pin error state too
+  ErrorOutline as ErrorIcon, // Keep for general offline status icon
   ShowChart as ChartIcon,
-  CloudOff as CloudOffIcon,
+  // CloudOff as CloudOffIcon, // No longer needed here
   HourglassEmpty as PendingIcon,
   PushPin as PinIcon,
-  PushPinOutlined as PinOutlinedIcon
+  PushPinOutlined as PinOutlinedIcon,
+  TimerOff as TimerOffIcon // Good icon for the detailed downtime info
 } from "@mui/icons-material";
 import { Line } from "react-chartjs-2";
 import { useCardChartData } from "../../hooks";
-// Import the mutations hook
 import { useWebsiteMutations } from "../../hooks/api/useWebsites"; // Adjust path
 
 import {
   getStatusColor,
   getResponseTimeColor,
   formatResponseTime,
-  formatUptime,
-} from "../../utils/statusUtils";
+  formatUptime, // Returns number string now
+  formatDowntimeDuration
+} from "../../utils/statusUtils"; // Adjust path
 
 import {
     MonitoringResult,
@@ -57,10 +58,8 @@ const WebsiteCard = React.memo(
   }: WebsiteCardProps) => {
     const navigate = useNavigate();
     const theme = useTheme();
-    // Get mutation functions and state from the hook
     const { setPinStatus, isSettingPin, errorSettingPin } = useWebsiteMutations();
 
-    // Determine if there was an error during the last pin attempt
     const hasPinError = !!errorSettingPin;
 
     // --- Internal State Determination ---
@@ -73,13 +72,21 @@ const WebsiteCard = React.memo(
     const responseTime = latestResult?.responseTime ?? null;
     const statusCode = latestResult?.statusCode;
 
-    // Calculate uptime
-    const uptime = useMemo(() => {
+    // Downtime Information
+    const consecutiveFailures = isOnline === false ? userWebsite.consecutiveFailures : undefined;
+    const downtimeStartedAt = isOnline === false ? userWebsite.downtimeStartedAt : null;
+    const downtimeDuration = formatDowntimeDuration(downtimeStartedAt);
+
+    // Calculate uptime (number)
+    const uptimeValue = useMemo(() => {
       if (!hasRecentResults) return null;
       const total = results.length;
       const available = results.filter((r) => r.isAvailable).length;
       return total > 0 ? (available / total) * 100 : null;
     }, [results, hasRecentResults]);
+
+    // Format uptime (string) using the updated utility
+    const formattedUptime = formatUptime(uptimeValue); // Gets "99.95" or "100" or "N/A"
 
     // Get chart data/options
     const cardResultsLimit = 20;
@@ -94,12 +101,10 @@ const WebsiteCard = React.memo(
       navigate(`/website/${userWebsite.websiteId}`);
     }, [navigate, userWebsite.websiteId]);
 
-    // Handler for the pin/unpin action
     const handlePinClick = useCallback(
       async (e: React.MouseEvent) => {
         e.stopPropagation();
         try {
-          // The hook's mutation automatically clears the error state on a new attempt
           await setPinStatus({
             websiteId: userWebsite.websiteId,
             isPinned: !isPinned,
@@ -118,9 +123,7 @@ const WebsiteCard = React.memo(
     // Determine Tooltip text based on state
     const pinTooltipText = useMemo(() => {
         if (isSettingPin) return "Processing...";
-        // If there was an error on the last attempt
         if (hasPinError) return `Error: ${errorSettingPin?.message || 'Pin action failed'}. Click to retry.`;
-        // Normal operation tooltips
         return isPinned ? "Unpin Website" : "Pin Website";
     }, [isSettingPin, hasPinError, isPinned, errorSettingPin?.message]);
 
@@ -136,9 +139,11 @@ const WebsiteCard = React.memo(
           "&:hover": { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
           border: isPinned ? `2px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`,
           position: 'relative',
+          // Add slight padding bottom to ensure content doesn't touch edge
+          pb: 1,
         }}
         onClick={handleClick}
-        aria-label={`View details for ${displayName}${isPinned ? ', Pinned' : ''}`}
+        aria-label={`View details for ${displayName}${isPinned ? ', Pinned' : ''}${isOnline === false ? ', Offline' : ''}`}
       >
         <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", p: 2, pb: 1 }}>
            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
@@ -149,31 +154,25 @@ const WebsiteCard = React.memo(
              </Tooltip>
              {/* Pin/Unpin Button */}
              <Tooltip title={pinTooltipText} placement="top">
-                {/* Wrap IconButton in span to allow tooltip when disabled */}
                 <span>
                     <IconButton
                         size="small"
                         onClick={handlePinClick}
-                        disabled={isSettingPin} // Disable only while processing
+                        disabled={isSettingPin}
                         aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`}
                         sx={{
-                            // Set color based on state: error, pinned, or default
-                            color: hasPinError && !isSettingPin ? theme.palette.error.main : // Error color if failed and not loading
-                                   isPinned ? theme.palette.primary.main :                  // Pinned color
-                                   'inherit',                                              // Default color
+                            color: hasPinError && !isSettingPin ? theme.palette.error.main :
+                                   isPinned ? theme.palette.primary.main :
+                                   'inherit',
                         }}
                     >
-                        {/* Show loading spinner, or the appropriate pin icon */}
                         {isSettingPin ? (
                             <CircularProgress size={20} color="inherit" />
                         ) : isPinned ? (
-                            // Use PinIcon if currently pinned (even if last action failed - reflects DB state)
                             <PinIcon fontSize="small" />
                         ) : (
-                            // Use PinOutlinedIcon if currently unpinned
                             <PinOutlinedIcon fontSize="small" />
                         )}
-                        {/* Optional: Could overlay a small error badge/icon when hasPinError is true */}
                     </IconButton>
                 </span>
              </Tooltip>
@@ -203,37 +202,61 @@ const WebsiteCard = React.memo(
                             <Chip size="small" label={`${statusCode}`} variant="outlined" />
                          </Tooltip>
                      )}
+                     {/* Show Response Time only if Online */}
                      {isOnline && responseTime !== null && (
                          <Tooltip title={`Last Response Time: ${formatResponseTime(responseTime)}`}>
                             <Chip size="small" label={formatResponseTime(responseTime)} color={getResponseTimeColor(responseTime)} variant="outlined" />
                          </Tooltip>
                      )}
-                     {uptime !== null && (
-                        <Tooltip title={`Uptime (${results.length} checks): ${formatUptime(uptime)}%`}>
-                            <Chip size="small" icon={<ChartIcon fontSize="inherit" />} label={`${formatUptime(uptime)}%`} color={getStatusColor(uptime)} variant="outlined" />
+                     {/* Show Uptime only if Online */}
+                     {isOnline && formattedUptime !== "N/A" && uptimeValue !== null && (
+                        <Tooltip title={`Uptime (${results.length} checks): ${formattedUptime}%`}>
+                            <Chip
+                                size="small"
+                                icon={<ChartIcon fontSize="inherit" />}
+                                label={`${formattedUptime}%`}
+                                color={getStatusColor(uptimeValue)}
+                                variant="outlined"
+                            />
                         </Tooltip>
                      )}
+                     {/* --- REMOVED DOWNTIME CHIP --- */}
                  </>
              )}
           </Box>
 
-          {/* Response time chart area or placeholder */}
+          {/* Chart or Downtime Info Area */}
           <Box sx={{ flexGrow: 1, minHeight: 60, maxHeight: 80, mt: "auto", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+             {/* Show chart if online and data available */}
              {canShowChart ? (
                  <ResponseTimeChart data={chartData} options={chartOptions} key={`chart-${userWebsite.websiteId}`} />
              ) : (
-                 <Box sx={{ color: 'text.secondary', textAlign: 'center', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                 // Show Placeholder/Downtime Info
+                 <Box sx={{ color: 'text.secondary', textAlign: 'center', width: '100%' }}>
                     {!hasMonitoringData ? (
-                        <>
+                        // Pending State
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                             <PendingIcon fontSize="small" />
                             <Typography variant="caption">Awaiting first check...</Typography>
-                        </>
+                        </Box>
                     ) : !isOnline ? (
-                         <>
-                            <CloudOffIcon fontSize="small" />
-                            <Typography variant="caption">Currently Offline</Typography>
-                         </>
+                        // --- NEW: Offline State - Display Detailed Downtime Info ---
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, color: theme.palette.warning.dark }}>
+                             <TimerOffIcon sx={{ fontSize: '1.3rem', mb: 0.2 }} />
+                             {/* Display duration prominently */}
+                             <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                 {downtimeDuration || 'Currently Offline'} {/* Fallback text */}
+                             </Typography>
+                             {/* Display failures and start time */}
+                             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                 {consecutiveFailures !== undefined && `Failures: ${consecutiveFailures}`}
+                                 {consecutiveFailures !== undefined && downtimeStartedAt && ' • '} {/* Separator */}
+                                 {downtimeStartedAt && `Started: ${new Date(downtimeStartedAt).toLocaleString()}`}
+                             </Typography>
+                        </Box>
+                        // --- END NEW ---
                     ) : (
+                        // Online but no chart data state
                          <Typography variant="caption">No recent chart data</Typography>
                     )}
                  </Box>

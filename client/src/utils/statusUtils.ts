@@ -1,6 +1,8 @@
 // src/utils/statusUtils.ts
 import { AlertColor } from '@mui/material';
-import { AlertType } from "../types";
+// --- Import date-fns for downtime formatting ---
+import { formatDistanceToNowStrict, parseISO } from 'date-fns';
+import { AlertType } from "../types"; // Ensure this path is correct
 
 /**
  * Determines a status color based on uptime percentage.
@@ -11,15 +13,15 @@ export function getStatusColor(
   uptime: number | null | undefined,
 ): 'success' | 'warning' | 'error' | 'default' {
   if (uptime === null || uptime === undefined || isNaN(uptime)) return 'default'; // Handle NaN as well
-  // Clamp value for safety, although formatting already does this
+  // Clamp value for safety
   const clampedUptime = Math.max(0, Math.min(100, uptime));
 
   if (clampedUptime >= 99.9) return 'success'; // Excellent
   if (clampedUptime >= 99) return 'warning'; // Okay/Needs Attention
-  // Removed the >= 95 check for error, as anything below 99 is warning or error
-  if (clampedUptime < 99 && clampedUptime >= 95) return 'error'; // Poor (Adjust threshold if needed)
+  // Error threshold adjusted
+  if (clampedUptime < 99 && clampedUptime >= 95) return 'error'; // Poor
   if (clampedUptime < 95) return 'error'; // Very Poor / Down significantly
-  return 'default'; // Should not be reached if logic is correct, but safe fallback
+  return 'default'; // Fallback
 }
 
 /**
@@ -39,12 +41,13 @@ export function getResponseTimeColor(
 /**
  * Determines a status color based on the type of alert.
  * Uses the AlertColor type from MUI for compatibility.
- * @param type The AlertType string ('down', 'slow', 'recovered', etc.).
+ * @param type The AlertType string ('down', 'slow', etc.).
  * @returns An MUI AlertColor ('success', 'warning', 'error', 'info').
  */
 export function getAlertTypeColor(
   type: AlertType | string | undefined,
 ): AlertColor {
+  // Added more potential types based on your example
   switch (type?.toLowerCase()) {
     case 'down':
       return 'error';
@@ -52,12 +55,12 @@ export function getAlertTypeColor(
       return 'warning';
     case 'recovered':
       return 'success';
-     case 'ssl':
+     case 'ssl': // Example added type
        return 'warning';
-     case 'dns':
+     case 'dns': // Example added type
        return 'error';
     default:
-      return 'info';
+      return 'info'; // Default for unknown or other types
   }
 }
 
@@ -73,16 +76,17 @@ export function formatResponseTime(ms: number | null | undefined): string {
     return `${Math.round(ms)} ms`;
   } else {
     const seconds = ms / 1000;
+    // Adjust decimals based on value
     const decimals = seconds % 1 === 0 ? 0 : (seconds < 10 ? 2 : 1);
     return `${seconds.toFixed(decimals)} s`;
   }
 }
 
 /**
- * Formats uptime percentage for display (e.g., "99.95%", "100%").
- * Adds the '%' symbol.
+ * Formats uptime percentage for display (e.g., "99.95", "100").
+ * NOTE: Returns only the number string, WITHOUT the '%' symbol.
  * @param uptime Uptime percentage (0-100). Can be null or undefined.
- * @returns Formatted string with '%' symbol or "N/A".
+ * @returns Formatted number string or "N/A".
  */
 export function formatUptime(uptime: number | null | undefined): string {
   if (uptime === null || uptime === undefined || isNaN(uptime)) return "N/A";
@@ -91,9 +95,32 @@ export function formatUptime(uptime: number | null | undefined): string {
 
   // Show "100" without decimals, otherwise show 2 decimal places
   const formatted = clampedUptime === 100 ? "100" : clampedUptime.toFixed(2);
-  // Return only the number part, the % sign is added in the Navbar component for clarity
-  return formatted;
+  return formatted; // Return only the number part
 }
+
+/**
+ * Formats the time elapsed since a given ISO date string for downtime display.
+ * Example: "Down for 2 hours", "Down for 5 minutes"
+ * @param isoDateString The ISO 8601 string from the API.
+ * @returns Formatted duration string or null.
+ */
+export const formatDowntimeDuration = (isoDateString: string | null | undefined): string | null => {
+    if (!isoDateString) {
+        return null;
+    }
+    try {
+        const date = parseISO(isoDateString);
+        // formatDistanceToNowStrict provides "x units" output
+        const duration = formatDistanceToNowStrict(date);
+        // Construct the display string
+        return `Down for ${duration}`;
+    } catch (e) {
+        // Log error during parsing
+        console.error("Error parsing downtime date:", isoDateString, e);
+        // Provide a fallback message
+        return "Down (time unavailable)";
+    }
+};
 
 
 /**
@@ -112,6 +139,7 @@ export function getStatusLabel(isAvailable: boolean | undefined): string {
  * @returns A human-readable description.
  */
 export function getAlertTypeDescription(type: AlertType | string | undefined): string {
+  // Added more potential types based on your example
   switch (type?.toLowerCase()) {
     case 'down':
       return "Website is offline or unreachable.";
@@ -119,11 +147,11 @@ export function getAlertTypeDescription(type: AlertType | string | undefined): s
       return "Website recovered and is back online.";
     case 'slow':
       return "Website response time exceeded threshold.";
-    case 'ssl':
+    case 'ssl': // Example added type
        return "SSL certificate issue detected.";
-     case 'dns':
+     case 'dns': // Example added type
        return "DNS resolution problem detected.";
     default:
-      return "An alert was triggered.";
+      return "An alert was triggered."; // Generic default
   }
 }
