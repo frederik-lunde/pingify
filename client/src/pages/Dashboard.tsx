@@ -1,89 +1,102 @@
 /*
-* client/src/pages/Dashboard.tsx
-*
-* - Cleaned up duplicate/incorrect StatsHeader rendering.
-* - Removed undefined variables (primaryError, showInitialSpinner, etc.).
-* - Ensured the single StatsHeader receives the correct props based on useWebsiteData.
+src/pages/Dashboard.tsx
 */
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react"; // Added useState, useCallback, useEffect
 import { Container, Box, CircularProgress, Typography, Button, Alert, Paper } from "@mui/material";
+import StatsHeader from "../components/dashboard/StatsHeader"; // Ensure this path is correct
 import WebsiteGrid from "../components/dashboard/WebsiteGrid";
 import { useWebsiteData } from "../hooks/domain/useWebsiteData";
-import StatsHeader from "../components/dashboard/StatsHeader"; // Correct path
 
 const Dashboard: React.FC = () => {
-  // Fetch base website data (list, results, overall stats including incidents)
   const {
     websitesWithResults,
-    overallStats, // Needed for uptime
-    incidentsLast24h, // Correctly destructured incident count
+    overallStats,
+    incidentsLast24h,
+    lastIncidentTimestamp,
+    lastIncidentWebsiteId, // This ID determines *which* card to highlight
     isLoading: isLoadingData,
-    // isFetching: isFetchingData, // Can be removed if not used
     error: dataError,
     refetch,
     totalWebsitesCount,
     upWebsitesCount,
   } = useWebsiteData(
-      undefined, // Use default results limit
-      'week',    // Stats period for uptime calculation
-      60000      // Refetch interval
+      undefined,
+      'week',
+      60000
   );
 
-  // Memoize uptime for the dashboard header
-  const otherStatsValues = useMemo(() => {
-      return {
-          // Use null if overallStats hasn't loaded yet
-          uptime: overallStats?.overallUptime ?? null,
-      }
+  // --- State for Highlight Toggle ---
+  const [isHighlightActive, setIsHighlightActive] = useState(false);
+
+  // Memoize uptime
+  const uptime = useMemo(() => {
+      return overallStats?.overallUptime ?? null;
   }, [overallStats]);
+
+  // --- Callback to Toggle Highlight and Scroll ---
+  const handleToggleHighlight = useCallback(() => {
+      const shouldActivate = !isHighlightActive; // Determine target state *before* updating
+      setIsHighlightActive(shouldActivate);
+
+      // Scroll only when activating the highlight AND we have an ID
+      if (shouldActivate && lastIncidentWebsiteId) {
+          // Use setTimeout to allow state update and DOM rerender
+          setTimeout(() => {
+              const elementId = `website-card-grid-${lastIncidentWebsiteId}`;
+              const element = document.getElementById(elementId);
+              if (element) {
+                  element.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'start', // Align top of card with top of viewport
+                      inline: 'nearest'
+                  });
+                  console.log(`Scrolling to ${elementId}`);
+              } else {
+                  console.warn(`Element with ID ${elementId} not found for scrolling.`);
+              }
+          }, 100); // Small delay often helps ensure element is ready
+      }
+  }, [isHighlightActive, lastIncidentWebsiteId]); // Dependencies
+
+   // Reset highlight if the last incident changes (e.g., after data refetch)
+   useEffect(() => {
+       setIsHighlightActive(false);
+   }, [lastIncidentWebsiteId]);
 
   // --- Render Logic ---
 
-  // 1. Show full-screen spinner ONLY during the very initial load phase
-  //    (Before any meaningful data, including stats, is available)
   if (isLoadingData && websitesWithResults.length === 0 && !overallStats) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-        <CircularProgress />
-      </Box>
-    );
+    return <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress /></Box>;
   }
 
-  // 2. Show a global error message if loading failed catastrophically
-  //    (And no data at all could be fetched)
   if (dataError && websitesWithResults.length === 0 && !overallStats) {
       return (
            <Container maxWidth="lg" sx={{ mt: 4 }}>
-               {/* Use the actual error variable 'dataError' */}
                <Typography color="error">Error loading dashboard data: {dataError.message}</Typography>
                <Button onClick={() => refetch()} sx={{ mt: 1 }}>Retry</Button>
            </Container>
        );
   }
 
-  // 3. Render the main dashboard structure including the StatsHeader
   return (
     <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: 2, mb: 4 }}>
-
-      {/* Dashboard Specific Stats Header - Single Correct Instance */}
       <Paper elevation={1} sx={{ mb: 2, overflow: 'hidden' }}>
         <StatsHeader
-            // Pass loading state: true if overall stats needed for the header are still loading
             isLoading={isLoadingData && !overallStats}
-            // Pass the general data fetching error
             error={dataError}
             upCount={upWebsitesCount}
             totalCount={totalWebsitesCount}
-            // Pass the memoized uptime value (can be null initially)
-            uptime={otherStatsValues.uptime}
-            // Pass the incidents count fetched by useWebsiteData (can be null initially)
+            uptime={uptime}
             incidentsLast24h={incidentsLast24h}
-            center={false} // Use left-aligned layout for Dashboard
+            lastIncidentTimestamp={lastIncidentTimestamp}
+            // Pass the ID and the toggle function
+            lastIncidentWebsiteId={lastIncidentWebsiteId}
+            onToggleHighlight={handleToggleHighlight} // Pass the callback
+            isHighlightActive={isHighlightActive} // Pass current state for visual feedback if needed
+            center={false}
         />
       </Paper>
 
-      {/* Show a less intrusive error if data is partially loaded or an error occurred during refetch */}
-      {/* Check dataError directly */}
       {dataError && (websitesWithResults.length > 0 || overallStats) && (
           <Alert severity="warning" sx={{ mb: 2 }}>
               There might be issues displaying the latest data: {dataError.message}.
@@ -91,15 +104,14 @@ const Dashboard: React.FC = () => {
           </Alert>
       )}
 
-      {/* WebsiteGrid remains */}
       <WebsiteGrid
         websitesWithResults={websitesWithResults}
-        // Pass the overall loading state to WebsiteGrid for its internal skeletons
-        // This reflects loading of the website list and results
-        loading={isLoadingData}
-        error={null} // Grid doesn't need the global error; handled above
+        loading={isLoadingData && websitesWithResults.length === 0}
+        error={null}
+        // Pass down the necessary info for highlighting
+        lastIncidentWebsiteId={lastIncidentWebsiteId}
+        isHighlightActive={isHighlightActive}
       />
-
     </Container>
   );
 };

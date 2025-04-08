@@ -1,187 +1,170 @@
 /*
-* client/src/hooks/domain/useWebsiteData.ts
-*
-* - Updated `WebsiteDataSummary` interface to include `incidentsLast24h`.
-* - Extracted `incidentsLast24h` from `statsQuery.data`.
-* - Returned `incidentsLast24h` in the hook's return object.
+src/hooks/domain/useWebsiteData.ts
 */
 import { useMemo, useCallback } from "react";
-import { WebsiteUser, MonitoringResult, ApiError, OverallStats } from "../../types"; // Adjust path
-import { useUserWebsitesQuery } from "../api/useWebsites";
-import { useUserMonitoringResultsQuery } from "../api/useMonitoring"; // Hook to fetch all results
-import { useUserStatsQuery } from "../api/useMonitoring"; // Hook to fetch user stats
+import {
+    WebsiteUser,
+    MonitoringResult,
+    ApiError,
+    OverallStats // Ensure OverallStats is imported
+} from "../../types"; // Adjust path if needed
+import { useUserWebsitesQuery } from "../api/useWebsites"; // Assuming correct path
+import { useUserMonitoringResultsQuery, useUserStatsQuery } from "../api/useMonitoring"; // Assuming correct path
 
 const RECENT_RESULTS_LIMIT_FOR_CARD = 20;
 
-// Interface for the combined data structure for each website
-// Uses WebsiteUser which now implicitly includes isPinned
+// Interface for the combined data structure for each website card
 export interface WebsiteWithResults {
-  userWebsite: WebsiteUser;
-  latestResult?: MonitoringResult;
-  recentResults: MonitoringResult[];
+    userWebsite: WebsiteUser; // Contains all WebsiteUser fields including nested website, isPinned etc.
+    latestResult?: MonitoringResult | null; // The most recent check result
+    recentResults: MonitoringResult[]; // Limited array of recent results for sparkline etc.
 }
 
 // Interface for the hook's return value
 export interface WebsiteDataSummary {
-    websitesWithResults: WebsiteWithResults[]; // This array will be sorted by pin status by the source query
-    overallStats: OverallStats | null;
-    isLoading: boolean;
-    isFetching: boolean;
-    error: ApiError | null;
-    refetch: () => Promise<any>;
-    // Add calculated counts
-    totalWebsitesCount: number;
-    upWebsitesCount: number;
-    // Add incidents count
-    incidentsLast24h: number | null; // Added incidents count
+    websitesWithResults: WebsiteWithResults[]; // Array of combined data for cards
+    overallStats: OverallStats | null; // Aggregated stats object (can be null during loading)
+    isLoading: boolean; // True during initial data load
+    isFetching: boolean; // True if any underlying query is fetching
+    error: ApiError | null; // First error encountered from queries
+    refetch: () => Promise<any>; // Function to refetch all data
+    totalWebsitesCount: number; // Total websites user monitors
+    upWebsitesCount: number; // Websites currently considered 'up'
+    incidentsLast24h: number | null; // Count of down transitions in last 24h (can be null)
+    lastIncidentTimestamp: string | null | undefined; // ISO string timestamp of last incident (or null/undefined)
+    lastIncidentWebsiteId: number | null | undefined; // Website ID of the last incident source (or null/undefined)
 }
 
 /**
  * Custom hook to fetch and combine website list, monitoring results, and overall stats for the user dashboard.
- * Data is fetched already sorted by pin status from the API layer.
  */
 export function useWebsiteData(
-    resultsLimit: number = 500, // Limit for fetching monitoring results history
-    statsPeriod: string = 'week', // Time period for overall stats calculation
-    refetchInterval?: number | false // Optional interval for automatic refetching
+    resultsLimit: number = 500, // How many historical results to fetch
+    statsPeriod: string = 'week', // Period for overall stats (uptime, avg response)
+    refetchInterval?: number | false // Optional auto-refetch interval
 ): WebsiteDataSummary {
 
-    // Memoize query options to prevent unnecessary refetches if interval changes reference but not value
     const queryOptions = useMemo(() => ({ refetchInterval }), [refetchInterval]);
 
     // --- Queries ---
-    // Fetches user's websites, already sorted by pin status (desc) then URL (asc) by the backend via useUserWebsitesQuery
+    // Fetch user's website list (WebsiteUser objects, expected sorted by pin)
     const websitesQuery = useUserWebsitesQuery(queryOptions);
-    // Fetches a batch of recent monitoring results for all user websites
+    // Fetch historical monitoring results for all user websites
     const resultsQuery = useUserMonitoringResultsQuery(resultsLimit, queryOptions);
-    // Fetches overall statistics (uptime, avg response time, incidentsLast24h) for the user over the specified period
+    // Fetch overall stats (OverallStats object including lastIncidentWebsiteId)
     const statsQuery = useUserStatsQuery(statsPeriod, queryOptions);
 
     // --- Loading and Error States ---
-    // Combined loading state: true if essential queries are pending initially
     const isLoading = websitesQuery.isPending || resultsQuery.isPending || (statsQuery.isPending && !statsQuery.data);
-    // Combined fetching state: true if any query is currently fetching (including background refetches)
     const isFetching = websitesQuery.isFetching || resultsQuery.isFetching || statsQuery.isFetching;
-    // Combine potential errors from the queries
     const errors: (ApiError | null)[] = [websitesQuery.error, resultsQuery.error, statsQuery.error];
     const combinedError = errors.find(e => e !== null) ?? null;
 
-    // --- Process and Combine Data with useMemo ---
-    // Memoized calculation to combine website list with their corresponding monitoring results
+    // --- Process and Combine Data ---
     const processedWebsitesWithResults = useMemo((): WebsiteWithResults[] => {
-        // Ensure both essential queries have successfully fetched data
-        if (!websitesQuery.isSuccess || !resultsQuery.isSuccess) {
-            return []; // Return empty array if data isn't ready
-        }
-        const userWebsites = websitesQuery.data; // Array of WebsiteUser (includes isPinned)
-        const allMonitoringResults = resultsQuery.data; // Array of MonitoringResult
-
-        // Basic check if data is available
-        if (!userWebsites || !allMonitoringResults) {
+        // Guard clauses for data readiness
+        if (!websitesQuery.isSuccess || !resultsQuery.isSuccess || !websitesQuery.data || !resultsQuery.data) {
             return [];
         }
+        const userWebsites: WebsiteUser[] = websitesQuery.data; // Should be WebsiteUser[]
+        const allMonitoringResults: MonitoringResult[] = resultsQuery.data;
 
-        // --- Efficiently group results by website ID ---
+        // Group results efficiently
         const resultsByWebsite = new Map<number, MonitoringResult[]>();
         allMonitoringResults.forEach(result => {
-            if (result?.websiteId) { // Ensure result and websiteId exist
+            if (result?.websiteId) {
                 if (!resultsByWebsite.has(result.websiteId)) {
                     resultsByWebsite.set(result.websiteId, []);
                 }
-                // Add the result to the list for that website
+                // Ensure results are added; ideally sorted later if needed per site
                 resultsByWebsite.get(result.websiteId)?.push(result);
             }
         });
 
-        // --- Map user websites to include their latest and recent results ---
+        // Map WebsiteUser list to WebsiteWithResults structure
         const newProcessedWebsites: WebsiteWithResults[] = userWebsites.map(userWebsite => {
             const websiteId = userWebsite.websiteId;
-            // Get results for this specific website, default to empty array if none found
-            const siteResults = resultsByWebsite.get(websiteId) || [];
+            const siteResults = resultsByWebsite.get(websiteId) || []; // Get results for this site
 
-            let latestResult: MonitoringResult | undefined = undefined;
+            let latestResult: MonitoringResult | undefined | null = null;
             let recentResultsForCard: MonitoringResult[] = [];
 
             if (siteResults.length > 0) {
-                 // Sort results for this site by date descending to easily find the latest
+                 // Sort results *for this site* to find latest and prepare for sparkline
                  siteResults.sort((a, b) => {
                      const timeA = a.checkedAt ? new Date(a.checkedAt).getTime() : 0;
                      const timeB = b.checkedAt ? new Date(b.checkedAt).getTime() : 0;
-                     return timeB - timeA; // Latest first
+                     return timeB - timeA; // Newest first
                  });
-                 latestResult = siteResults[0]; // The first item is the latest
-                 // Get a slice of the most recent results for the card display
+                 latestResult = siteResults[0];
+                 // Slice for card display (sparkline)
                  recentResultsForCard = siteResults.slice(0, RECENT_RESULTS_LIMIT_FOR_CARD);
             }
 
-            // Return the combined structure
+            // Return the combined structure for this website
             return {
-                 userWebsite, // The full WebsiteUser object (including isPinned)
+                 userWebsite, // The full WebsiteUser object
                  latestResult,
-                 recentResults: recentResultsForCard // Pass the limited recent results
+                 recentResults: recentResultsForCard
             };
         });
 
-        // The final array maintains the sort order from websitesQuery.data (pinned first)
         return newProcessedWebsites;
-
-    // Dependencies for the memoization
     }, [websitesQuery.isSuccess, websitesQuery.data, resultsQuery.isSuccess, resultsQuery.data]);
 
     // --- Calculate Aggregate Counts ---
-    // Memoized calculation for total and "up" website counts
     const { totalWebsitesCount, upWebsitesCount } = useMemo(() => {
-        // Total count is simply the number of websites the user is monitoring
         const total = websitesQuery.data?.length ?? 0;
-
-        // "Up" count is derived from the processed data, checking the latest result's status
+        // Count based on the processed data's latest result
         const up = processedWebsitesWithResults.reduce((count, website) => {
-            // Count as 'up' only if the latest result is available and indicates isAvailable: true
             if (website.latestResult?.isAvailable === true) {
                 return count + 1;
             }
             return count;
         }, 0);
         return { totalWebsitesCount: total, upWebsitesCount: up };
-    // Dependencies for the count calculation
     }, [websitesQuery.data, processedWebsitesWithResults]);
 
-    // --- Extract Incident Count ---
-    const incidentsLast24h = useMemo(() => {
-        // Get the incident count from the overall stats data, default to null if not loaded/available
-        return statsQuery.data?.incidentsLast24h ?? null;
-    }, [statsQuery.data]);
+    // --- Extract Data from Overall Stats Query ---
+    const { incidentsLast24h, lastIncidentTimestamp, lastIncidentWebsiteId } = useMemo(() => {
+        // Safely access properties from statsQuery.data
+        const stats = statsQuery.data;
+        return {
+             incidentsLast24h: stats?.incidentsLast24h ?? null, // Use null if not loaded
+             lastIncidentTimestamp: stats?.lastIncidentTimestamp ?? null, // Use null if not loaded
+             lastIncidentWebsiteId: stats?.lastIncidentWebsiteId ?? null // Use null if not loaded
+        };
+    }, [statsQuery.data]); // Depend only on the stats data object
 
     // --- Refetch Function ---
-    // Provides a way to manually trigger a refetch of all data used by this hook
     const refetch = useCallback(async () => {
         console.log('[useWebsiteData] Triggering refetch...');
-        // Refetch all underlying queries concurrently
         const results = await Promise.allSettled([
             websitesQuery.refetch(),
             resultsQuery.refetch(),
             statsQuery.refetch(),
         ]);
-        // Log any errors during refetch for debugging
         results.forEach((result, index) => {
             if (result.status === 'rejected') {
                 console.error(`Refetch failed for query ${index}:`, result.reason);
             }
         });
-        return results; // Return the settled promises array
-    }, [websitesQuery, resultsQuery, statsQuery]); // Dependencies for the refetch callback
+        return results;
+    }, [websitesQuery, resultsQuery, statsQuery]);
 
     // --- Return Value ---
-    // Expose the combined data, loading/error states, counts, and refetch function
     return {
-        websitesWithResults: processedWebsitesWithResults, // The core combined data, sorted by pin status
-        overallStats: statsQuery.data ?? null, // Overall user stats (uptime, response time)
-        isLoading: isLoading, // True during initial load of essential data
-        isFetching: isFetching, // True when any query is fetching (initial or background)
-        error: combinedError, // The first error encountered among the queries
-        refetch: refetch, // Function to manually refetch all data
-        totalWebsitesCount: totalWebsitesCount, // Total number of websites monitored by the user
-        upWebsitesCount: upWebsitesCount, // Number of websites currently considered "up"
-        incidentsLast24h: incidentsLast24h, // Include the incident count
+        websitesWithResults: processedWebsitesWithResults,
+        overallStats: statsQuery.data ?? null, // Return the full stats object or null
+        isLoading: isLoading,
+        isFetching: isFetching,
+        error: combinedError,
+        refetch: refetch,
+        totalWebsitesCount: totalWebsitesCount,
+        upWebsitesCount: upWebsitesCount,
+        // Return extracted specific stats
+        incidentsLast24h: incidentsLast24h,
+        lastIncidentTimestamp: lastIncidentTimestamp,
+        lastIncidentWebsiteId: lastIncidentWebsiteId, // Ensure this is returned
     };
 }
