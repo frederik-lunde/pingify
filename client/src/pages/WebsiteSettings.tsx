@@ -16,10 +16,10 @@ import {
 } from "@mui/icons-material";
 
 // --- Import Hooks & Types ---
-import { useUserWebsiteQuery, useWebsiteMutations } from "../hooks/api/useWebsites";
+import { useUserWebsiteQuery, useWebsiteMutations } from "../hooks/api/useWebsites"; // Adjust path if needed
 import FormNotification, {
     initialNotificationState, FormNotificationState
-} from "../components/common/FormNotification";
+} from "../components/common/FormNotification"; // Adjust path if needed
 import { UpdateWebsiteUserDTO, ApiError, WebsiteUser } from "../types"; // Adjust path if needed
 
 interface WebsiteSettingsFormValues {
@@ -167,9 +167,26 @@ const WebsiteSettings: React.FC = () => {
 
         try {
             const updatedWebsite = await updateSettings({ websiteId: numericWebsiteId, websiteData: updateData });
+            
+            // Set success notification (Snackbar will handle showing it)
             setNotification({ open: true, message: "Settings saved successfully!", severity: "success" });
 
-            // Reset form using the data returned from the mutation to clear dirty state
+            // --- *** ADD NAVIGATION ON SUCCESS *** ---
+            // Navigate back to the website detail page
+            if (numericWebsiteId) {
+                 // Optional: Add a small delay if you want the user to see the snackbar briefly before navigating
+                 // setTimeout(() => {
+                 //    navigate(`/website/${numericWebsiteId}`);
+                 // }, 500); // e.g., 500ms delay
+
+                 // Navigate immediately (recommended)
+                navigate(`/website/${numericWebsiteId}`);
+            }
+            // --- *** END NAVIGATION *** ---
+
+
+            // Note: Resetting the form might not be strictly necessary if navigating away immediately,
+            // but it doesn't hurt and clears the 'dirty' state if the user navigates back quickly.
             resetForm({
                 values: {
                     name: updatedWebsite?.name || "",
@@ -207,7 +224,7 @@ const WebsiteSettings: React.FC = () => {
             // Success notification
             setNotification({ open: true, message: `Website "${userWebsite?.name || userWebsite?.website?.url || 'ID: ' + numericWebsiteId}" removed successfully.`, severity: "success" });
             closeDeleteDialog(); // Close dialog on success
-            navigate("/"); // Redirect after success
+            navigate("/"); // Redirect to dashboard after successful delete
         } catch (err) {
             const apiError = err as ApiError;
             console.error("Failed to delete website:", apiError);
@@ -215,11 +232,11 @@ const WebsiteSettings: React.FC = () => {
             const message = (errorRemoving as ApiError)?.message || apiError.message || 'Unknown error removing website';
             setNotification({ open: true, message: `Error removing website: ${message}`, severity: "error" });
             // Keep dialog open on error? Or close? Current: stays open.
-            // closeDeleteDialog(); // Uncomment to close dialog even on error
         }
     }, [numericWebsiteId, removeWebsite, navigate, userWebsite?.name, userWebsite?.website?.url, closeDeleteDialog, errorRemoving, setNotification]); // Added dependencies
 
     const handleBackClick = useCallback(() => {
+        // Navigate back to detail page if ID exists, otherwise dashboard
         navigate(numericWebsiteId ? `/website/${numericWebsiteId}` : '/');
     }, [navigate, numericWebsiteId]);
 
@@ -463,7 +480,6 @@ const WebsiteSettings: React.FC = () => {
             </Dialog>
 
             {/* Snackbar Notification */}
-            <FormNotification notification={notification} onClose={handleNotificationClose} />
         </Container>
     );
 };
