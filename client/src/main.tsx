@@ -4,7 +4,6 @@ import { createRoot } from "react-dom/client";
 // Remove static ThemeProvider import from MUI
 // import { ThemeProvider } from "@mui/material/styles";
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { BrowserRouter } from 'react-router';
 
 // --- CHART.JS REGISTRATION (Centralized) ---
@@ -60,8 +59,6 @@ root.render(
           <App />
         </BrowserRouter>
       </ThemeProviderWrapper>
-      {/* Optional DevTools */}
-      <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   </StrictMode>
 );
