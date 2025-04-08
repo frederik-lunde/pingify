@@ -1,41 +1,44 @@
-//client\src\pages\Dashboard.tsx
-import React, { useMemo } from "react"; // Added useMemo
-import { Container, Box, CircularProgress, Typography, Button, Alert, Paper } from "@mui/material"; // Added Paper
+/*
+* client/src/pages/Dashboard.tsx
+*
+* - Extracted `incidentsLast24h` from `useWebsiteData`.
+* - Removed `responseTime` from `otherStatsValues` memo.
+* - Passed `incidentsLast24h` to `StatsHeader` instead of `responseTime`.
+*/
+import React, { useMemo } from "react";
+import { Container, Box, CircularProgress, Typography, Button, Alert, Paper } from "@mui/material";
 import WebsiteGrid from "../components/dashboard/WebsiteGrid";
 import { useWebsiteData } from "../hooks/domain/useWebsiteData";
-import StatsHeader from "../components/dashboard/StatsHeader"; // Import the new component
+import StatsHeader from "../components/dashboard/StatsHeader"; // Correct path
 
 const Dashboard: React.FC = () => {
   const {
     websitesWithResults,
-    overallStats, // Needed for uptime/response time in dashboard header
+    overallStats, // Needed for uptime
+    // Destructure the new incidents count
+    incidentsLast24h,
     isLoading: isLoadingData,
     error: dataError,
     refetch,
-    totalWebsitesCount, // Get counts
+    totalWebsitesCount,
     upWebsitesCount,
   } = useWebsiteData(
       undefined, // Use default results limit
-      'week',
-      60000
+      'week',    // Keep stats period as 'week' for uptime, incidents are always 24h
+      60000      // Refetch interval
   );
 
-  // Memoize uptime/response time for the dashboard header
+  // Memoize uptime for the dashboard header
+  // Removed responseTime as it's no longer needed for the header
   const otherStatsValues = useMemo(() => {
-      const safeStats = overallStats || {
-          overallUptime: 0,
-          overallResponseTime: 0,
-      };
       return {
-          uptime: safeStats.overallUptime ?? 0,
-          responseTime: safeStats.overallResponseTime ?? 0,
+          uptime: overallStats?.overallUptime ?? null, // Use null if not loaded
       }
   }, [overallStats]);
 
   // --- Render Logic ---
 
   // 1. Show full-screen spinner ONLY during the very initial load phase
-  //    (Before even the header can be shown meaningfully)
   if (isLoadingData && websitesWithResults.length === 0 && !overallStats) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -45,7 +48,6 @@ const Dashboard: React.FC = () => {
   }
 
   // 2. Show a global error message if loading failed catastrophically
-  //    (Before even the header can be shown meaningfully)
   if (dataError && websitesWithResults.length === 0 && !overallStats) {
       return (
            <Container maxWidth="lg" sx={{ mt: 4 }}>
@@ -57,25 +59,24 @@ const Dashboard: React.FC = () => {
 
   // 3. Render the main dashboard structure including the StatsHeader
   return (
-    // Use maxWidth="xl" for consistency if Navbar uses it
     <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: 2, mb: 4 }}>
 
       {/* Dashboard Specific Stats Header */}
-      {/* Wrap in Paper for slight visual separation */}
       <Paper elevation={1} sx={{ mb: 2, overflow: 'hidden' }}>
         <StatsHeader
-            // Pass loading/error states specific to the data needed for the header
-            isLoading={isLoadingData && (totalWebsitesCount === 0 && !overallStats)} // More specific loading for header
-            error={dataError} // Pass the general data error
+            // Pass loading state - true if stats haven't loaded yet
+            isLoading={isLoadingData && !overallStats}
+            error={dataError}
             upCount={upWebsitesCount}
             totalCount={totalWebsitesCount}
             uptime={otherStatsValues.uptime}
-            responseTime={otherStatsValues.responseTime}
+            // Pass the incidents count instead of response time
+            incidentsLast24h={incidentsLast24h}
             center={false} // Use left-aligned layout for Dashboard
         />
       </Paper>
 
-      {/* Show a less intrusive error if data is partially loaded but header could render */}
+      {/* Show a less intrusive error if data is partially loaded */}
       {dataError && (websitesWithResults.length > 0 || overallStats) && (
           <Alert severity="warning" sx={{ mb: 2 }}>
               There might be issues displaying the latest data: {dataError.message}.
@@ -88,7 +89,7 @@ const Dashboard: React.FC = () => {
         websitesWithResults={websitesWithResults}
         // Pass the overall loading state to WebsiteGrid for its internal skeletons
         loading={isLoadingData}
-        error={null} // Grid handles its own errors based on props, global error handled above
+        error={null} // Global error handled above
       />
     </Container>
   );

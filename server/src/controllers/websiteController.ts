@@ -1,3 +1,4 @@
+// server/src/controllers/websiteController.ts
 import { Request, Response, NextFunction } from 'express';
 import * as websiteService from '../services/websiteService';
 // Import needed DTOs and response types from shared types
@@ -43,7 +44,12 @@ export const getUserWebsites = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+        // Ensure user is authenticated
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
         // Service function now handles sorting and adding status/downtime info
         const websiteUsers: WebsiteUser[] = await websiteService.getWebsitesForUser(userId);
         res.json(websiteUsers);
@@ -86,7 +92,12 @@ export const getUserWebsiteById = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+        // Ensure user is authenticated
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
         const websiteId = parseIdParam(req.params.id);
         if (websiteId === null) {
             res.status(400).json({ message: 'Invalid Website ID format.' });
@@ -178,7 +189,12 @@ export const updateUserWebsite = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+         // Ensure user is authenticated
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
         const websiteId = parseIdParam(req.params.id);
         if (websiteId === null) {
             res.status(400).json({ message: 'Invalid Website ID format.' });
@@ -217,7 +233,12 @@ export const setPinStatus = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+        // Ensure user is authenticated
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
         const websiteId = parseIdParam(req.params.id);
         if (websiteId === null) {
             res.status(400).json({ message: 'Invalid Website ID format.' });
@@ -309,7 +330,12 @@ export const addWebsiteToUser = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+         // Ensure user is authenticated
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
         // Basic validation: Ensure body is an object
         if (typeof req.body !== 'object' || req.body === null) {
             res.status(400).json({ message: 'Invalid request body. Expected an object.' });
@@ -346,7 +372,12 @@ export const removeWebsiteFromUser = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+         // Ensure user is authenticated
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
         const websiteId = parseIdParam(req.params.id);
         if (websiteId === null) {
             res.status(400).json({ message: 'Invalid Website ID format.' });

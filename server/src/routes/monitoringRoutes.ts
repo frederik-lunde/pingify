@@ -1,7 +1,10 @@
 // server/src/routes/monitoringRoutes.ts
 import { Router } from 'express';
-import * as monitoringController from '../controllers/monitorController'; // Correct controller filename
+// --- UPDATED PATH ---
+import * as monitoringController from '../controllers/monitorController'; // Corrected controller filename
 import { authenticate } from '../middleware/authMiddleware'; // Ensure path is correct
+// Import admin check middleware if you have one, e.g., isAdmin
+// import { isAdmin } from '../middleware/authMiddleware';
 
 const router = Router();
 
@@ -10,14 +13,17 @@ router.use(authenticate);
 
 // --- Admin Routes ---
 // GET all results across the system (paginated/filtered)
+// Optional: Add isAdmin middleware if needed: router.get('/admin/results', isAdmin, monitoringController.getAllResults);
 router.get('/admin/results', monitoringController.getAllResults);
 // GET overall system stats (e.g., for admin dashboard)
+// Optional: Add isAdmin middleware if needed: router.get('/admin/stats', isAdmin, monitoringController.getOverallStats);
 router.get('/admin/stats', monitoringController.getOverallStats);
 
 // --- User Routes ---
 // GET results for websites the user monitors (paginated/filtered)
 router.get('/user/results', monitoringController.getUserResults);
 // GET aggregated stats for the user's monitored websites
+// This endpoint now includes the incidentsLast24h field
 router.get('/user/stats', monitoringController.getUserStats);
 
 // --- Website-Specific Routes (Access controlled within controller) ---

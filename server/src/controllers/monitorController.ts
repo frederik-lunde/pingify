@@ -119,7 +119,11 @@ export const getAllResults = async ( req: Request, res: Response, next: NextFunc
 export const getUserResults = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
   try {
       // Ensure req.user is attached by middleware
-     const userId = req.user!.id;
+     if (!req.user?.id) {
+         res.status(401).json({ message: 'Authentication required.' });
+         return;
+     }
+     const userId = req.user.id;
      const { limit = '100', from, to } = req.query;
      const parsedLimit = parseInt(limit as string, 10);
      if (isNaN(parsedLimit) || parsedLimit <= 0) {
@@ -163,7 +167,11 @@ export const getResultsByWebsite = async ( req: Request<{ websiteId: string }>, 
   try {
     const { websiteId: websiteIdParam } = req.params;
      // Used for access check
-    const userId = req.user!.id;
+     if (!req.user?.id) {
+         res.status(401).json({ message: 'Authentication required.' });
+         return;
+     }
+    const userId = req.user.id;
      // Use helper
     const websiteId = parseIdParam(websiteIdParam);
 
@@ -218,7 +226,11 @@ export const triggerWebsiteCheck = async (
 ): Promise<void> => {
     try {
         const { websiteId: websiteIdParam } = req.params;
-        const userId = req.user!.id;
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
          // Use helper
         const websiteId = parseIdParam(websiteIdParam);
 
@@ -283,6 +295,7 @@ export const getOverallStats = async ( req: Request, res: Response, next: NextFu
     try {
       const { period = 'week' } = req.query;
       // Service already returns the shared OverallStats type with dates as strings
+      // Passing userId as undefined calculates stats system-wide
       const stats: OverallStats = await StatsCalculator.getOverallStats(undefined, period as string );
       res.json(stats);
     } catch (error) {
@@ -295,9 +308,15 @@ export const getOverallStats = async ( req: Request, res: Response, next: NextFu
  */
 export const getUserStats = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
     try {
-      const userId = req.user!.id;
+      // Ensure user is authenticated
+     if (!req.user?.id) {
+         res.status(401).json({ message: 'Authentication required.' });
+         return;
+     }
+      const userId = req.user.id;
       const { period = 'week' } = req.query;
       // Service already returns the shared OverallStats type with dates as strings
+      // The service function getUserDashboardStats will handle fetching the incident count for this user
       const stats: OverallStats = await StatsCalculator.getUserDashboardStats(userId, period as string );
       res.json(stats);
     } catch (error) {
@@ -311,7 +330,12 @@ export const getUserStats = async ( req: Request, res: Response, next: NextFunct
 export const getWebsiteStats = async ( req: Request<{ websiteId: string }>, res: Response, next: NextFunction ): Promise<void> => {
     try {
       const { websiteId: websiteIdParam } = req.params;
-      const userId = req.user!.id;
+        // Ensure user is authenticated
+     if (!req.user?.id) {
+         res.status(401).json({ message: 'Authentication required.' });
+         return;
+     }
+      const userId = req.user.id;
        // Use helper
       const websiteId = parseIdParam(websiteIdParam);
       if (websiteId === null) {
@@ -346,7 +370,12 @@ export const getWebsiteDetails = async (
 ): Promise<void> => {
     try {
         const { websiteId: websiteIdParam } = req.params;
-        const userId = req.user!.id;
+        // Ensure user is authenticated
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
          // Use helper
         const websiteId = parseIdParam(websiteIdParam);
 

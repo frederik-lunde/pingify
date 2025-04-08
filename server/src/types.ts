@@ -207,6 +207,9 @@ export interface OverallStats {
   websiteStats: WebsiteStatsData[];
   overallUptime: number;
   overallResponseTime: number | null;
+  // --- ADDED ---
+  incidentsLast24h: number; // Count of 'down' or 'slow' alerts created in the last 24 hours
+  // --- END ADDED ---
 }
 
 /**
@@ -270,12 +273,6 @@ export interface AuthContextType {
   logout: () => void;
 }
 
-// Example structure for dashboard display - DEPRECATED in favor of modifying WebsiteUser
-// export interface WebsiteWithDetails {
-//   userWebsite: WebsiteUser; // Contains the user's settings for the website
-//   latestResult?: MonitoringResult; // Shared type
-//   activeAlertCount?: number; // Derived count of active alerts for this website/user
-// }
 
 // --- ADDED: Type for Downtime Info Calculation Result ---
 export interface DowntimeInfo {

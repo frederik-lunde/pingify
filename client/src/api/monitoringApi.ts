@@ -1,4 +1,5 @@
 // src/api/monitoringApi.ts
+// No changes needed in this file.
 import apiClient from './client';
 import { OverallStats, WebsiteStatsData, TimeframeKey, WebsiteDetailsData, MonitoringResult } from '../types'; // Adjust path as needed, added ApiError
 
@@ -35,6 +36,7 @@ export const fetchWebsiteDetails = async ({
  * Endpoint: GET /monitoring/user/stats
  */
 export const fetchUserStats = async (period: TimeframeKey | string = 'week'): Promise<OverallStats> => {
+    // The response type OverallStats now includes incidentsLast24h
     return apiClient.get<OverallStats>("/monitoring/user/stats", { params: { period } });
 };
 
