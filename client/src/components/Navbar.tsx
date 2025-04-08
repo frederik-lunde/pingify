@@ -24,10 +24,10 @@ import MenuItem from "@mui/material/MenuItem";
 import AdbIcon from "@mui/icons-material/Adb";
 import AddIcon from "@mui/icons-material/Add";
 
+
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router";
-import AlertsDropdown from "./navbar/AlertDropdown";
 import { useWebsiteData } from "../hooks/domain/useWebsiteData"; // Keep hook call
+import AlertsDropdown from "./navbar/AlertDropdown";
 // Use the same StatsHeader component
 import StatsHeader from "./dashboard/StatsHeader";
 
@@ -252,13 +252,9 @@ function Navbar() {
    options={{ limit: 50 }}
                 pollingInterval={60000}
               />
+              </Box>
 
-             {/* Theme Toggle Button */}
-             <Tooltip title={`Toggle ${mode === 'dark' ? 'light' : 'dark'} mode`}>
-                <IconButton sx={{ ml: 1 }} onClick={handleThemeToggle} color="inherit">
-                    {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-                </IconButton>
-             </Tooltip>
+           
 
              {/* User Avatar and Menu */}
              <Tooltip title="Open settings">

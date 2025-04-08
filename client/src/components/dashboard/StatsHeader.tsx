@@ -104,19 +104,9 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
 }) => {
   const theme = useTheme();
   const isNavbar = center;
-  const [popoverAnchorEl, setPopoverAnchorEl] = useState<HTMLElement | null>(null);
 
-  const handlePopoverOpen = (event: React.MouseEvent<HTMLElement>) => {
-    if (incidentsLast24h && incidentsLast24h.length > 0) {
-      setPopoverAnchorEl(event.currentTarget);
-    }
-  };
 
-  const handlePopoverClose = () => {
-    setPopoverAnchorEl(null);
-  };
 
-  const open = Boolean(popoverAnchorEl);
 
   // --- Props for Status Display ---
   const getStatusProps = () => {
