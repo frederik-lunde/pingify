@@ -1,62 +1,55 @@
-// src/hooks/query/useAlerts.ts
+// client/src/hooks/query/useAlerts.ts
 import { useQuery, useMutation, useQueryClient, QueryKey } from '@tanstack/react-query';
-import { Alert, AlertStats, AlertQueryOptions, ApiError } from "../../types"; // Adjust path
+import { Alert, AlertStats, AlertQueryOptions, ApiError } from "../../types"; // IncidentCountResponse no longer needed
 import {
     fetchUserAlerts,
     fetchWebsiteAlerts,
     fetchAlertStats,
+    // fetchUserIncidentCountLast24h, // REMOVED import
     dismissAlert as dismissAlertAPI
 } from '../../api/alertApi'; // Adjust path
 
-// --- Query Keys --- (remain the same)
+// --- Query Keys ---
 export const alertQueryKeys = {
     all: ['alerts'] as const,
     lists: () => [...alertQueryKeys.all, 'list'] as const,
     list: (options: AlertQueryOptions = {}) => [...alertQueryKeys.lists(), 'user', options] as const,
     website: (websiteId: number | undefined, options: AlertQueryOptions = {}) => [...alertQueryKeys.all, 'website', websiteId, options] as const,
     stats: (days?: number) => [...alertQueryKeys.all, 'stats', 'user', { days }] as const,
+    // REMOVED: incidentCountLast24h key
 };
 
 // --- Custom Hook Options Interface ---
-// Define options the CALLING component might typically control
 interface UseAlertsHookOptions {
     enabled?: boolean;
     refetchInterval?: number | false;
-    staleTime?: number; // Allow overriding default staleTime if needed
-    // gcTime is usually best set as a default inside the hook
+    staleTime?: number;
 }
 
-// Default cache times (can be adjusted)
-const DEFAULT_LIST_STALE_TIME = 1000 * 60; // 1 minute
-const DEFAULT_LIST_GC_TIME = 1000 * 60 * 5; // 5 minutes
-const DEFAULT_STATS_STALE_TIME = 1000 * 60 * 5; // 5 minutes
-const DEFAULT_STATS_GC_TIME = 1000 * 60 * 15; // 15 minutes
+// Default cache times
+const DEFAULT_LIST_STALE_TIME = 1000 * 60;
+const DEFAULT_LIST_GC_TIME = 1000 * 60 * 5;
+const DEFAULT_STATS_STALE_TIME = 1000 * 60 * 5;
+const DEFAULT_STATS_GC_TIME = 1000 * 60 * 15;
 
 // --- Query Hooks ---
 
 /**
  * Hook to fetch the authenticated user's active alerts.
- * Encapsulates default caching, allows component to control enabled/refetchInterval.
  */
 export function useUserAlertsQuery(
-    // 1st arg: API filter options
     apiOptions: AlertQueryOptions = {},
-    // 2nd arg: Options for the hook wrapper / query behavior control
     hookOptions?: UseAlertsHookOptions
 ) {
     const queryKey = alertQueryKeys.list(apiOptions);
     return useQuery<Alert[], ApiError>({
         queryKey: queryKey,
         queryFn: () => fetchUserAlerts(apiOptions),
-        // --- React Query Options ---
-        // Controlled primarily by the component via hookOptions:
-        enabled: hookOptions?.enabled, // Let component enable/disable
-        refetchInterval: hookOptions?.refetchInterval, // Let component control polling
-        // Defaults defined here, but overrideable via hookOptions:
+        enabled: hookOptions?.enabled,
+        refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME,
-        // Defaults defined here (less likely to be overridden):
         gcTime: DEFAULT_LIST_GC_TIME,
-        initialData: [], // Provide initial data
+        initialData: [],
     });
 }
 
@@ -74,15 +67,13 @@ export function useWebsiteAlertsQuery(
     return useQuery<Alert[], ApiError>({
         queryKey: queryKey,
         queryFn: () => {
-            // Should not run if not enabled, but check defensively
             if (!websiteId) return Promise.resolve([]);
             return fetchWebsiteAlerts(websiteId, apiOptions);
         },
-        // --- React Query Options ---
-        enabled: isQueryEnabled, // Derived enabled state
-        refetchInterval: hookOptions?.refetchInterval, // Controlled by component
-        staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME, // Default + override
-        gcTime: DEFAULT_LIST_GC_TIME, // Default
+        enabled: isQueryEnabled,
+        refetchInterval: hookOptions?.refetchInterval,
+        staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME,
+        gcTime: DEFAULT_LIST_GC_TIME,
         initialData: [],
     });
 }
@@ -92,21 +83,20 @@ export function useWebsiteAlertsQuery(
  */
 export function useAlertStatsQuery(
     days = 7,
-    hookOptions?: UseAlertsHookOptions // Can still pass enabled/staleTime etc.
+    hookOptions?: UseAlertsHookOptions
 ) {
     const queryKey = alertQueryKeys.stats(days);
     return useQuery<AlertStats, ApiError>({
         queryKey: queryKey,
         queryFn: () => fetchAlertStats(days),
-        // --- React Query Options ---
         enabled: hookOptions?.enabled,
         refetchInterval: hookOptions?.refetchInterval,
-        staleTime: hookOptions?.staleTime ?? DEFAULT_STATS_STALE_TIME, // Use stats default
-        gcTime: DEFAULT_STATS_GC_TIME, // Use stats default
+        staleTime: hookOptions?.staleTime ?? DEFAULT_STATS_STALE_TIME,
+        gcTime: DEFAULT_STATS_GC_TIME,
         initialData: () => ({ totalAlerts: 0, byType: {}, byWebsite: [] }),
     });
 }
-
+// REMOVED: useUserIncidentCountQuery hook
 
 
 interface AlertDismissMutationContext {
@@ -114,6 +104,9 @@ interface AlertDismissMutationContext {
     previousAlerts?: Alert[];
 }
 
+/**
+ * Hook providing mutation functions for alert actions (e.g., dismissing).
+ */
 export function useAlertActions() {
     const queryClient = useQueryClient();
     const userAlertListsQueryKeyPattern = alertQueryKeys.list();
@@ -122,15 +115,16 @@ export function useAlertActions() {
         mutationFn: dismissAlertAPI,
         onMutate: async (): Promise<AlertDismissMutationContext | undefined> => {
             await queryClient.cancelQueries({ queryKey: userAlertListsQueryKeyPattern });
-            // Using simpler invalidation strategy - no optimistic update here
             return undefined;
         },
          onError: (error, alertId, ) => {
             console.error(`Failed to dismiss alert ${alertId}:`, error.message);
             queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern });
+            queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats() });
         },
         onSettled: (data, error, alertId) => {
             console.log(`DismissAlert mutation settled for alert ${alertId}. Error: ${error?.message ?? 'None'}`);
+            // Invalidate lists and stats, but NOT the monitoring-based incident count
             queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern });
             queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats() });
         },

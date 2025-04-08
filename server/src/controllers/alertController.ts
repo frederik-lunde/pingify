@@ -3,7 +3,12 @@ import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client'; // Import Prisma namespace for types
 import * as AlertService from '../services/alertService';
 import * as WebsiteService from '../services/websiteService'; // For access checks
-import { AlertType, VALID_ALERT_TYPES, Alert as SharedAlert } from '../types'; // Use updated types
+import {
+    AlertType,
+    VALID_ALERT_TYPES,
+    Alert as SharedAlert,
+    IncidentCountResponse // <-- Import new type
+} from '../types'; // Use updated types
 
 // --- Helper Type Guards & Validators ---
 const isValidAlertType = (type: any): type is AlertType => {
@@ -209,6 +214,28 @@ export const getUserAlertStats = async (
 
     } catch (error) {
         console.error(`Error fetching stats for user ${req.user?.id}:`, error);
+        next(error);
+    }
+};
+
+/**
+ * GET /api/alerts/user/incidents/last24h - Get the count of 'down' or 'slow' alerts in the last 24 hours for the user.
+ */
+export const getUserIncidentCountLast24h = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const userId = req.user!.id;
+
+        const count = await AlertService.getUserIncidentCountLast24h(userId);
+
+        const response: IncidentCountResponse = { incidentCount: count };
+        res.json(response);
+
+    } catch (error) {
+        console.error(`Error fetching incident count for user ${req.user?.id}:`, error);
         next(error);
     }
 };

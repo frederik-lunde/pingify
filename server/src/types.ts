@@ -259,6 +259,13 @@ export interface AlertStats {
   }>;
 }
 
+/**
+ * Response type for the count of recent incidents.
+ */
+export interface IncidentCountResponse {
+    incidentCount: number;
+}
+
 // --- SECTION 7: Frontend Specific Context/Hook Types ---
 // Adapt as needed for frontend state management
 
@@ -281,4 +288,12 @@ export interface AuthContextType {
 export interface DowntimeInfo {
     consecutiveFailures: number;
     downtimeStartedAt: Date | null; // Use Date internally, convert to string for API
+}
+
+export interface WebsiteIncidentInfo {
+  websiteId: number;
+  name: string | null; // User's name for the website
+  url: string;
+  // Optionally, add when the *first* incident in the 24h window occurred? (More complex query)
+  // firstIncidentAt?: string;
 }
