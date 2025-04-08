@@ -18,7 +18,7 @@ import Register from "./pages/Register";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { useApplyUserThemePreference } from "./context/ThemeContext"; // Adjust path if needed
 // *** Correct Import Path & Import Hook ***
-import { FocusModeProvider, useFocusMode } from "./context/FocusedModeContext"; // Adjust path if needed
+import { FocusModeProvider, useFocusMode } from "./context/FocusModeContext"; // Adjust path if needed
 
 // --- Correctly Defined Wrapper Components ---
 function WebsiteDetailsWrapper() {
