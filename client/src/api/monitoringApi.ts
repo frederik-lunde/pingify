@@ -1,6 +1,5 @@
 
 // src/api/monitoringApi.ts
-// No changes needed in this file.
 
 import apiClient from './client';
 import {
@@ -9,10 +8,9 @@ import {
     TimeframeKey,
     WebsiteDetailsData,
     MonitoringResult,
-    IncidentCountResponse // <-- Import type
-} from '../types'; // Adjust path as needed
+    IncidentCountResponse
+} from '../types';
 
-// Interface for fetchWebsiteDetails parameters
 export interface FetchWebsiteDetailsParams {
     websiteId: number;
     timeframe?: TimeframeKey;
@@ -45,7 +43,6 @@ export const fetchWebsiteDetails = async ({
  * Endpoint: GET /monitoring/user/stats
  */
 export const fetchUserStats = async (period: TimeframeKey | string = 'week'): Promise<OverallStats> => {
-    // The response type OverallStats now includes incidentsLast24h
     return apiClient.get<OverallStats>("/monitoring/user/stats", { params: { period } });
 };
 
@@ -72,27 +69,25 @@ export const triggerWebsiteCheck = async (websiteId: number): Promise<Monitoring
 };
 
 /**
- * Fetches all monitoring results for the current user (potential performance concern).
+ * Fetches all monitoring results for the current user 
  * Endpoint: GET /monitoring/user/results
  */
 export const fetchAllUserMonitoringResults = async (limit: number = 500): Promise<MonitoringResult[]> => {
     const result = await apiClient.get<MonitoringResult[]>("/monitoring/user/results", { params: { limit } });
-    return result ?? []; // Ensure array
+    return result ?? [];
 };
 
 /**
- * NEW: Fetches the count of distinct websites with incidents (based on MonitoringResults)
+ * Fetches the count of distinct websites with incidents (based on MonitoringResults)
  * in the last 24 hours for the user.
  * Endpoint: GET /monitoring/user/incidents/last24h
  */
 export const fetchUserIncidentCountLast24h = async (): Promise<IncidentCountResponse> => {
-    const url = "/monitoring/user/incidents/last24h"; // <-- Use the new monitoring endpoint
+    const url = "/monitoring/user/incidents/last24h";
     try {
         const data = await apiClient.get<IncidentCountResponse>(url);
-        // Provide default if backend returns unexpected null/undefined
         return data ?? { incidentCount: 0 };
     } catch (error: any) {
-        // Assuming apiClient's interceptor handles ApiError creation
         console.error(`API Error fetching monitoring-based incident count: ${error.message}`);
         throw error;
     }

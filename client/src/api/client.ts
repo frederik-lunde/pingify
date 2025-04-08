@@ -1,5 +1,4 @@
 // src/api/client.ts
-// No changes needed in this file.
 import axios, {
   AxiosInstance,
   AxiosRequestConfig,
@@ -7,10 +6,8 @@ import axios, {
   AxiosError,
   InternalAxiosRequestConfig
 } from "axios";
-// --- Uses the updated config file ---
-import { API_BASE_URL } from "../config/config"; // Adjust path if needed
-// --- End of Update ---
-import { getAuthToken, fireAuthErrorEvent } from "../utils/authTokenUtils"; // Adjust path
+import { API_BASE_URL } from "../config/config";
+import { getAuthToken, fireAuthErrorEvent } from "../utils/authTokenUtils";
 
 // --- ApiError Interface ---
 export interface ApiError extends Error {

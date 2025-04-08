@@ -1,18 +1,16 @@
 // src/api/websitesApi.ts
-// No changes needed in this file.
 import apiClient from './client';
 import {
     WebsiteUser,
     AddWebsiteUserDTO,
     UpdateWebsiteUserDTO,
-    SetPinStatusDTO, // <-- Import DTO
+    SetPinStatusDTO,
     Website,
-} from '../types'; // Adjust path
+} from '../types';
 
 /**
  * Fetches all websites for the user's dashboard.
  * Endpoint: GET /websites/user/dashboard
- * Note: Backend sorts this by isPinned desc, url asc
  */
 export const fetchUserWebsites = async (): Promise<WebsiteUser[]> => {
     return apiClient.get<WebsiteUser[]>('/websites/user/dashboard');
@@ -28,7 +26,7 @@ export const fetchUserWebsite = async (websiteId: number): Promise<WebsiteUser> 
 };
 
 /**
- * Searches for websites globally (potential admin feature or public search).
+ * Searches for websites globally
  * Endpoint: GET /websites/search
  */
 export const searchWebsites = async (query: string, limit: number = 10): Promise<Website[]> => {
@@ -68,6 +66,5 @@ export const setWebsitePinStatus = async ({ websiteId, pinData }: { websiteId: n
  */
 export const deleteWebsite = async (websiteId: number): Promise<void> => {
      if (!websiteId) throw new Error("Website ID is required for deletion.");
-    // Ensure the response is handled correctly (might be 204 No Content)
     await apiClient.delete<any>(`/websites/user/dashboard/${websiteId}`);
 };

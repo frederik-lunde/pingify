@@ -1,25 +1,21 @@
 // client/src/hooks/query/useAlerts.ts
 import { useQuery, useMutation, useQueryClient, QueryKey } from '@tanstack/react-query';
-import { Alert, AlertStats, AlertQueryOptions, ApiError } from "../../types"; // IncidentCountResponse no longer needed
+import { Alert, AlertStats, AlertQueryOptions, ApiError } from "../../types";
 import {
     fetchUserAlerts,
     fetchWebsiteAlerts,
     fetchAlertStats,
-    // fetchUserIncidentCountLast24h, // REMOVED import
     dismissAlert as dismissAlertAPI
-} from '../../api/alertApi'; // Adjust path
+} from '../../api/alertApi'; 
 
-// --- Query Keys ---
 export const alertQueryKeys = {
     all: ['alerts'] as const,
     lists: () => [...alertQueryKeys.all, 'list'] as const,
     list: (options: AlertQueryOptions = {}) => [...alertQueryKeys.lists(), 'user', options] as const,
     website: (websiteId: number | undefined, options: AlertQueryOptions = {}) => [...alertQueryKeys.all, 'website', websiteId, options] as const,
     stats: (days?: number) => [...alertQueryKeys.all, 'stats', 'user', { days }] as const,
-    // REMOVED: incidentCountLast24h key
 };
 
-// --- Custom Hook Options Interface ---
 interface UseAlertsHookOptions {
     enabled?: boolean;
     refetchInterval?: number | false;
@@ -32,7 +28,6 @@ const DEFAULT_LIST_GC_TIME = 1000 * 60 * 5;
 const DEFAULT_STATS_STALE_TIME = 1000;
 const DEFAULT_STATS_GC_TIME = 1000 * 60 * 15;
 
-// --- Query Hooks ---
 
 /**
  * Hook to fetch the authenticated user's active alerts.
@@ -96,7 +91,6 @@ export function useAlertStatsQuery(
         initialData: () => ({ totalAlerts: 0, byType: {}, byWebsite: [] }),
     });
 }
-// REMOVED: useUserIncidentCountQuery hook
 
 
 interface AlertDismissMutationContext {
@@ -124,7 +118,6 @@ export function useAlertActions() {
         },
         onSettled: (data, error, alertId) => {
             console.log(`DismissAlert mutation settled for alert ${alertId}. Error: ${error?.message ?? 'None'}`);
-            // Invalidate lists and stats, but NOT the monitoring-based incident count
             queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern });
             queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats() });
         },

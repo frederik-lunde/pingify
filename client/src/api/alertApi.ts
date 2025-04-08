@@ -1,7 +1,6 @@
 // client/src/api/alertApi.ts
-// The fetchUserIncidentCountLast24h function is removed from here.
 import apiClient from './client';
-import { Alert, AlertStats, AlertQueryOptions, ApiError } from '../types'; // IncidentCountResponse no longer needed
+import { Alert, AlertStats, AlertQueryOptions, ApiError } from '../types';
 
 /**
  * Constructs query parameters object, omitting undefined values.

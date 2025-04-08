@@ -1,27 +1,23 @@
 // src/context/AuthContext.tsx
 import React, { createContext, useContext } from "react";
-import { AuthContextType } from "../types"; // Adjust path
-import { useAuthCore } from "../hooks/api/useAuth"; // Correct import path
+import { AuthContextType } from "../types"; 
+import { useAuthCore } from "../hooks/api/useAuth";
 
-// Type for the context value, omitting login/register as they are handled by mutations
 type CoreAuthContextType = Omit<AuthContextType, 'login' | 'register'>;
 
 // Create the context with a null default value
 const AuthContext = createContext<CoreAuthContextType | null>(null);
 
-// AuthProvider component that uses the core auth hook
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const auth = useAuthCore(); // Use the refactored core hook
+  const auth = useAuthCore();
 
-  // The value provided includes user, token, loading, error, logout
+  //includes user, token, loading, error, logout
   return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
 };
 
-// Custom hook for consuming the auth context
 export const useAuth = (): CoreAuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    // This error means useAuth was called outside of an AuthProvider
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;

@@ -6,8 +6,8 @@ import {
   getAuthToken,
   storeAuthToken,
   removeAuthToken,
-} from "../../utils/authTokenUtils"; // Adjust path
-import { User, AuthContextType, ApiError } from "../../types"; // Adjust path
+} from "../../utils/authTokenUtils";
+import { User, AuthContextType, ApiError } from "../../types";
 import {
     fetchCurrentUser,
     loginUser,
@@ -15,72 +15,60 @@ import {
     AuthResponse,
     LoginCredentials,
     RegistrationData
-} from "../../api/authApi"; // Adjust path
+} from "../../api/authApi";
 
-// Query Keys
 export const authQueryKeys = {
-    me: ['auth', 'me'] as const, // Key for the current user query
+    me: ['auth', 'me'] as const,
 };
 
 /**
- * Hook managing core authentication state (token, user data via query) and logout.
- * Login and Register are handled via separate mutation hooks.
- * Intended for use by AuthContext provider.
+ * Hook managing core authentication state
  */
 export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Token State from storage
   const [token, setToken] = useState<string | null>(getAuthToken);
 
-  // Initial Auth Check State
   const [isInitialCheckComplete, setIsInitialCheckComplete] = useState(false);
 
-  // Query for Current User Data
   const {
       data: userData,
       isLoading: isUserQueryLoading,
       isSuccess: isUserQuerySuccess,
       isError: isUserQueryError,
-      error: userQueryErrorData, // Rename for clarity
-      isFetching: isUserQueryFetching, // Indicates background fetching
+      error: userQueryErrorData, 
+      isFetching: isUserQueryFetching,
   } = useQuery<{ user: User }, ApiError>({
       queryKey: authQueryKeys.me,
       queryFn: fetchCurrentUser,
-      enabled: !!token, // Only run if token exists
+      enabled: !!token, 
       staleTime: 1000 * 60 * 30, // 30 minutes
       gcTime: 1000 * 60 * 60,    // 1 hour
       retry: (failureCount, error) => {
-         if (error?.status === 401 || error?.status === 403) return false; // No retry on auth errors for /me
-         return failureCount < 1; // Retry once for other errors
+         if (error?.status === 401 || error?.status === 403) return false;
+         return failureCount < 1;
       },
       refetchOnWindowFocus: true,
   });
 
-  // Derived State for Context
   const user = userData?.user || null;
 
-  // Determine completion of the initial auth check
   useEffect(() => {
     if (isInitialCheckComplete) return;
     if (!token) {
-      setIsInitialCheckComplete(true); // No token, check complete
+      setIsInitialCheckComplete(true); 
     } else if (isUserQuerySuccess || isUserQueryError) {
-      setIsInitialCheckComplete(true); // Token existed, query finished
+      setIsInitialCheckComplete(true); 
     }
-    // Otherwise, still loading the initial user query
   }, [token, isUserQuerySuccess, isUserQueryError, isInitialCheckComplete]);
 
-  // Loading state for ProtectedRoute: True until initial check is done.
   const loading = !isInitialCheckComplete;
 
-  // Error state: Report error only if check is complete, token existed, and query failed.
   const error = (isInitialCheckComplete && token && isUserQueryError)
       ? (userQueryErrorData?.message || "Failed to load user data.")
       : null;
 
-  // Global Auth Error Listener (handles 401s from *other* API calls)
   useEffect(() => {
     const handleGlobalAuthError = () => {
       console.debug("useAuthCore handling auth-error event (likely 401 from non-auth endpoint)");
@@ -95,52 +83,46 @@ export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
     return () => window.removeEventListener("auth-error", handleGlobalAuthError);
   }, [navigate, queryClient]);
 
-  // Token Synchronization Listener (for multi-tab consistency)
+  // Token Synchronization Listener
   useEffect(() => {
     const syncToken = (event: StorageEvent) => {
-        // Check if the 'authToken' key changed in localStorage or sessionStorage
         if (event.key === "authToken" || (event.storageArea === sessionStorage && event.key === null)) {
-             // Re-read token from storage
              const currentToken = getAuthToken();
-             // Only update state if the token actually changed
              if (token !== currentToken) {
                  setToken(currentToken);
-                 // If token was removed, clear user data immediately
                  if (!currentToken) {
                     queryClient.setQueryData(authQueryKeys.me, null);
                  }
-                 // Invalidate the 'me' query to refetch user data if a token now exists
                  queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
              }
         }
     };
     window.addEventListener('storage', syncToken);
     return () => window.removeEventListener('storage', syncToken);
-  }, [queryClient, token]); // Depend on queryClient and token
+  }, [queryClient, token]);
 
   // Logout Function
   const logout = useCallback(() => {
     removeAuthToken();
     setToken(null);
-    queryClient.setQueryData(authQueryKeys.me, null); // Clear user data immediately
-    queryClient.removeQueries({ queryKey: authQueryKeys.me }); // Remove the query
+    queryClient.setQueryData(authQueryKeys.me, null); 
+    queryClient.removeQueries({ queryKey: authQueryKeys.me });
     setIsInitialCheckComplete(true); // Check is complete (no user)
     // Consider resetting other queries if needed: queryClient.resetQueries();
     navigate("/login", { replace: true });
   }, [navigate, queryClient]);
 
-  // Return Value for Context Provider
+ 
   return {
     user,
     token,
-    loading, // Crucial state for initial load indication
-    error,   // Error state primarily from the user fetch query
+    loading,
+    error,   
     logout,
   };
 }
 
 
-// --- MUTATION HOOKS ---
 
 /**
  * Hook providing a mutation for user login.
@@ -148,7 +130,7 @@ export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
  */
 export function useLoginMutation() {
     const queryClient = useQueryClient();
-    const navigate = useNavigate(); // To redirect after login
+    const navigate = useNavigate();
 
     return useMutation<AuthResponse, ApiError, LoginCredentials & { rememberMe?: boolean }>({
         mutationFn: (credentials) => loginUser(credentials),

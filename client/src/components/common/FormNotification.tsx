@@ -18,10 +18,6 @@ interface FormNotificationProps {
   };
 }
 
-/**
- * A reusable notification component for forms
- * Shows success/error messages in a consistent way across the application
- */
 const FormNotification: React.FC<FormNotificationProps> = ({
   notification,
   onClose,
