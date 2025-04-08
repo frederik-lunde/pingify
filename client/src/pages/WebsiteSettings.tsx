@@ -98,7 +98,7 @@ const WebsiteSettings: React.FC = () => {
      // Enable only if ID is a valid number
      enabled: !!numericWebsiteId,
      // Example: Keep data fresh for 1 minute
-     staleTime: 1000 * 60 * 1,
+     staleTime: 1000,
      // Example: Keep data in cache for 5 minutes
      gcTime: 1000 * 60 * 5,
   });

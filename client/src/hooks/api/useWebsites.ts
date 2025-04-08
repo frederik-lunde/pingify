@@ -56,7 +56,7 @@ export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>
         queryKey: websiteQueryKeys.lists(userId),
         queryFn: () => { if (!userId) return Promise.resolve([]); return fetchUserWebsites(); },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 1000 * 60 * 5, // Example: 5 min stale time for user list
+        staleTime: 1000, 
         gcTime: 1000 * 60 * 15,
         ...options,
     });
@@ -69,7 +69,7 @@ export function useUserWebsiteQuery(websiteId: number | undefined, options?: Cus
         queryKey: websiteQueryKeys.detail(websiteId, userId),
         queryFn: () => { if (!userId || !websiteId) return Promise.reject(new Error("Missing user or website ID for query")); return fetchUserWebsite(websiteId); },
         enabled: options?.enabled === undefined ? (!!userId && !!websiteId && websiteId > 0) : options.enabled,
-        staleTime: 1000 * 60 * 1, // Example: 1 min stale time for detail
+        staleTime: 1000,
         gcTime: 1000 * 60 * 5,
         ...options,
 

@@ -71,7 +71,7 @@ const WebsiteDetails: React.FC = () => {
         sortDir: sortDir,
     }, {
         enabled: !!numericWebsiteId && numericWebsiteId > 0,
-        staleTime: 1000 * 60, // 1 minute
+        staleTime: 1000, // 1 minute
         refetchOnWindowFocus: true,
         placeholderData: keepPreviousData,
     });

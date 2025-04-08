@@ -65,7 +65,7 @@ export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, option
             return fetchWebsiteDetails(params);
         },
         enabled: options?.enabled === undefined ? (!!userId && !!params.websiteId && params.websiteId > 0) : options.enabled,
-        staleTime: 1000 * 30,
+        staleTime: 1000,
         gcTime: 1000 * 60 * 5,
         ...options,
     });
@@ -146,7 +146,7 @@ export function useUserStatsQuery(period: TimeframeKey | string = 'week', option
             return fetchUserStats(period);
         },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 1000 * 60 * 5,
+        staleTime: 1000,
         gcTime: 1000 * 60 * 15,
         ...options,
     });
@@ -168,7 +168,7 @@ export function useWebsiteStatsQuery(websiteId: number | undefined, period: Time
             return fetchWebsiteStats(websiteId, period);
         },
         enabled: isQueryEnabled,
-        staleTime: 1000 * 60 * 2,
+        staleTime: 1000,
         gcTime: 1000 * 60 * 10,
         ...options,
     });
@@ -189,7 +189,7 @@ export function useUserMonitoringResultsQuery(limit: number = 500, options?: Cus
              return fetchAllUserMonitoringResults(limit);
         },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 1000 * 15,
+        staleTime: 1000,
         gcTime: 1000 * 60 * 5,
         ...options,
     });

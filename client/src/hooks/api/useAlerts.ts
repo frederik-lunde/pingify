@@ -27,9 +27,9 @@ interface UseAlertsHookOptions {
 }
 
 // Default cache times
-const DEFAULT_LIST_STALE_TIME = 1000 * 60;
+const DEFAULT_LIST_STALE_TIME = 1000;
 const DEFAULT_LIST_GC_TIME = 1000 * 60 * 5;
-const DEFAULT_STATS_STALE_TIME = 1000 * 60 * 5;
+const DEFAULT_STATS_STALE_TIME = 1000;
 const DEFAULT_STATS_GC_TIME = 1000 * 60 * 15;
 
 // --- Query Hooks ---
