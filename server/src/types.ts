@@ -1,5 +1,4 @@
 // server/src/types.ts
-
 // --- SECTION 1: Prisma Type Re-exports (Minimal Required) ---
 import {
   Website as PrismaWebsite,
@@ -58,8 +57,14 @@ export interface WebsiteUser {
     alertThreshold: number | null;
     notifyEmail: string | null;
     createdAt: string; // ISO 8601 date string
+    isPinned: boolean;
     website?: Website; // Often included when fetching user's monitored sites
     user?: User;       // Less common to include
+    // --- ADDED FOR DOWNTIME INFO ---
+    // Only populated if the latest status is 'down'
+    consecutiveFailures?: number;
+    downtimeStartedAt?: string | null; // ISO 8601 date string of the first failure in the sequence
+    // --- END ADDED ---
 }
 
 // Define the *simplified* alert types based on the new schema/requirements
@@ -118,6 +123,7 @@ export interface AddWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean;
   notifyEmail?: string | null;
+  isPinned?: boolean; // Already included - correct
 }
 
 export interface UpdateWebsiteUserDTO {
@@ -126,6 +132,12 @@ export interface UpdateWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean | null;
   notifyEmail?: string | null;
+  isPinned?: boolean; // Already included - correct
+}
+
+// DTO specifically for updating the pin status
+export interface SetPinStatusDTO {
+    isPinned: boolean;
 }
 
 export interface LoginCredentials {
@@ -183,7 +195,7 @@ export interface WebsiteStatsData {
   averageResponseTime: number | null;
   totalChecks: number;
   lastCheck: string | null; // ISO 8601 string
-  consecutiveFailures: number; // Still useful info
+  consecutiveFailures: number; // Already exists, calculated differently maybe, keep for general stats
 }
 
 /**
@@ -220,6 +232,11 @@ export interface WebsiteDetailsData {
   chartData: ChartDataPoint[];       // Array of points formatted for charts
   recentChecks: MonitoringResult[];  // Array of shared MonitoringResult types
   uptimePercent: number;             // Calculated uptime for the selected timeframe
+  // --- ADDED FOR DOWNTIME INFO ---
+  // Only populated if the latest status is 'down'
+  consecutiveFailures?: number;
+  downtimeStartedAt?: string | null; // ISO 8601 date string of the first failure in the sequence
+  // --- END ADDED ---
 }
 
 
@@ -253,9 +270,15 @@ export interface AuthContextType {
   logout: () => void;
 }
 
-// Example structure for dashboard display
-export interface WebsiteWithDetails {
-  userWebsite: WebsiteUser; // Contains the user's settings for the website
-  latestResult?: MonitoringResult; // Shared type
-  activeAlertCount?: number; // Derived count of active alerts for this website/user
+// Example structure for dashboard display - DEPRECATED in favor of modifying WebsiteUser
+// export interface WebsiteWithDetails {
+//   userWebsite: WebsiteUser; // Contains the user's settings for the website
+//   latestResult?: MonitoringResult; // Shared type
+//   activeAlertCount?: number; // Derived count of active alerts for this website/user
+// }
+
+// --- ADDED: Type for Downtime Info Calculation Result ---
+export interface DowntimeInfo {
+    consecutiveFailures: number;
+    downtimeStartedAt: Date | null; // Use Date internally, convert to string for API
 }

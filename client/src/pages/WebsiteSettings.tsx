@@ -8,24 +8,30 @@ import {
   Button, Divider, CircularProgress, Alert, IconButton, Tooltip,
   Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Stack
 } from "@mui/material";
-import Grid from "@mui/material/Grid2"; // Use Grid v2
+// Use Grid v2
+import Grid from "@mui/material/Grid2";
 import {
   ArrowBack as ArrowBackIcon, Save as SaveIcon, Delete as DeleteIcon,
 } from "@mui/icons-material";
 
 // --- Import Hooks & Types ---
-import { useUserWebsiteQuery, useWebsiteMutations } from "../hooks/api/useWebsites"; // Adjust path
+// Adjust path
+import { useUserWebsiteQuery, useWebsiteMutations } from "../hooks/api/useWebsites";
+// Adjust path
 import FormNotification, {
   initialNotificationState, FormNotificationState
-} from "../components/common/FormNotification"; // Adjust path
-import { UpdateWebsiteUserDTO, ApiError, WebsiteUser } from "../types"; // Adjust path
+} from "../components/common/FormNotification";
+// Adjust path
+import { UpdateWebsiteUserDTO, ApiError, WebsiteUser } from "../types";
 
 // Form values interface
 interface WebsiteSettingsFormValues {
   name: string;
-  interval: number | string; // Allow string for initial input flexibility
+  // Allow string for initial input flexibility
+  interval: number | string;
   alertEnabled: boolean;
-  alertThreshold: number | string; // Allow string for initial input flexibility
+  // Allow string for initial input flexibility
+  alertThreshold: number | string;
   notifyEmail: string;
 }
 
@@ -36,24 +42,30 @@ const WebsiteSettingsSchema = Yup.object().shape({
     .min(30, "Interval must be at least 30 seconds")
     .max(86400, "Interval must be at most 86400 seconds (1 day)")
     .required("Interval is required")
-    .typeError("Interval must be a number"), // Error message if not a number
+    // Error message if not a number
+    .typeError("Interval must be a number"),
   alertEnabled: Yup.boolean(),
   alertThreshold: Yup.number()
-     .when("alertEnabled", ([alertEnabled], schema) => { // Use array destructuring for Yup v1+
+     // Use array destructuring for Yup v1+
+     .when("alertEnabled", ([alertEnabled], schema) => {
          return alertEnabled
              ? schema
                  .min(1, "Threshold must be at least 1 millisecond")
                  .max(60000, "Threshold must be at most 60000 milliseconds (1 min)")
                  .required("Response threshold is required when alerts are enabled")
-                 .typeError("Threshold must be a number") // Error message if not a number
-             : schema.optional().nullable(); // Allow null/empty when disabled
+                 // Error message if not a number
+                 .typeError("Threshold must be a number")
+             // Allow null/empty when disabled
+             : schema.optional().nullable();
      }),
   notifyEmail: Yup.string()
     .email("Please enter a valid email address")
-     .when("alertEnabled", ([alertEnabled], schema) => { // Use array destructuring for Yup v1+
+     // Use array destructuring for Yup v1+
+     .when("alertEnabled", ([alertEnabled], schema) => {
          return alertEnabled
              ? schema.required("Email is required when alerts are enabled")
-             : schema.optional().nullable(); // Allow null/empty when disabled
+             // Allow null/empty when disabled
+             : schema.optional().nullable();
      }),
 });
 
@@ -77,14 +89,18 @@ const WebsiteSettings: React.FC = () => {
 
   // Fetch query for initial data - Pass number | undefined
   const {
-    data: userWebsite, // Type is WebsiteUser | undefined based on query return
+    // Type is WebsiteUser | undefined based on query return
+    data: userWebsite,
     isLoading: isWebsiteLoading,
     error: websiteError,
     refetch: refetchWebsite,
   } = useUserWebsiteQuery(numericWebsiteId, {
-     enabled: !!numericWebsiteId, // Enable only if ID is a valid number
-     staleTime: 1000 * 60 * 1, // Example: Keep data fresh for 1 minute
-     gcTime: 1000 * 60 * 5,    // Example: Keep data in cache for 5 minutes
+     // Enable only if ID is a valid number
+     enabled: !!numericWebsiteId,
+     // Example: Keep data fresh for 1 minute
+     staleTime: 1000 * 60 * 1,
+     // Example: Keep data in cache for 5 minutes
+     gcTime: 1000 * 60 * 5,
   });
 
   // Use refactored hook names
@@ -116,21 +132,26 @@ const WebsiteSettings: React.FC = () => {
     formikHelpers: FormikHelpers<WebsiteSettingsFormValues>
   ) => {
      const { setSubmitting, setStatus } = formikHelpers;
-     setStatus({ error: null, success: null }); // Clear previous form status
-     setNotification(initialNotificationState); // Clear previous snackbar notification
+     // Clear previous form status
+     setStatus({ error: null, success: null });
+     // Clear previous snackbar notification
+     setNotification(initialNotificationState);
 
      // Re-check ID validity before submitting
      if (!numericWebsiteId) {
          setStatus({ error: "Cannot save: Invalid Website ID."});
          setNotification({ open: true, message: "Error: Invalid Website ID.", severity: "error" });
-         setSubmitting(false); // Important to stop Formik submission
+         // Important to stop Formik submission
+         setSubmitting(false);
          return;
      }
 
      // Prepare DTO for the update mutation
      const updateData: UpdateWebsiteUserDTO = {
-        name: values.name.trim() || null, // Send null if empty string after trim
-        interval: Number(values.interval), // Convert (Yup already validated type)
+        // Send null if empty string after trim
+        name: values.name.trim() || null,
+        // Convert (Yup already validated type)
+        interval: Number(values.interval),
         alertEnabled: values.alertEnabled,
         // Convert "" or non-number input to null if alerts enabled, otherwise always null
         alertThreshold: values.alertEnabled
@@ -152,7 +173,8 @@ const WebsiteSettings: React.FC = () => {
      }
      // Validate Alert Threshold & Email only if alerts are enabled
      if (updateData.alertEnabled) {
-         const thresholdNum = updateData.alertThreshold; // Type is number | null
+         // Type is number | null
+         const thresholdNum = updateData.alertThreshold;
 
          // FIX: Check for null/undefined first, then check if it's a valid number >= 1
          if (thresholdNum === null || thresholdNum === undefined || thresholdNum < 1) {
@@ -162,7 +184,8 @@ const WebsiteSettings: React.FC = () => {
              return;
          }
          // Validate Email
-         if (updateData.notifyEmail === null) { // Check if email ended up null
+         // Check if email ended up null
+         if (updateData.notifyEmail === null) {
              setStatus({ error: "Notification email is required when alerts are enabled." });
              setNotification({ open: true, message: "Error: Notification email is required.", severity: "error" });
              setSubmitting(false);
@@ -179,13 +202,23 @@ const WebsiteSettings: React.FC = () => {
         setNotification({ open: true, message: "Settings saved successfully!", severity: "success" });
         // setQueryData in the hook should update cache, refetch might not be needed immediately
         // Consider if a full refetch is desired: refetchWebsite();
+
+        // *** EXPLANATION: No navigation occurs here by design. ***
+        // Settings pages often stay on the page after saving to allow further edits
+        // or simply confirm the save with a notification.
+        // If navigation *is* required after saving, uncomment and adjust one of the lines below:
+        // navigate(`/website/${numericWebsiteId}`); // Navigate back to details page
+        // navigate('/'); // Navigate to dashboard
+
      } catch (err) {
         const apiError = err as ApiError;
         console.error("Failed to update settings:", apiError);
         // Use the mutation error state first if available, fallback to caught error
         const message = (errorUpdating as ApiError)?.message || apiError.message || "Failed to save settings.";
-        setStatus({ error: message }); // Show error in form status area
-        setNotification({ open: true, message: `Error: ${message}`, severity: "error" }); // Show error in snackbar
+        // Show error in form status area
+        setStatus({ error: message });
+        // Show error in snackbar
+        setNotification({ open: true, message: `Error: ${message}`, severity: "error" });
      } finally {
         // Formik v2+ handles setting isSubmitting to false automatically when the onSubmit promise resolves/rejects
         // setSubmitting(false); // Usually not needed explicitly
@@ -197,14 +230,20 @@ const WebsiteSettings: React.FC = () => {
 
   const handleDeleteConfirm = useCallback(async () => {
     closeDeleteDialog();
-    if (!numericWebsiteId) return; // Should not happen if button is enabled
+    // Should not happen if button is enabled
+    if (!numericWebsiteId) return;
 
     try {
       // Use the renamed mutation function
       await removeWebsite(numericWebsiteId);
       // Provide more context in the success message
       setNotification({ open: true, message: `Website "${userWebsite?.name || userWebsite?.website?.url || 'ID: '+numericWebsiteId}" removed successfully.`, severity: "success" });
-      setTimeout(() => navigate("/"), 1500); // Redirect after showing message
+
+      // *** FIX: Remove the setTimeout for faster navigation ***
+      // The previous setTimeout(..., 1500) was causing the delay to allow the user
+      // to read the success message. Removing it makes navigation immediate.
+      navigate("/"); // Redirect immediately after successful removal
+
     } catch (err) {
       const apiError = err as ApiError;
       console.error("Failed to delete website:", apiError);
@@ -212,7 +251,8 @@ const WebsiteSettings: React.FC = () => {
       const message = (errorRemoving as ApiError)?.message || apiError.message || 'Unknown error removing website';
       setNotification({ open: true, message: `Error removing website: ${message}`, severity: "error" });
     }
-  }, [numericWebsiteId, removeWebsite, navigate, userWebsite?.name, userWebsite?.website?.url, closeDeleteDialog, errorRemoving]); // Include errorRemoving dependency
+    // Include errorRemoving dependency
+  }, [numericWebsiteId, removeWebsite, navigate, userWebsite?.name, userWebsite?.website?.url, closeDeleteDialog, errorRemoving]);
 
   const handleBackClick = useCallback(() => {
     // Navigate back to detail page if ID exists, otherwise dashboard
@@ -290,10 +330,12 @@ const WebsiteSettings: React.FC = () => {
       </Box>
 
       <Formik
-        initialValues={initialValues} // Derived from useMemo
+        // Derived from useMemo
+        initialValues={initialValues}
         validationSchema={WebsiteSettingsSchema}
         onSubmit={handleSubmit}
-        enableReinitialize // Keeps form synced if initialValues change
+        // Keeps form synced if initialValues change
+        enableReinitialize
       >
         {/* Formik render props */}
         {({ errors, touched, values, isSubmitting, status, dirty, isValid }) => (
@@ -304,7 +346,8 @@ const WebsiteSettings: React.FC = () => {
             {/* Success message is handled by Snackbar */}
 
             {/* General Settings Paper */}
-            <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}> {/* Added elevation */}
+             {/* Added elevation */}
+            <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}>
               <Typography variant="h6" gutterBottom>General Settings</Typography>
               <Divider sx={{ mb: 3 }} />
               {/* Use Grid v2 */}
@@ -318,7 +361,8 @@ const WebsiteSettings: React.FC = () => {
                     error={touched.name && Boolean(errors.name)}
                     helperText={touched.name && errors.name}
                     required
-                    disabled={isLoading} // Disable based on combined loading state
+                    // Disable based on combined loading state
+                    disabled={isLoading}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -327,11 +371,13 @@ const WebsiteSettings: React.FC = () => {
                     fullWidth
                     label="Check Interval (seconds)"
                     name="interval"
-                    type="number" // Use number input
+                    // Use number input
+                    type="number"
                     error={touched.interval && Boolean(errors.interval)}
                     helperText={(touched.interval && errors.interval) || "Minimum 30 seconds"}
                     required
-                    InputProps={{ inputProps: { min: 30, step: 30 } }} // Add step for usability
+                    // Add step for usability
+                    InputProps={{ inputProps: { min: 30, step: 30 } }}
                     disabled={isLoading}
                   />
                 </Grid>
@@ -339,13 +385,15 @@ const WebsiteSettings: React.FC = () => {
             </Paper>
 
             {/* Alert Settings Paper */}
-            <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}> {/* Added elevation */}
+             {/* Added elevation */}
+            <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}>
               <Typography variant="h6" gutterBottom>Alert Settings</Typography>
               <Divider sx={{ mb: 3 }} />
               <FormControlLabel
                 control={<Field as={Switch} name="alertEnabled" color="primary" disabled={isLoading} />}
                 label="Enable Downtime / Slow Response Alerts"
-                sx={{ mb: values.alertEnabled ? 2 : 0 }} // Add margin if fields shown below
+                // Add margin if fields shown below
+                sx={{ mb: values.alertEnabled ? 2 : 0 }}
               />
               {values.alertEnabled && (
                 // Use Grid v2
@@ -356,12 +404,15 @@ const WebsiteSettings: React.FC = () => {
                       fullWidth
                       label="Response Time Threshold (ms)"
                       name="alertThreshold"
-                      type="number" // Use number input
+                      // Use number input
+                      type="number"
                       error={touched.alertThreshold && Boolean(errors.alertThreshold)}
                       helperText={(touched.alertThreshold && errors.alertThreshold) || "Alert if response > value (ms)"}
-                      InputProps={{ inputProps: { min: 1 } }} // Minimum 1ms
+                      // Minimum 1ms
+                      InputProps={{ inputProps: { min: 1 } }}
                       disabled={isLoading}
-                      required={values.alertEnabled} // Conditionally required
+                      // Conditionally required
+                      required={values.alertEnabled}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 6 }}>
@@ -374,7 +425,8 @@ const WebsiteSettings: React.FC = () => {
                       error={touched.notifyEmail && Boolean(errors.notifyEmail)}
                       helperText={(touched.notifyEmail && errors.notifyEmail) || "Email address for alerts"}
                       disabled={isLoading}
-                      required={values.alertEnabled} // Conditionally required
+                      // Conditionally required
+                      required={values.alertEnabled}
                     />
                   </Grid>
                 </Grid>
@@ -388,7 +440,8 @@ const WebsiteSettings: React.FC = () => {
                 color="error"
                 startIcon={<DeleteIcon />}
                 onClick={openDeleteDialog}
-                disabled={isLoading} // Disable if any operation is in progress
+                // Disable if any operation is in progress
+                disabled={isLoading}
                 data-testid="delete-button"
               >
                 Remove Website
@@ -412,7 +465,8 @@ const WebsiteSettings: React.FC = () => {
       {/* Delete Confirmation Dialog */}
       <Dialog
         open={deleteConfirmOpen}
-        onClose={!isRemoving ? closeDeleteDialog : undefined} // Prevent closing while deleting
+        // Prevent closing while deleting
+        onClose={!isRemoving ? closeDeleteDialog : undefined}
         aria-labelledby="delete-confirm-title"
         aria-describedby="delete-confirm-description"
       >
@@ -428,7 +482,8 @@ const WebsiteSettings: React.FC = () => {
                   onClick={handleDeleteConfirm}
                   color="error"
                   variant="contained"
-                  disabled={isRemoving} // Use correct loading state
+                  // Use correct loading state
+                  disabled={isRemoving}
                   startIcon={isRemoving ? <CircularProgress size={16} color="inherit"/> : null}
                 >
                   {isRemoving ? "Removing..." : "Remove"}

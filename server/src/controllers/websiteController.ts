@@ -1,8 +1,14 @@
-// server/src/controllers/websiteController.ts
 import { Request, Response, NextFunction } from 'express';
 import * as websiteService from '../services/websiteService';
 // Import needed DTOs and response types from shared types
-import { AddWebsiteUserDTO, UpdateWebsiteUserDTO, Website, WebsiteUser } from '../types';
+import {
+    AddWebsiteUserDTO,
+    UpdateWebsiteUserDTO,
+    Website,
+    WebsiteUser,
+     // <-- Import new DTO
+    SetPinStatusDTO
+} from '../types';
 
 // Helper for safe ID parsing
 const parseIdParam = (idParam: string | undefined): number | null => {
@@ -28,7 +34,8 @@ export const getAllWebsites = async (
 };
 
 /**
- * GET /api/websites/user/dashboard - Get websites for the authenticated user
+ * GET /api/websites/user/dashboard - Get websites for the authenticated user (sorted by pin, includes status/downtime)
+ * Relies on the updated websiteService.getWebsitesForUser
  */
 export const getUserWebsites = async (
     req: Request,
@@ -37,6 +44,7 @@ export const getUserWebsites = async (
 ): Promise<void> => {
     try {
         const userId = req.user!.id;
+        // Service function now handles sorting and adding status/downtime info
         const websiteUsers: WebsiteUser[] = await websiteService.getWebsitesForUser(userId);
         res.json(websiteUsers);
     } catch (error) {
@@ -142,7 +150,8 @@ export const updateWebsite = async (
             res.status(400).json({ message: 'Invalid Website ID format.' });
             return;
         }
-        const updateData = req.body; // Should match Partial<{ url: string; isActive?: boolean }>
+         // Should match Partial<{ url: string; isActive?: boolean }>
+        const updateData = req.body;
         const website: Website | null = await websiteService.updateWebsiteCore(websiteId, updateData);
         if (!website) {
              res.status(404).json({ message: 'Website not found' });
@@ -175,7 +184,12 @@ export const updateUserWebsite = async (
             res.status(400).json({ message: 'Invalid Website ID format.' });
             return;
         }
-        // TODO: Add input validation (e.g., using Zod) for req.body against UpdateWebsiteUserDTO
+        // Basic validation: Ensure body is an object
+        if (typeof req.body !== 'object' || req.body === null) {
+            res.status(400).json({ message: 'Invalid request body. Expected an object.' });
+            return;
+        }
+        // Can add more specific validation (e.g., with zod) later
         const updateDto = req.body as UpdateWebsiteUserDTO;
 
         const userWebsite: WebsiteUser | null = await websiteService.updateUserWebsite(
@@ -186,6 +200,46 @@ export const updateUserWebsite = async (
 
         if (!userWebsite) {
             res.status(404).json({ message: 'Website not found in your dashboard for update' });
+            return;
+        }
+        res.json(userWebsite);
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * PATCH /api/websites/user/dashboard/:id/pin - Set the pin status for a user's website
+ */
+export const setPinStatus = async (
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const userId = req.user!.id;
+        const websiteId = parseIdParam(req.params.id);
+        if (websiteId === null) {
+            res.status(400).json({ message: 'Invalid Website ID format.' });
+            return;
+        }
+
+        const { isPinned } = req.body as SetPinStatusDTO;
+
+        // Validate input
+        if (typeof isPinned !== 'boolean') {
+            res.status(400).json({ message: 'Invalid request body. "isPinned" must be a boolean.' });
+            return;
+        }
+
+        const userWebsite: WebsiteUser | null = await websiteService.setPinStatusForUser(
+            userId,
+            websiteId,
+            isPinned
+        );
+
+        if (!userWebsite) {
+            res.status(404).json({ message: 'Website not found in your dashboard to update pin status.' });
             return;
         }
         res.json(userWebsite);
@@ -213,6 +267,7 @@ export const deleteWebsite = async (
              res.status(404).json({ message: 'Website not found for deletion' });
              return;
         }
+        // Successful deletion
         res.status(204).send();
     } catch (error) {
         next(error);
@@ -255,8 +310,19 @@ export const addWebsiteToUser = async (
 ): Promise<void> => {
     try {
         const userId = req.user!.id;
-        // TODO: Add input validation for req.body against AddWebsiteUserDTO
+        // Basic validation: Ensure body is an object
+        if (typeof req.body !== 'object' || req.body === null) {
+            res.status(400).json({ message: 'Invalid request body. Expected an object.' });
+            return;
+        }
+        // Can add more specific validation (e.g., with zod) later
         const websiteData = req.body as AddWebsiteUserDTO;
+
+        // Ensure URL is present (service layer also checks format)
+        if (!websiteData.url) {
+             res.status(400).json({ message: 'Missing "url" in request body.' });
+             return;
+        }
 
         const websiteUser: WebsiteUser = await websiteService.addWebsiteToUser(userId, websiteData);
         res.status(201).json(websiteUser);
@@ -287,6 +353,7 @@ export const removeWebsiteFromUser = async (
             return;
         }
         await websiteService.removeWebsiteFromUser(userId, websiteId);
+        // Successful removal
         res.status(204).send();
     } catch (error) {
         next(error);
