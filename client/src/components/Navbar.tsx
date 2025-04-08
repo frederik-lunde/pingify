@@ -1,4 +1,12 @@
-// src/components/Navbar.tsx
+
+/*
+* client/src/components/Navbar.tsx
+*
+* - Updated `useWebsiteData` hook call to destructure `incidentsLast24h`.
+* - Removed `responseTime` from `otherStatsValues` memoization.
+* - Passed `incidentsLast24h` prop to `StatsHeader` instead of `responseTime`.
+*/
+
 import * as React from "react";
 import { useCallback, useState, useMemo } from "react";
 import { useLocation, useNavigate } from 'react-router';
@@ -15,13 +23,14 @@ import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
 import AdbIcon from "@mui/icons-material/Adb";
 import AddIcon from "@mui/icons-material/Add";
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
-import { useAuth } from "../context/AuthContext"; // Auth context needed for user ID
+
+import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router";
 import AlertsDropdown from "./navbar/AlertDropdown";
-import { useWebsiteData } from "../hooks/domain/useWebsiteData";
+import { useWebsiteData } from "../hooks/domain/useWebsiteData"; // Keep hook call
+// Use the same StatsHeader component
 import StatsHeader from "./dashboard/StatsHeader";
-import { useThemeMode } from "../context/ThemeContext"; // Theme context
+
 
 // --- Navigation Items ---
 const pages = [
@@ -36,11 +45,6 @@ const pages = [
 // --- User Menu Items ---
 const settings = ["Profile", "Logout"];
 
-// Helper function (can be moved to a util file)
-const getUserThemeKey = (userId: string | number | undefined): string | null => {
-  return userId ? `themeMode_${userId}` : null;
-};
-
 
 function Navbar() {
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
@@ -48,32 +52,28 @@ function Navbar() {
 
   const { logout, user } = useAuth(); // Get user object
   const navigate = useNavigate();
-  const location = useLocation();
-  const { mode, toggleThemeMode } = useThemeMode(); // Get mode and toggle function
 
-  // --- Fetch Website Data ---
-  // Note: This hook fetches overall stats but not specific incident details needed by StatsHeader
   const {
       overallStats,
+      // Destructure incidentsLast24h
+      incidentsLast24h,
       isLoading: isLoadingData,
       error: dataError,
       totalWebsitesCount,
       upWebsitesCount,
   } = useWebsiteData(
-      undefined,
-      'week', // Fetching weekly stats
-      60000 // Polling interval
+
+      undefined, // Use default results limit
+      'week',    // Uptime period
+      60000      // Refetch interval
   );
 
-  // We still calculate uptime here, but responseTime is not used for StatsHeader anymore
+  // Memoize only the uptime stat needed from overallStats for the header
   const otherStatsValues = useMemo(() => {
-      const safeStats = overallStats || {
-          overallUptime: 0,
-          overallResponseTime: 0, // Still calculated, just not passed to StatsHeader
-      };
       return {
-          uptime: safeStats.overallUptime ?? 0,
-          responseTime: safeStats.overallResponseTime ?? 0, // Kept for potential other uses
+          // Use null if stats not loaded yet
+          uptime: overallStats?.overallUptime ?? null,
+
       }
   }, [overallStats]);
 
@@ -120,18 +120,6 @@ function Navbar() {
     [logout, navigate],
   );
 
-  // --- Theme Toggle Handler ---
-  const handleThemeToggle = useCallback(() => {
-    const newMode = mode === 'light' ? 'dark' : 'light';
-    toggleThemeMode();
-    if (user?.id) {
-        const userThemeKey = getUserThemeKey(user.id);
-        if (userThemeKey) {
-            console.log(`Saving theme preference '${newMode}' for user ${user.id}`);
-            localStorage.setItem(userThemeKey, newMode);
-        }
-    }
-  }, [mode, toggleThemeMode, user]);
 
   // --- Render Logic ---
   const isDashboard = location.pathname === '/';
@@ -143,8 +131,7 @@ function Navbar() {
 
           {/* === Left Section === */}
           <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: { xs: 0, md: 1 } }}>
-            {/* Logo and Title (Desktop) */}
-             <Box
+<Box
               onClick={() => navigate("/")}
               sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", cursor: "pointer", mr: 1 }}
             >
@@ -242,29 +229,27 @@ function Navbar() {
           {/* === Center Section (Conditional Stats) === */}
           {!isDashboard && (
             <StatsHeader
-              isLoading={isLoadingData}
+              // Pass loading state - true if stats haven't loaded yet
+              isLoading={isLoadingData && !overallStats}
               error={dataError}
               upCount={upWebsitesCount}
               totalCount={totalWebsitesCount}
               uptime={otherStatsValues.uptime}
-              // responseTime={otherStatsValues.responseTime} // <-- REMOVED THIS LINE
-              center={true}
-              // --- ADDED PLACEHOLDERS/DEFAULTS FOR REQUIRED INCIDENT PROPS ---
-              // You might want to fetch real data or make these optional in StatsHeader
-              isLoadingIncidents={false} // Provide a default value
-              incidentsError={null}       // Provide a default value
-              incidentCount={undefined}   // Or 0, or null depending on StatsHeader logic
-              incidentsLast24h={undefined} // Or [], or null
-              // --- END OF ADDED PROPS ---
+
+              // Pass the incidents count instead of response time
+              incidentsLast24h={incidentsLast24h}
+              center={true} // Explicitly use centered layout for Navbar
+
             />
           )}
 
 
           {/* === Right Section === */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: 0, gap: { xs: 1, sm: 1.5 } }}>
-             {/* Alerts Dropdown */}
-             <AlertsDropdown
-                options={{ limit: 50 }}
+
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: { xs: 0, md: 1 } }}>
+             <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1, sm: 2 } }}>
+              <AlertsDropdown
+   options={{ limit: 50 }}
                 pollingInterval={60000}
               />
 

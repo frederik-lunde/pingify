@@ -1,4 +1,10 @@
-// client/src/hooks/domain/useWebsiteData.ts
+/*
+* client/src/hooks/domain/useWebsiteData.ts
+*
+* - Updated `WebsiteDataSummary` interface to include `incidentsLast24h`.
+* - Extracted `incidentsLast24h` from `statsQuery.data`.
+* - Returned `incidentsLast24h` in the hook's return object.
+*/
 import { useMemo, useCallback } from "react";
 import { WebsiteUser, MonitoringResult, ApiError, OverallStats } from "../../types"; // Adjust path
 import { useUserWebsitesQuery } from "../api/useWebsites";
@@ -26,6 +32,8 @@ export interface WebsiteDataSummary {
     // Add calculated counts
     totalWebsitesCount: number;
     upWebsitesCount: number;
+    // Add incidents count
+    incidentsLast24h: number | null; // Added incidents count
 }
 
 /**
@@ -46,7 +54,7 @@ export function useWebsiteData(
     const websitesQuery = useUserWebsitesQuery(queryOptions);
     // Fetches a batch of recent monitoring results for all user websites
     const resultsQuery = useUserMonitoringResultsQuery(resultsLimit, queryOptions);
-    // Fetches overall statistics (uptime, avg response time) for the user over the specified period
+    // Fetches overall statistics (uptime, avg response time, incidentsLast24h) for the user over the specified period
     const statsQuery = useUserStatsQuery(statsPeriod, queryOptions);
 
     // --- Loading and Error States ---
@@ -138,6 +146,12 @@ export function useWebsiteData(
     // Dependencies for the count calculation
     }, [websitesQuery.data, processedWebsitesWithResults]);
 
+    // --- Extract Incident Count ---
+    const incidentsLast24h = useMemo(() => {
+        // Get the incident count from the overall stats data, default to null if not loaded/available
+        return statsQuery.data?.incidentsLast24h ?? null;
+    }, [statsQuery.data]);
+
     // --- Refetch Function ---
     // Provides a way to manually trigger a refetch of all data used by this hook
     const refetch = useCallback(async () => {
@@ -168,5 +182,6 @@ export function useWebsiteData(
         refetch: refetch, // Function to manually refetch all data
         totalWebsitesCount: totalWebsitesCount, // Total number of websites monitored by the user
         upWebsitesCount: upWebsitesCount, // Number of websites currently considered "up"
+        incidentsLast24h: incidentsLast24h, // Include the incident count
     };
 }

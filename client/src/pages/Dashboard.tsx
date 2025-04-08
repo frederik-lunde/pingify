@@ -1,14 +1,16 @@
-// client/src/pages/Dashboard.tsx
+/*
+* client/src/pages/Dashboard.tsx
+*
+* - Extracted `incidentsLast24h` from `useWebsiteData`.
+* - Removed `responseTime` from `otherStatsValues` memo.
+* - Passed `incidentsLast24h` to `StatsHeader` instead of `responseTime`.
+*/
+
 import React, { useMemo } from "react";
 import { Container, Box, CircularProgress, Typography, Button, Alert, Paper } from "@mui/material";
 import WebsiteGrid from "../components/dashboard/WebsiteGrid";
 import { useWebsiteData } from "../hooks/domain/useWebsiteData";
-import StatsHeader from "../components/dashboard/StatsHeader";
-// --- Import the NEW monitoring-based incident count hook ---
-import { useUserIncidentCountQuery } from "../hooks/api/useMonitoring";
-// --- Keep alert list hook ONLY if popover needs it ---
-import { useUserAlertsQuery } from "../hooks";
-import { subHours } from 'date-fns';
+import StatsHeader from "../components/dashboard/StatsHeader"; // Correct path
 
 const Dashboard: React.FC = () => {
   const refetchInterval = 60000; // 1 minute
@@ -16,48 +18,35 @@ const Dashboard: React.FC = () => {
   // Fetch base website data (list, results, overall stats)
   const {
     websitesWithResults,
-    overallStats, // Needed for uptime/response time in dashboard header
+    overallStats, // Needed for uptime
+    // Destructure the new incidents count
+    incidentsLast24h,
     isLoading: isLoadingData,
     isFetching: isFetchingData, // Get fetching state as well
     error: dataError,
     refetch,
-    totalWebsitesCount, // Get counts
+    totalWebsitesCount,
     upWebsitesCount,
   } = useWebsiteData(
       undefined, // Use default results limit
-      'week',
-      refetchInterval
+      'week',    // Keep stats period as 'week' for uptime, incidents are always 24h
+      60000      // Refetch interval
   );
 
-  // --- Use the NEW monitoring-based incident count hook ---
-  const {
-      data: incidentCountData,
-      isLoading: isLoadingIncidentCount,
-      isFetching: isFetchingIncidentCount,
-      error: incidentCountError
-  } = useUserIncidentCountQuery({ refetchInterval }); // Use the hook from useMonitoring.ts
-
-  // Fetch the actual alert list for the last 24 hours (ONLY FOR POPOVER)
-  // If the popover is removed or changed, this can be removed.
-  const last24h = useMemo(() => subHours(new Date(), 24), []);
-  const {
-      data: incidentsLast24h, // Keep name for popover prop, but data source is alerts
-      isLoading: isLoadingAlertList, // Separate loading state for the popover data
-      isFetching: isFetchingAlertList,
-      error: alertListError
-  } = useUserAlertsQuery({ from: last24h, limit: 50 }, { refetchInterval }); // Fetch alerts from last 24h
-
-  // --- Combined Loading/Error/Fetching States ---
-  const dashboardUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
-  const showInitialSpinner = isLoadingData || isLoadingIncidentCount; // Base data + incident count loading
-  const primaryError = dataError || incidentCountError; // Combine errors, prioritizing data error
-  const incidentCount = incidentCountData?.incidentCount; // Get count from the correct hook
+  // Memoize uptime for the dashboard header
+  // Removed responseTime as it's no longer needed for the header
+  const otherStatsValues = useMemo(() => {
+      return {
+          uptime: overallStats?.overallUptime ?? null, // Use null if not loaded
+      }
+  }, [overallStats]);
 
 
   // --- Render Logic ---
 
   // 1. Show full-screen spinner ONLY during the very initial load phase
-  if (showInitialSpinner && websitesWithResults.length === 0 && !overallStats) {
+  if (isLoadingData && websitesWithResults.length === 0 && !overallStats) {
+
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
@@ -66,7 +55,8 @@ const Dashboard: React.FC = () => {
   }
 
   // 2. Show a global error message if loading failed catastrophically
-  if (primaryError && websitesWithResults.length === 0 && !overallStats) {
+  if (dataError && websitesWithResults.length === 0 && !overallStats) {
+
       return (
            <Container maxWidth="lg" sx={{ mt: 4 }}>
                <Typography color="error">Error loading dashboard data: {primaryError.message}</Typography>
@@ -99,21 +89,38 @@ const Dashboard: React.FC = () => {
               />
             </Paper>
 
-            {/* Less intrusive error */}
-            {primaryError && (websitesWithResults.length > 0 || overallStats) && (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                    There might be issues displaying the latest data: {primaryError.message}.
-                    <Button onClick={() => refetch()} size="small" sx={{ ml: 1 }}>Retry</Button>
-                </Alert>
-            )}
 
-            <WebsiteGrid
-              websitesWithResults={websitesWithResults}
-              loading={isLoadingData} // Grid loading based on website list/results query
-              error={null}
-            />
-          </>
-       )}
+      {/* Dashboard Specific Stats Header */}
+      <Paper elevation={1} sx={{ mb: 2, overflow: 'hidden' }}>
+        <StatsHeader
+            // Pass loading state - true if stats haven't loaded yet
+            isLoading={isLoadingData && !overallStats}
+            error={dataError}
+            upCount={upWebsitesCount}
+            totalCount={totalWebsitesCount}
+            uptime={otherStatsValues.uptime}
+            // Pass the incidents count instead of response time
+            incidentsLast24h={incidentsLast24h}
+            center={false} // Use left-aligned layout for Dashboard
+        />
+      </Paper>
+
+      {/* Show a less intrusive error if data is partially loaded */}
+      {dataError && (websitesWithResults.length > 0 || overallStats) && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+              There might be issues displaying the latest data: {dataError.message}.
+              <Button onClick={() => refetch()} size="small" sx={{ ml: 1 }}>Retry</Button>
+          </Alert>
+      )}
+
+      {/* WebsiteGrid remains */}
+      <WebsiteGrid
+        websitesWithResults={websitesWithResults}
+        // Pass the overall loading state to WebsiteGrid for its internal skeletons
+        loading={isLoadingData}
+        error={null} // Global error handled above
+      />
+
     </Container>
   );
 };

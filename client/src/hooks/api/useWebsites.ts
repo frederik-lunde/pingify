@@ -1,4 +1,5 @@
-// src/hooks/api/useWebsites.ts (Adjust path if needed)
+// src/hooks/api/useWebsites.ts
+// No changes needed in this file.
 import { useState, useCallback } from "react";
 import {
     useQuery,

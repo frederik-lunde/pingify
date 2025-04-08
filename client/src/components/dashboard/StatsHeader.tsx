@@ -1,5 +1,16 @@
-// client/src/components/dashboard/StatsHeader.tsx
-import React, { useState } from 'react';
+
+/*
+* src/components/StatsHeader.tsx
+*
+* - Changed `StatsHeaderProps` to accept `incidentsLast24h` instead of `responseTime`.
+* - Removed `responseTimeColorKey` logic.
+* - Updated the third Grid item to display "Incidents (24h)".
+* - Used `ReportProblemOutlinedIcon` for incidents.
+* - Added logic to determine the color and icon based on the `incidentsLast24h` count.
+* - Updated the Tooltip.
+*/
+import React from 'react';
+
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
@@ -8,10 +19,15 @@ import CircularProgress from '@mui/material/CircularProgress';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+
+// Removed TimerIcon
 import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
-import { useTheme } from '@mui/material/styles';
-import { ApiError, Alert } from '../../types';
+// Added icon for incidents
+import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined';
+import { useTheme, Theme } from '@mui/material/styles';
+import { ApiError } from '../../types';
+// Removed getResponseTimeColor, formatResponseTime
+
 import { getStatusColor, formatUptime } from '../../utils/statusUtils';
 
 type StatusColorKey = 'success' | 'warning' | 'error' | 'default';
@@ -22,25 +38,57 @@ interface StatsHeaderProps {
   upCount: number;
   totalCount: number;
   uptime: number | null | undefined;
-  isLoadingIncidents: boolean;
-  incidentsError: ApiError | null;
-  incidentCount: number | null | undefined; 
-  incidentsLast24h: Alert[] | null | undefined; 
-  center?: boolean;
+
+  // Changed from responseTime to incidentsLast24h
+  incidentsLast24h: number | null | undefined;
+  center?: boolean; // true = Navbar layout, false = Dashboard layout
 }
 
 // Helper to get text color based on status key
-const getTextColor = (theme: any, colorKey: StatusColorKey, isNavbar: boolean): string => {
-    if (isNavbar) return colorKey === 'default' ? 'inherit' : theme.palette.common.white;
-    if (colorKey === 'default') return theme.palette.text.secondary;
+const getTextColor = (theme: Theme, colorKey: StatusColorKey, isNavbar: boolean): string => {
+    if (isNavbar) {
+        return colorKey === 'default' ? 'inherit' : theme.palette.common.white;
+    }
+    if (colorKey === 'default') {
+        return theme.palette.text.secondary;
+    }
+    // Ensure the color exists before accessing main
     return theme.palette[colorKey]?.main || theme.palette.text.primary;
 };
 
-// Helper to get incident color based on the count
-const getIncidentColorKey = (count: number | null | undefined): StatusColorKey => {
-    if (count === null || count === undefined) return 'default';
-    return count > 0 ? 'error' : 'success';
+// Helper to get color and icon for the incidents stat
+const getIncidentProps = (theme: Theme, count: number | null | undefined, isNavbar: boolean) => {
+    let iconComponent: React.ReactNode = null;
+    let valueColor: string;
+
+    if (count === null || count === undefined) {
+        // Loading or error state - color handled by main component
+        valueColor = getTextColor(theme, 'default', isNavbar);
+        if (!isNavbar) {
+             iconComponent = <ReportProblemOutlinedIcon fontSize="inherit" sx={{ color: theme.palette.action.disabled }} />;
+        }
+        return { icon: iconComponent, valueColor, text: '-' };
+    }
+
+    if (count > 0) {
+        // Use warning color for incidents
+        valueColor = isNavbar ? theme.palette.common.white : theme.palette.warning.main;
+        if (!isNavbar) {
+            iconComponent = <ReportProblemOutlinedIcon fontSize="inherit" sx={{ color: valueColor }} />;
+        }
+        return { icon: iconComponent, valueColor, text: count.toString() };
+    } else {
+        // Use success/default color if no incidents
+        valueColor = isNavbar ? 'inherit' : theme.palette.success.main; // Or text.secondary?
+        if (!isNavbar) {
+            // Using CheckCircle for consistency with 0 issues, could be removed
+            iconComponent = <CheckCircleOutlineIcon fontSize="inherit" sx={{ color: valueColor }} />;
+        }
+        return { icon: iconComponent, valueColor, text: '0' };
+    }
 };
+
+
 
 const StatsHeader: React.FC<StatsHeaderProps> = ({
   isLoading,
@@ -48,11 +96,11 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
   upCount,
   totalCount,
   uptime,
-  isLoadingIncidents,
-  incidentsError,     
-  incidentCount,      
-  incidentsLast24h,   
-  center = false,
+
+  // Use incidentsLast24h prop
+  incidentsLast24h,
+  center = false, // Default to Dashboard layout
+
 }) => {
   const theme = useTheme();
   const isNavbar = center;
@@ -77,8 +125,17 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     if (totalCount === 0 && !isLoading) {
         const iconColor = isNavbar ? 'inherit' : theme.palette.action.disabled;
         valueColor = isNavbar ? 'inherit' : theme.palette.text.disabled;
-        if (!isNavbar) iconComponent = <ErrorOutlineIcon fontSize="inherit" sx={{ color: iconColor }} />;
-        return { icon: iconComponent, valueColor: valueColor, text: "0 / 0", tooltip: 'No websites monitored' };
+
+        if (!isNavbar) {
+             iconComponent = <ErrorOutlineIcon fontSize="inherit" sx={{ color: iconColor }} />;
+        }
+        return {
+            icon: iconComponent,
+            valueColor: valueColor,
+            text: "0 / 0",
+            tooltip: 'No websites monitored'
+        };
+
     }
     if (upCount === totalCount) {
         const iconColor = isNavbar ? theme.palette.common.white : theme.palette.success.main;
@@ -95,7 +152,10 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
 
   const statusProps = getStatusProps();
   const uptimeColorKey = getStatusColor(uptime);
-  const incidentColorKey = getIncidentColorKey(incidentCount);
+  // Get props for the incident display
+  const incidentProps = getIncidentProps(theme, incidentsLast24h, isNavbar);
+
+
 
   // --- Container Styling ---
   const containerSx = isNavbar ? { display: { xs: 'none', md: 'flex' }, justifyContent: 'center', alignItems: 'center', px: 2, flexGrow: 1, minHeight: 'auto', overflow: 'hidden' }
@@ -126,8 +186,18 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
         <Grid item xs={4} textAlign="center">
           <Tooltip title={statusProps.tooltip}>
             <Box>
-               {!isNavbar && statusProps.icon && (<Typography component="span" variant="inherit" sx={{ color: statusProps.valueColor, fontSize: iconSize, lineHeight: 1.1, display: 'block' }}>{statusProps.icon}</Typography>)}
-              <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: statusProps.valueColor, lineHeight: 1.2, mt: valueTopMargin }}>{statusProps.text}</Typography>
+
+               {/* Icon (Conditionally Rendered) */}
+               {!isNavbar && statusProps.icon && (
+                   <Typography component="span" variant="inherit" sx={{ fontSize: iconSize, lineHeight: 1.1, display: 'block', color: statusProps.valueColor }}>
+                      {statusProps.icon}
+                   </Typography>
+               )}
+               {/* Value */}
+              <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: statusProps.valueColor, lineHeight: 1.2, mt: isNavbar || !statusProps.icon ? 0 : valueTopMargin }}>
+                {statusProps.text}
+              </Typography>
+
             </Box>
           </Tooltip>
           <Typography variant={labelVariant} color={isNavbar ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbar ? 0.8 : 1 }}>Status</Typography>
@@ -137,41 +207,44 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
         <Grid item xs={4} textAlign="center">
            <Tooltip title="Overall Uptime (Last 7 Days)">
              <Box>
-                {!isNavbar && (<Typography component="span" variant="inherit" sx={{ color: getTextColor(theme, uptimeColorKey, isNavbar), fontSize: iconSize, lineHeight: 1.1, display: 'block' }}><NetworkCheckIcon fontSize="inherit" /></Typography>)}
-               <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: getTextColor(theme, uptimeColorKey, isNavbar), lineHeight: 1.2, mt: valueTopMargin }}>{formatUptime(uptime)}%</Typography>
+
+                {/* Icon (Conditionally Rendered) */}
+                {!isNavbar && (
+                    <Typography component="span" variant="inherit" sx={{ fontSize: iconSize, lineHeight: 1.1, display: 'block', color: getTextColor(theme, uptimeColorKey, isNavbar) }}>
+                       <NetworkCheckIcon fontSize="inherit" />
+                    </Typography>
+                )}
+               {/* Value */}
+               <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: getTextColor(theme, uptimeColorKey, isNavbar), lineHeight: 1.2, mt: isNavbar ? 0 : valueTopMargin }}>
+                 {formatUptime(uptime)}%
+               </Typography>
+
              </Box>
            </Tooltip>
           <Typography variant={labelVariant} color={isNavbar ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbar ? 0.8 : 1 }}>Uptime (7d)</Typography>
         </Grid>
 
-        {/* Stat 3: Incidents (Last 24h) */}
+
+        {/* Stat 3: Incidents Last 24 Hours */}
         <Grid item xs={4} textAlign="center">
-          <Box
-            onMouseEnter={handlePopoverOpen}
-            onMouseLeave={handlePopoverClose}
-            aria-owns={open ? 'mouse-over-popover' : undefined}
-            aria-haspopup="true"
-            sx={{ cursor: (incidentsLast24h && incidentsLast24h.length > 0) ? 'pointer' : 'default' }}
-          >
-             <Tooltip title={incidentsError
-               ? `Error loading incidents: ${incidentsError.message}`
-               : (isLoadingIncidents ? 'Loading incidents...' : `${incidentCount ?? 0} website(s) had incidents in the last 24 hours`)}
-            >
-              <Box>
-                  {!isNavbar && (
-                      <Typography component="span" variant="inherit" sx={{ color: incidentsError ? theme.palette.grey[500] : getTextColor(theme, incidentColorKey, isNavbar), fontSize: iconSize, lineHeight: 1.1, display: 'block' }}>
-                        {isLoadingIncidents && !incidentsError ? (<CircularProgress size="inherit" color="inherit" sx={{ display: 'inline-block', verticalAlign: 'middle' }}/>)
-                         : incidentsError ? (<ErrorOutlineIcon fontSize="inherit" />)
-                         : (<NotificationsActiveIcon fontSize="inherit" />)}
-                      </Typography>
-                  )}
-                <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: incidentsError ? theme.palette.grey[500] : getTextColor(theme, incidentColorKey, isNavbar), lineHeight: 1.2, mt: valueTopMargin }}>
-                  {isLoadingIncidents ? '-' : incidentsError ? 'Err' : incidentCount ?? 'N/A'}
-                </Typography>
-              </Box>
-            </Tooltip>
-          </Box>
-          <Typography variant={labelVariant} color={isNavbar ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbar ? 0.8 : 1 }}>Incidents (24h)</Typography>
+           <Tooltip title="Incidents reported in the last 24 hours (Down)">
+             <Box>
+                 {/* Icon (Conditionally Rendered) */}
+                 {!isNavbar && incidentProps.icon && (
+                     <Typography component="span" variant="inherit" sx={{ fontSize: iconSize, lineHeight: 1.1, display: 'block', color: incidentProps.valueColor }}>
+                        {incidentProps.icon}
+                     </Typography>
+                 )}
+                 {/* Value */}
+               <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: incidentProps.valueColor, lineHeight: 1.2, mt: isNavbar || !incidentProps.icon ? 0 : valueTopMargin }}>
+                 {incidentProps.text}
+               </Typography>
+             </Box>
+           </Tooltip>
+          <Typography variant={labelVariant} color={isNavbar ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbar ? 0.8 : 1 }}>
+            Incidents (24h)
+          </Typography>
+
         </Grid>
 
       </Grid>

@@ -1,4 +1,6 @@
-// client/src/hooks/query/useMonitoring.ts
+// client/src/hooks/api/useMonitoring.ts
+// No changes needed in this file.
+
 import {
     useQuery,
     useMutation,

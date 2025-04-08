@@ -1,5 +1,8 @@
-// client/src/types.ts
-
+/*
+* client/src/types.ts
+*
+* - Added `incidentsLast24h` to `OverallStats` interface.
+*/
 // --- SECTION 1: Keep Basic Prisma Type Names if helpful for context, but don't rely on backend structure ---
 // These are just illustrative names now for the concepts
 export type WebsitePrismaConcept = {};
@@ -205,6 +208,8 @@ export interface OverallStats {
   websiteStats: WebsiteStatsData[];
   overallUptime: number;
   overallResponseTime: number | null;
+  // Added to match backend response
+  incidentsLast24h: number;
 }
 
 // Data point for charts
@@ -291,4 +296,6 @@ export interface WebsiteDataSummary {
     refetch: () => Promise<any>; // Function to refetch dashboard data
     totalWebsitesCount: number;
     upWebsitesCount: number;
+    // Added incidents count
+    incidentsLast24h: number | null;
 }
