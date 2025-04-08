@@ -1,16 +1,13 @@
-// client/src/App.tsx
+// src/App.tsx
 
-// Import necessary routing components from react-router
-import { Routes, Route, useParams } from "react-router";
-// Import MUI components
+import { Routes, Route } from "react-router"; // Use react-router-dom v6+ imports
 import { CssBaseline, Box, Alert } from "@mui/material";
-// NOTE: QueryClientProvider is removed as it should be in main.tsx
-// NOTE: ReactQueryDevtools can be kept here OR moved entirely to main.tsx
+// NOTE: ThemeProvider is removed as it's now handled in main.tsx by ThemeProviderWrapper
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 // Core Components & Pages
 import Navbar from "./components/Navbar";
-import ProtectedRoute from "./components/ProtectedRoute"; // Handles auth check
+import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import WebsiteDetails from "./pages/WebsiteDetails";
 import WebsiteSettings from "./pages/WebsiteSettings";
@@ -20,12 +17,10 @@ import Register from "./pages/Register";
 
 // Context
 import { AuthProvider, useAuth } from "./context/AuthContext";
-// NOTE: queryClient import is removed as the Provider handles providing it
+// NOTE: ThemeProviderWrapper is used in main.tsx
 
-// Wrapper for Website Details Route
-// No longer strictly needed as the component itself uses useParams, but kept for structure if preferred
+// Wrapper components remain the same
 function WebsiteDetailsWrapper() {
-  // Validation and parsing happens inside the WebsiteDetails component using useParams
   return (
     <ProtectedRoute>
       <WebsiteDetails />
@@ -33,10 +28,7 @@ function WebsiteDetailsWrapper() {
   );
 }
 
-// Wrapper for Website Settings Route
-// No longer strictly needed as the component itself uses useParams, but kept for structure if preferred
 function WebsiteSettingsWrapper() {
-   // Validation and parsing happens inside the WebsiteSettings component using useParams
   return (
     <ProtectedRoute>
       <WebsiteSettings />
@@ -44,15 +36,13 @@ function WebsiteSettingsWrapper() {
   );
 }
 
-// Component containing Navbar and Routes, conditionally rendered based on auth state
+// Component containing Navbar and Routes
 function AppContent() {
-  const { user } = useAuth(); // Get user state (loading state might be handled within ProtectedRoute/useAuth)
+  const { user } = useAuth();
 
   return (
     <>
-      {/* Render Navbar only if user is authenticated */}
       {user && <Navbar />}
-      {/* Define application routes - These Routes need a Router context provided higher up (in main.tsx) */}
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -60,14 +50,13 @@ function AppContent() {
 
         {/* Protected Routes */}
         <Route path="/" element={ <ProtectedRoute><Dashboard /></ProtectedRoute> } />
-        {/* Use :websiteId for parameter name */}
         <Route path="/website/:websiteId" element={<WebsiteDetailsWrapper />} />
         <Route path="/website/:websiteId/settings" element={<WebsiteSettingsWrapper />} />
         <Route path="/add-website" element={ <ProtectedRoute><AddWebsite /></ProtectedRoute> } />
 
-        {/* Fallback for unknown routes (Optional) */}
+        {/* Fallback for unknown routes */}
         <Route path="*" element={
-            <Box sx={{ p: 4, mt: 8, textAlign: 'center' }}> {/* Added margin top */}
+            <Box sx={{ p: 4, mt: 8, textAlign: 'center' }}>
                 <Alert severity="warning">Page Not Found (404)</Alert>
             </Box>
         } />
@@ -76,16 +65,15 @@ function AppContent() {
   );
 }
 
-// Main App component - Sets up providers (excluding Router and QueryClientProvider)
+// Main App component
 function App() {
   return (
-    // No <Router> or <QueryClientProvider> needed here - they are in main.tsx
-    <> {/* Using React Fragment as a wrapper */}
-      <CssBaseline /> {/* Apply baseline styles */}
-      <AuthProvider> {/* Provide Authentication context */}
-        {/* AppContent includes Navbar (conditional) and Routes */}
+    <>
+      {/* CssBaseline applies global resets and background color based on theme */}
+      <CssBaseline />
+      <AuthProvider>
         <AppContent />
-      </AuthProvider>   
+      </AuthProvider>
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </>
   );
