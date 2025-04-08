@@ -245,7 +245,7 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
 
         {/* Stat 3: Incidents Last 24 Hours */}
         <Grid item xs={4} textAlign="center">
-           <Tooltip title="Incidents reported in the last 24 hours (Down or Slow)">
+           <Tooltip title="Incidents reported in the last 24 hours (Down)">
              <Box>
                  {/* Icon (Conditionally Rendered) */}
                  {!isNavbar && incidentProps.icon && (

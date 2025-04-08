@@ -1,4 +1,10 @@
-// client/src/components/Navbar.tsx
+/*
+* client/src/components/Navbar.tsx
+*
+* - Updated `useWebsiteData` hook call to destructure `incidentsLast24h`.
+* - Removed `responseTime` from `otherStatsValues` memoization.
+* - Passed `incidentsLast24h` prop to `StatsHeader` instead of `responseTime`.
+*/
 import * as React from "react";
 import { useCallback, useState, useMemo } from "react";
 import { useLocation } from 'react-router'; // Import useLocation
@@ -15,22 +21,13 @@ import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
 import AdbIcon from "@mui/icons-material/Adb";
 import AddIcon from "@mui/icons-material/Add";
-// Removed direct stats imports if only used in StatsHeader now
-// import Stack from "@mui/material/Stack";
-// import Chip from "@mui/material/Chip";
-// import CircularProgress from "@mui/material/CircularProgress";
-// import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-// import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-// import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-// import { useTheme } from '@mui/material/styles';
 
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router";
 import AlertsDropdown from "./navbar/AlertDropdown";
 import { useWebsiteData } from "../hooks/domain/useWebsiteData"; // Keep hook call
-import StatsHeader from "./dashboard/StatsHeader"; // Import the new component
-// Keep formatters if needed elsewhere, otherwise StatsHeader imports them
-// import { getStatusColor, getResponseTimeColor, formatUptime, formatResponseTime } from "../utils/statusUtils";
+// Use the same StatsHeader component
+import StatsHeader from "./dashboard/StatsHeader";
 
 // --- Navigation Items ---
 const pages = [
@@ -45,44 +42,38 @@ const pages = [
 // --- User Menu Items ---
 const settings = ["Profile", "Logout"];
 
-// type StatusColorKey = 'success' | 'warning' | 'error' | 'default'; // Moved to StatsHeader
-
 function Navbar() {
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
 
   const { logout, user } = useAuth();
   const navigate = useNavigate();
-  // const theme = useTheme(); // Moved to StatsHeader if only used there
   const location = useLocation(); // Get location object
 
-  // --- Fetch Website Data (Still needed for conditional display) ---
+  // --- Fetch Website Data ---
   const {
       overallStats,
+      // Destructure incidentsLast24h
+      incidentsLast24h,
       isLoading: isLoadingData,
       error: dataError,
       totalWebsitesCount,
       upWebsitesCount,
   } = useWebsiteData(
-      undefined,
-      'week',
-      60000
+      undefined, // Use default results limit
+      'week',    // Uptime period
+      60000      // Refetch interval
   );
 
-  // Memoize only the stats needed from overallStats
+  // Memoize only the uptime stat needed from overallStats for the header
   const otherStatsValues = useMemo(() => {
-      const safeStats = overallStats || {
-          overallUptime: 0,
-          overallResponseTime: 0,
-      };
       return {
-          uptime: safeStats.overallUptime ?? 0,
-          responseTime: safeStats.overallResponseTime ?? 0,
+          // Use null if stats not loaded yet
+          uptime: overallStats?.overallUptime ?? null,
       }
   }, [overallStats]);
 
   // --- Menu Handlers ---
-  // ... (handlers remain the same)
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElNav(event.currentTarget);
   };
@@ -124,9 +115,6 @@ function Navbar() {
     [logout, navigate],
   );
 
-  // const getChipBackgroundColor = ... // Moved to StatsHeader
-  // const getUpDownChipProps = ... // Moved to StatsHeader
-
   // --- Render Logic ---
   const isDashboard = location.pathname === '/'; // Check if on Dashboard route
 
@@ -137,7 +125,6 @@ function Navbar() {
 
           {/* === Left Section === */}
           <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: { xs: 0, md: 1 } }}>
-            {/* ... (rest of Left Section) ... */}
              <Box
               onClick={() => navigate("/")}
               sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", cursor: "pointer", mr: 1 }}
@@ -233,12 +220,14 @@ function Navbar() {
           {/* Render StatsHeader ONLY if NOT on the dashboard */}
           {!isDashboard && (
             <StatsHeader
-              isLoading={isLoadingData}
+              // Pass loading state - true if stats haven't loaded yet
+              isLoading={isLoadingData && !overallStats}
               error={dataError}
               upCount={upWebsitesCount}
               totalCount={totalWebsitesCount}
               uptime={otherStatsValues.uptime}
-              responseTime={otherStatsValues.responseTime}
+              // Pass the incidents count instead of response time
+              incidentsLast24h={incidentsLast24h}
               center={true} // Explicitly use centered layout for Navbar
             />
           )}
@@ -246,7 +235,6 @@ function Navbar() {
 
           {/* === Right Section === */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: { xs: 0, md: 1 } }}>
-             {/* ... (rest of Right Section) ... */}
              <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1, sm: 2 } }}>
               <AlertsDropdown
                 options={{ limit: 50 }}
