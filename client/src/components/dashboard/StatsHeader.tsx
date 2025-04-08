@@ -1,5 +1,5 @@
-// src/components/StatsHeader.tsx
-import React from 'react';
+// src/components/dashboard/StatsHeader.tsx
+import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
@@ -8,21 +8,30 @@ import CircularProgress from '@mui/material/CircularProgress';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import TimerIcon from '@mui/icons-material/Timer';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'; // New Icon for Incidents
 import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
+import Popover from '@mui/material/Popover';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
 import { useTheme } from '@mui/material/styles';
-import { ApiError } from '../../types';
-import { getStatusColor, getResponseTimeColor, formatUptime, formatResponseTime } from '../../utils/statusUtils';
+import { formatDistanceToNow } from 'date-fns';
+import { ApiError, Alert } from '../../types';
+import { getStatusColor, formatUptime } from '../../utils/statusUtils';
 
 type StatusColorKey = 'success' | 'warning' | 'error' | 'default';
 
 interface StatsHeaderProps {
-  isLoading: boolean;
-  error: ApiError | null;
+  isLoading: boolean; // Loading state for overall stats (uptime, status)
+  error: ApiError | null; // Error state for overall stats
   upCount: number;
   totalCount: number;
   uptime: number | null | undefined;
-  responseTime: number | null | undefined;
+  // Removed responseTime
+  // Added incidents data
+  isLoadingIncidents: boolean; // Separate loading state for incidents
+  incidentsError: ApiError | null; // Separate error state for incidents
+  incidentsLast24h: Alert[] | null | undefined; // Array of incidents in the last 24h
   center?: boolean; // true = Navbar layout, false = Dashboard layout
 }
 
@@ -37,6 +46,13 @@ const getTextColor = (theme: any, colorKey: StatusColorKey, isNavbar: boolean): 
     return theme.palette[colorKey]?.main || theme.palette.text.primary;
 };
 
+// Helper to get incident color
+const getIncidentColorKey = (count: number | null | undefined): StatusColorKey => {
+    if (count === null || count === undefined) return 'default';
+    return count > 0 ? 'error' : 'success';
+};
+
+
 
 const StatsHeader: React.FC<StatsHeaderProps> = ({
   isLoading,
@@ -44,11 +60,33 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
   upCount,
   totalCount,
   uptime,
-  responseTime,
+  // --- New Incident Props ---
+  isLoadingIncidents,
+  incidentsError,
+  incidentsLast24h,
+  
+  // ------------------------
   center = false, // Default to Dashboard layout
+  
 }) => {
   const theme = useTheme();
   const isNavbar = center; // Use 'center' prop to determine context
+  const [popoverAnchorEl, setPopoverAnchorEl] = useState<HTMLElement | null>(null);
+
+  const handlePopoverOpen = (event: React.MouseEvent<HTMLElement>) => {
+    // Only open if there are incidents to show
+    if (incidentsLast24h && incidentsLast24h.length > 0) {
+      setPopoverAnchorEl(event.currentTarget);
+    }
+  };
+
+  const handlePopoverClose = () => {
+    setPopoverAnchorEl(null);
+  };
+
+  const open = Boolean(popoverAnchorEl);
+  const incidentCount = incidentsLast24h?.length ?? null;
+  
 
   // --- Props for Status Display ---
   const getStatusProps = () => {
@@ -97,7 +135,8 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
 
   const statusProps = getStatusProps();
   const uptimeColorKey = getStatusColor(uptime);
-  const responseTimeColorKey = getResponseTimeColor(responseTime);
+  const incidentColorKey = getIncidentColorKey(incidentCount);
+  
 
   // --- Container Styling ---
   const containerSx = isNavbar
@@ -125,12 +164,12 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
   const labelVariant = isNavbar ? 'caption' : 'body2';
   const iconSize = isNavbar ? '1.1rem' : '1.5rem'; // Still needed for dashboard icons
   const gridSpacing = isNavbar ? 1.5 : { xs: 2, md: 4 };
-  // No gap needed if icon isn't there in navbar
-  const valueTopMargin = isNavbar ? 0 : 0.5; // Margin above value (replaces icon gap)
+  const valueTopMargin = isNavbar ? 0 : 0.5;
   const valueLabelMargin = isNavbar ? 0 : 0.5;
 
   // --- Loading / Error Display (Common) ---
-  if (isLoading) {
+  // Show loading if either main stats OR incidents are loading initially
+  if (isLoading || (isLoadingIncidents && incidentCount === null)) {
     return (
       <Box sx={containerSx}>
         <CircularProgress size={isNavbar ? 20 : 30} color={isNavbar ? "inherit" : "primary"} />
@@ -138,6 +177,7 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     );
   }
 
+  // Show error if main stats error occurred
   if (error) {
     return (
       <Box sx={containerSx}>
@@ -147,6 +187,11 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
       </Box>
     );
   }
+  console.log('Passing to StatsHeader:', {
+    isLoadingIncidents: isLoadingIncidents,
+    incidentsError: incidentsError,
+    incidentsLast24h: incidentsLast24h
+});
 
   // --- Grid Layout (Used for Both Contexts) ---
   return (
@@ -164,7 +209,7 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                    </Typography>
                )}
                {/* Value */}
-              <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: statusProps.valueColor, lineHeight: 1.2, mt: isNavbar ? 0 : valueTopMargin }}> {/* Adjust margin top */}
+              <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: statusProps.valueColor, lineHeight: 1.2, mt: isNavbar ? 0 : valueTopMargin }}>
                 {statusProps.text}
               </Typography>
             </Box>
@@ -195,25 +240,93 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
           </Typography>
         </Grid>
 
-        {/* Stat 3: Average Response Time */}
+        {/* Stat 3: Incidents (Last 24h) */}
         <Grid item xs={4} textAlign="center">
-           <Tooltip title="Average Response Time (Last 7 Days)">
-             <Box>
-                 {/* Icon (Conditionally Rendered) */}
-                 {!isNavbar && (
-                     <Typography component="span" variant="inherit" sx={{ color: getTextColor(theme, responseTimeColorKey, isNavbar), fontSize: iconSize, lineHeight: 1.1, display: 'block' }}>
-                        <TimerIcon fontSize="inherit" />
-                     </Typography>
-                 )}
-                 {/* Value */}
-               <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: getTextColor(theme, responseTimeColorKey, isNavbar), lineHeight: 1.2, mt: isNavbar ? 0 : valueTopMargin }}>
-                 {formatResponseTime(responseTime)}
-               </Typography>
-             </Box>
-           </Tooltip>
+          <Box
+            onMouseEnter={handlePopoverOpen}
+            onMouseLeave={handlePopoverClose}
+            aria-owns={open ? 'mouse-over-popover' : undefined}
+            aria-haspopup="true"
+            sx={{ cursor: (incidentsLast24h && incidentsLast24h.length > 0) ? 'pointer' : 'default' }}
+          >
+            <Tooltip title={incidentsError
+              ? `Error loading incidents: ${incidentsError.message}`
+              : (isLoadingIncidents ? 'Loading incidents...' : `${incidentCount ?? 0} incident(s) in the last 24 hours`)}
+            >
+              <Box>
+                  {/* Icon (Conditionally Rendered) */}
+                  {!isNavbar && (
+                      <Typography component="span" variant="inherit" sx={{ color: incidentsError ? theme.palette.grey[500] : getTextColor(theme, incidentColorKey, isNavbar), fontSize: iconSize, lineHeight: 1.1, display: 'block' }}>
+                        {isLoadingIncidents && !incidentsError ? (
+                          <CircularProgress size="inherit" color="inherit" sx={{ display: 'inline-block', verticalAlign: 'middle' }}/>
+                        ) : incidentsError ? (
+                          <ErrorOutlineIcon fontSize="inherit" />
+                        ) : (
+                          <NotificationsActiveIcon fontSize="inherit" />
+                        )}
+                      </Typography>
+                  )}
+                  {/* Value */}
+                <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: incidentsError ? theme.palette.grey[500] : getTextColor(theme, incidentColorKey, isNavbar), lineHeight: 1.2, mt: isNavbar ? 0 : valueTopMargin }}>
+                  {isLoadingIncidents ? '-' : incidentsError ? 'Err' : incidentCount ?? 'N/A'}
+                </Typography>
+              </Box>
+            </Tooltip>
+          </Box>
           <Typography variant={labelVariant} color={isNavbar ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbar ? 0.8 : 1 }}>
-            Avg Resp (7d)
+            Incidents (24h)
           </Typography>
+
+          {/* Popover for displaying incidents on hover */}
+          <Popover
+            id="mouse-over-popover"
+            sx={{
+              pointerEvents: 'none', // Let mouse events pass through to the element below
+            }}
+            open={open}
+            anchorEl={popoverAnchorEl}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'center',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'center',
+            }}
+            onClose={handlePopoverClose}
+            disableRestoreFocus
+            PaperProps={{
+                sx: {
+                  p: 1,
+                  mt: 1,
+                  maxWidth: 300,
+                  pointerEvents: 'auto', // Allow interaction with the popover content itself
+                }
+            }}
+          >
+            <Typography variant="subtitle2" sx={{ px: 1, pb: 0.5 }}>Incidents (Last 24h)</Typography>
+            {incidentsLast24h && incidentsLast24h.length > 0 ? (
+                 <List dense disablePadding>
+                    {incidentsLast24h.slice(0, 5).map((incident) => ( // Limit to 5 for brevity in popover
+                        <ListItem key={incident.id} disableGutters sx={{ py: 0.25 }}>
+                             <ListItemText
+                                 primary={`${incident.website?.name || incident.website?.url || 'Unknown Website'} - ${incident.type.toUpperCase()}`}
+                                 secondary={formatDistanceToNow(new Date(incident.createdAt), { addSuffix: true })}
+                                 primaryTypographyProps={{ variant: 'caption', fontWeight: 'medium' }}
+                                 secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
+                             />
+                        </ListItem>
+                    ))}
+                    {incidentsLast24h.length > 5 && (
+                        <ListItem disableGutters sx={{ pt: 0.5 }}>
+                            <ListItemText secondary={`...and ${incidentsLast24h.length - 5} more`} secondaryTypographyProps={{ variant: 'caption', fontStyle: 'italic' }}/>
+                        </ListItem>
+                    )}
+                 </List>
+            ) : (
+                <Typography variant="caption" sx={{ px: 1 }}>No incidents found.</Typography>
+            )}
+          </Popover>
         </Grid>
 
       </Grid>

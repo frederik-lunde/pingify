@@ -1,3 +1,4 @@
+//client/src/components/navbar/AlertDropdown.tsx
 import React, { useCallback, useState, useMemo } from "react";
 import {
   Badge, IconButton, Tooltip, Menu, MenuItem, Stack, Typography,
