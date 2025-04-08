@@ -8,5 +8,6 @@ export * from "./api/useAlerts";
 
 // Domain hooks
 export * from "./domain/useWebsiteData";
+export * from "./domain/useTimeSince";
 // UI hooks
 export * from "./ui/useChart";

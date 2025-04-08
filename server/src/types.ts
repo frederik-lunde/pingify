@@ -208,7 +208,9 @@ export interface OverallStats {
   overallUptime: number;
   overallResponseTime: number | null;
   // --- ADDED ---
-  incidentsLast24h: number; // Count of 'down' or 'slow' alerts created in the last 24 hours
+  incidentsLast24h: number; 
+  lastIncidentTimestamp?: string | null;
+  lastIncidentWebsiteId?: number | null;
   // --- END ADDED ---
 }
 

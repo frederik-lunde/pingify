@@ -210,6 +210,8 @@ export interface OverallStats {
   overallResponseTime: number | null;
   // Added to match backend response
   incidentsLast24h: number;
+ lastIncidentTimestamp: string | null; // ISO 8601 date string 
+ lastIncidentWebsiteId?: number | null;
 }
 
 // Data point for charts
@@ -296,6 +298,6 @@ export interface WebsiteDataSummary {
     refetch: () => Promise<any>; // Function to refetch dashboard data
     totalWebsitesCount: number;
     upWebsitesCount: number;
-    // Added incidents count
     incidentsLast24h: number | null;
+    lastIncidentWebsiteId?: number | null; // ID of the website with the last incident
 }
