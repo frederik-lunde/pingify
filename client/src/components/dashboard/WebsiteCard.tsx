@@ -17,7 +17,7 @@ import {
 } from "@mui/icons-material";
 import { Line } from "react-chartjs-2";
 import { useCardChartData } from "../../hooks";
-import { useWebsiteMutations } from "../../hooks/api/useWebsites"; // Adjust path
+import { useWebsiteMutations } from "../../hooks"; // Adjust path
 
 import {
   getStatusColor,

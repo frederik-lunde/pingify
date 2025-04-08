@@ -1,7 +1,15 @@
-// src/api/monitoringApi.ts
+// client/src/api/monitoringApi.ts
 import apiClient from './client';
-import { OverallStats, WebsiteStatsData, TimeframeKey, WebsiteDetailsData, MonitoringResult } from '../types'; // Adjust path as needed, added ApiError
+import {
+    OverallStats,
+    WebsiteStatsData,
+    TimeframeKey,
+    WebsiteDetailsData,
+    MonitoringResult,
+    IncidentCountResponse // <-- Import type
+} from '../ctypes'; // Adjust path as needed
 
+// Interface for fetchWebsiteDetails parameters
 export interface FetchWebsiteDetailsParams {
     websiteId: number;
     timeframe?: TimeframeKey;
@@ -16,12 +24,11 @@ export interface FetchWebsiteDetailsParams {
  */
 export const fetchWebsiteDetails = async ({
     websiteId,
-    timeframe = 'day', // Default timeframe
-    limit = 10,        // Default limit for recent checks
-    sortBy = 'timestamp', // Default sort
-    sortDir = 'desc'     // Default direction
+    timeframe = 'day',
+    limit = 10,
+    sortBy = 'timestamp',
+    sortDir = 'desc'
 }: FetchWebsiteDetailsParams): Promise<WebsiteDetailsData> => {
-    // Validate websiteId before making the call
     if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
        throw new Error("Invalid website ID provided for fetching details.");
     }
@@ -53,22 +60,36 @@ export const fetchWebsiteStats = async (websiteId: number, period: TimeframeKey 
  * Triggers an immediate check for a website.
  * Endpoint: POST /monitoring/check/:websiteId
  */
-export const triggerWebsiteCheck = async (websiteId: number): Promise<MonitoringResult> => { // <--- FIX: Changed return type here
+export const triggerWebsiteCheck = async (websiteId: number): Promise<MonitoringResult> => {
     if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
       throw new Error("Invalid website ID provided for triggering check.");
    }
-   // Backend controller returns the full SharedMonitoringResult object
-   return apiClient.post<MonitoringResult>(`/monitoring/check/${websiteId}`); // <-- FIX: Changed expected response type
+   return apiClient.post<MonitoringResult>(`/monitoring/check/${websiteId}`);
 };
 
 /**
  * Fetches all monitoring results for the current user (potential performance concern).
  * Endpoint: GET /monitoring/user/results
- * Consider adding filters (timeframe, website IDs) if the endpoint supports them.
  */
 export const fetchAllUserMonitoringResults = async (limit: number = 500): Promise<MonitoringResult[]> => {
-    // Warning: Fetching potentially large amounts of data.
-    // Check if your backend supports pagination or filtering for this endpoint.
     const result = await apiClient.get<MonitoringResult[]>("/monitoring/user/results", { params: { limit } });
     return result ?? []; // Ensure array
+};
+
+/**
+ * NEW: Fetches the count of distinct websites with incidents (based on MonitoringResults)
+ * in the last 24 hours for the user.
+ * Endpoint: GET /monitoring/user/incidents/last24h
+ */
+export const fetchUserIncidentCountLast24h = async (): Promise<IncidentCountResponse> => {
+    const url = "/monitoring/user/incidents/last24h"; // <-- Use the new monitoring endpoint
+    try {
+        const data = await apiClient.get<IncidentCountResponse>(url);
+        // Provide default if backend returns unexpected null/undefined
+        return data ?? { incidentCount: 0 };
+    } catch (error: any) {
+        // Assuming apiClient's interceptor handles ApiError creation
+        console.error(`API Error fetching monitoring-based incident count: ${error.message}`);
+        throw error;
+    }
 };

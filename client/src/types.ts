@@ -282,3 +282,4 @@ export interface WebsiteDataSummary {
     totalWebsitesCount: number;
     upWebsitesCount: number;
 }
+

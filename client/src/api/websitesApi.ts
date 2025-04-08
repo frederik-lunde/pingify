@@ -5,8 +5,8 @@ import {
     AddWebsiteUserDTO,
     UpdateWebsiteUserDTO,
     SetPinStatusDTO, // <-- Import DTO
-    Website
-} from '../types'; // Adjust path, add ApiError
+    Website,
+} from '../types'; // Adjust path
 
 /**
  * Fetches all websites for the user's dashboard.
