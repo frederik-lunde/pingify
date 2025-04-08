@@ -52,6 +52,7 @@ function Navbar() {
   const { mode, toggleThemeMode } = useThemeMode(); // Get mode and toggle function
 
   // --- Fetch Website Data ---
+  // Note: This hook fetches overall stats but not specific incident details needed by StatsHeader
   const {
       overallStats,
       isLoading: isLoadingData,
@@ -60,18 +61,19 @@ function Navbar() {
       upWebsitesCount,
   } = useWebsiteData(
       undefined,
-      'week',
-      60000
+      'week', // Fetching weekly stats
+      60000 // Polling interval
   );
 
+  // We still calculate uptime here, but responseTime is not used for StatsHeader anymore
   const otherStatsValues = useMemo(() => {
       const safeStats = overallStats || {
           overallUptime: 0,
-          overallResponseTime: 0,
+          overallResponseTime: 0, // Still calculated, just not passed to StatsHeader
       };
       return {
           uptime: safeStats.overallUptime ?? 0,
-          responseTime: safeStats.overallResponseTime ?? 0,
+          responseTime: safeStats.overallResponseTime ?? 0, // Kept for potential other uses
       }
   }, [overallStats]);
 
@@ -120,13 +122,8 @@ function Navbar() {
 
   // --- Theme Toggle Handler ---
   const handleThemeToggle = useCallback(() => {
-    // Determine the mode *after* the toggle happens
     const newMode = mode === 'light' ? 'dark' : 'light';
-
-    // Toggle the theme in the context state
     toggleThemeMode();
-
-    // If a user is logged in, save their preference
     if (user?.id) {
         const userThemeKey = getUserThemeKey(user.id);
         if (userThemeKey) {
@@ -134,11 +131,7 @@ function Navbar() {
             localStorage.setItem(userThemeKey, newMode);
         }
     }
-    // Optionally update a generic preference as well
-    // localStorage.setItem('lastUsedThemeMode', newMode);
-
-  }, [mode, toggleThemeMode, user]); // Depend on mode, toggle function, and user
-
+  }, [mode, toggleThemeMode, user]);
 
   // --- Render Logic ---
   const isDashboard = location.pathname === '/';
@@ -254,8 +247,15 @@ function Navbar() {
               upCount={upWebsitesCount}
               totalCount={totalWebsitesCount}
               uptime={otherStatsValues.uptime}
-              responseTime={otherStatsValues.responseTime}
+              // responseTime={otherStatsValues.responseTime} // <-- REMOVED THIS LINE
               center={true}
+              // --- ADDED PLACEHOLDERS/DEFAULTS FOR REQUIRED INCIDENT PROPS ---
+              // You might want to fetch real data or make these optional in StatsHeader
+              isLoadingIncidents={false} // Provide a default value
+              incidentsError={null}       // Provide a default value
+              incidentCount={undefined}   // Or 0, or null depending on StatsHeader logic
+              incidentsLast24h={undefined} // Or [], or null
+              // --- END OF ADDED PROPS ---
             />
           )}
 
@@ -270,7 +270,6 @@ function Navbar() {
 
              {/* Theme Toggle Button */}
              <Tooltip title={`Toggle ${mode === 'dark' ? 'light' : 'dark'} mode`}>
-                {/* Use the new handler */}
                 <IconButton sx={{ ml: 1 }} onClick={handleThemeToggle} color="inherit">
                     {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
                 </IconButton>

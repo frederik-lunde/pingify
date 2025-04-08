@@ -7,7 +7,7 @@ import {
     WebsiteDetailsData,
     MonitoringResult,
     IncidentCountResponse // <-- Import type
-} from '../ctypes'; // Adjust path as needed
+} from '../types'; // Adjust path as needed
 
 // Interface for fetchWebsiteDetails parameters
 export interface FetchWebsiteDetailsParams {
