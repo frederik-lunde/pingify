@@ -1,12 +1,4 @@
-
-/*
-* client/src/components/Navbar.tsx
-*
-* - Updated `useWebsiteData` hook call to destructure `incidentsLast24h`.
-* - Removed `responseTime` from `otherStatsValues` memoization.
-* - Passed `incidentsLast24h` prop to `StatsHeader` instead of `responseTime`.
-*/
-
+// src/components/Navbar.tsx
 import * as React from "react";
 import { useCallback, useState, useMemo } from "react";
 import { useLocation, useNavigate } from 'react-router';
@@ -23,12 +15,15 @@ import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
 import AdbIcon from "@mui/icons-material/Adb";
 import AddIcon from "@mui/icons-material/Add";
-
+// Import theme toggle icons
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
 
 import { useAuth } from "../context/AuthContext";
-import { useWebsiteData } from "../hooks/domain/useWebsiteData"; // Keep hook call
+// Import the theme context hook
+import { useThemeMode } from "../context/ThemeContext";
+import { useWebsiteData } from "../hooks/domain/useWebsiteData";
 import AlertsDropdown from "./navbar/AlertDropdown";
-// Use the same StatsHeader component
 import StatsHeader from "./dashboard/StatsHeader";
 
 
@@ -45,6 +40,11 @@ const pages = [
 // --- User Menu Items ---
 const settings = ["Profile", "Logout"];
 
+// Helper function (can be moved to a util file)
+const getUserThemeKey = (userId: string | number | undefined): string | null => {
+  return userId ? `themeMode_${userId}` : null;
+};
+
 
 function Navbar() {
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
@@ -52,28 +52,27 @@ function Navbar() {
 
   const { logout, user } = useAuth(); // Get user object
   const navigate = useNavigate();
+  const location = useLocation(); // Get location object
+
+  // Get theme mode and toggle function from context
+  const { mode, toggleThemeMode } = useThemeMode();
 
   const {
       overallStats,
-      // Destructure incidentsLast24h
       incidentsLast24h,
       isLoading: isLoadingData,
       error: dataError,
       totalWebsitesCount,
       upWebsitesCount,
   } = useWebsiteData(
-
-      undefined, // Use default results limit
-      'week',    // Uptime period
-      60000      // Refetch interval
+      undefined,
+      'week',
+      60000
   );
 
-  // Memoize only the uptime stat needed from overallStats for the header
   const otherStatsValues = useMemo(() => {
       return {
-          // Use null if stats not loaded yet
           uptime: overallStats?.overallUptime ?? null,
-
       }
   }, [overallStats]);
 
@@ -120,6 +119,27 @@ function Navbar() {
     [logout, navigate],
   );
 
+  // --- Theme Toggle Handler ---
+  const handleThemeToggle = useCallback(() => {
+    // Determine the mode *after* the toggle happens
+    const newMode = mode === 'light' ? 'dark' : 'light';
+
+    // Toggle the theme in the context state
+    toggleThemeMode();
+
+    // If a user is logged in, save their preference
+    if (user?.id) {
+        const userThemeKey = getUserThemeKey(user.id);
+        if (userThemeKey) {
+            console.log(`Saving theme preference '${newMode}' for user ${user.id}`);
+            localStorage.setItem(userThemeKey, newMode);
+        }
+    }
+    // Optionally update a generic preference as well
+    // localStorage.setItem('lastUsedThemeMode', newMode);
+
+  }, [mode, toggleThemeMode, user]); // Depend on mode, toggle function, and user
+
 
   // --- Render Logic ---
   const isDashboard = location.pathname === '/';
@@ -131,7 +151,8 @@ function Navbar() {
 
           {/* === Left Section === */}
           <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: { xs: 0, md: 1 } }}>
-<Box
+            {/* Logo and Title (Desktop) */}
+            <Box
               onClick={() => navigate("/")}
               sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", cursor: "pointer", mr: 1 }}
             >
@@ -229,38 +250,40 @@ function Navbar() {
           {/* === Center Section (Conditional Stats) === */}
           {!isDashboard && (
             <StatsHeader
-              // Pass loading state - true if stats haven't loaded yet
               isLoading={isLoadingData && !overallStats}
               error={dataError}
               upCount={upWebsitesCount}
               totalCount={totalWebsitesCount}
               uptime={otherStatsValues.uptime}
-
-              // Pass the incidents count instead of response time
               incidentsLast24h={incidentsLast24h}
-              center={true} // Explicitly use centered layout for Navbar
-
+              center={true}
             />
           )}
 
 
           {/* === Right Section === */}
-
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: { xs: 0, md: 1 } }}>
-             <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1, sm: 2 } }}>
-              <AlertsDropdown
-   options={{ limit: 50 }}
+          {/* Use flexGrow: 0 and adjust gap */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: 0, gap: { xs: 1, sm: 1.5 } }}>
+             {/* Alerts Dropdown */}
+             <AlertsDropdown
+                options={{ limit: 50 }}
                 pollingInterval={60000}
               />
-              </Box>
 
-           
+             {/* Theme Toggle Button */}
+             <Tooltip title={`Toggle ${mode === 'dark' ? 'light' : 'dark'} mode`}>
+                {/* Use the theme toggle handler */}
+                <IconButton sx={{ ml: 1 }} onClick={handleThemeToggle} color="inherit">
+                    {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+                </IconButton>
+             </Tooltip>
 
              {/* User Avatar and Menu */}
              <Tooltip title="Open settings">
                 <IconButton
                   onClick={handleOpenUserMenu}
-                  sx={{ p: 0 }}
+                  // Removed p: 0 here, let the gap handle spacing
+                  sx={{ /* p: 0 */ }}
                   aria-label="open user menu"
                   aria-controls="menu-appbar-user"
                   aria-haspopup="true"
