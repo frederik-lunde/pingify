@@ -1,8 +1,7 @@
 // src/App.tsx
 
-import { Routes, Route } from "react-router"; // Use react-router-dom v6+ imports
+import { Routes, Route } from "react-router";
 import { CssBaseline, Box, Alert } from "@mui/material";
-// NOTE: ThemeProvider is removed as it's now handled in main.tsx by ThemeProviderWrapper
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 // Core Components & Pages
@@ -17,7 +16,8 @@ import Register from "./pages/Register";
 
 // Context
 import { AuthProvider, useAuth } from "./context/AuthContext";
-// NOTE: ThemeProviderWrapper is used in main.tsx
+// Import the hook to apply user theme preference
+import { useApplyUserThemePreference } from "./context/ThemeContext"; // Adjust path if needed
 
 // Wrapper components remain the same
 function WebsiteDetailsWrapper() {
@@ -39,6 +39,8 @@ function WebsiteSettingsWrapper() {
 // Component containing Navbar and Routes
 function AppContent() {
   const { user } = useAuth();
+  // Call the hook here to apply the user's theme preference when auth state is resolved
+  useApplyUserThemePreference();
 
   return (
     <>
@@ -69,9 +71,9 @@ function AppContent() {
 function App() {
   return (
     <>
-      {/* CssBaseline applies global resets and background color based on theme */}
       <CssBaseline />
       <AuthProvider>
+        {/* AppContent now handles applying the user theme */}
         <AppContent />
       </AuthProvider>
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}

@@ -1,7 +1,7 @@
 // src/components/Navbar.tsx
 import * as React from "react";
 import { useCallback, useState, useMemo } from "react";
-import { useLocation, useNavigate } from 'react-router'; // Use react-router-dom
+import { useLocation, useNavigate } from 'react-router';
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
@@ -15,15 +15,13 @@ import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
 import AdbIcon from "@mui/icons-material/Adb";
 import AddIcon from "@mui/icons-material/Add";
-// Import theme toggle icons
-import Brightness4Icon from '@mui/icons-material/Brightness4'; // Dark mode icon
-import Brightness7Icon from '@mui/icons-material/Brightness7'; // Light mode icon
-import { useAuth } from "../context/AuthContext";
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
+import { useAuth } from "../context/AuthContext"; // Auth context needed for user ID
 import AlertsDropdown from "./navbar/AlertDropdown";
 import { useWebsiteData } from "../hooks/domain/useWebsiteData";
 import StatsHeader from "./dashboard/StatsHeader";
-// Import the theme context hook
-import { useThemeMode } from "../context/ThemeContext";
+import { useThemeMode } from "../context/ThemeContext"; // Theme context
 
 // --- Navigation Items ---
 const pages = [
@@ -38,16 +36,20 @@ const pages = [
 // --- User Menu Items ---
 const settings = ["Profile", "Logout"];
 
+// Helper function (can be moved to a util file)
+const getUserThemeKey = (userId: string | number | undefined): string | null => {
+  return userId ? `themeMode_${userId}` : null;
+};
+
+
 function Navbar() {
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
 
-  const { logout, user } = useAuth();
+  const { logout, user } = useAuth(); // Get user object
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Get theme mode and toggle function from context
-  const { mode, toggleThemeMode } = useThemeMode();
+  const { mode, toggleThemeMode } = useThemeMode(); // Get mode and toggle function
 
   // --- Fetch Website Data ---
   const {
@@ -105,19 +107,37 @@ function Navbar() {
       if (setting === "Logout") {
         try {
           await logout();
-          // Navigate to login after logout is successful
           navigate('/login');
         } catch (error) {
           console.error("Failed to logout:", error);
-          // Handle logout error (e.g., show a notification)
         }
       } else if (setting === "Profile") {
-         navigate("/profile"); // Assuming you have a /profile route
+         navigate("/profile");
       }
-       // Add other settings handlers here
     },
-    [logout, navigate], // Added navigate dependency
+    [logout, navigate],
   );
+
+  // --- Theme Toggle Handler ---
+  const handleThemeToggle = useCallback(() => {
+    // Determine the mode *after* the toggle happens
+    const newMode = mode === 'light' ? 'dark' : 'light';
+
+    // Toggle the theme in the context state
+    toggleThemeMode();
+
+    // If a user is logged in, save their preference
+    if (user?.id) {
+        const userThemeKey = getUserThemeKey(user.id);
+        if (userThemeKey) {
+            console.log(`Saving theme preference '${newMode}' for user ${user.id}`);
+            localStorage.setItem(userThemeKey, newMode);
+        }
+    }
+    // Optionally update a generic preference as well
+    // localStorage.setItem('lastUsedThemeMode', newMode);
+
+  }, [mode, toggleThemeMode, user]); // Depend on mode, toggle function, and user
 
 
   // --- Render Logic ---
@@ -241,7 +261,6 @@ function Navbar() {
 
 
           {/* === Right Section === */}
-          {/* Use flexGrow: 0 to prevent this section from expanding unnecessarily */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: 0, gap: { xs: 1, sm: 1.5 } }}>
              {/* Alerts Dropdown */}
              <AlertsDropdown
@@ -251,7 +270,8 @@ function Navbar() {
 
              {/* Theme Toggle Button */}
              <Tooltip title={`Toggle ${mode === 'dark' ? 'light' : 'dark'} mode`}>
-                <IconButton sx={{ ml: 1 }} onClick={toggleThemeMode} color="inherit">
+                {/* Use the new handler */}
+                <IconButton sx={{ ml: 1 }} onClick={handleThemeToggle} color="inherit">
                     {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
                 </IconButton>
              </Tooltip>
@@ -260,7 +280,7 @@ function Navbar() {
              <Tooltip title="Open settings">
                 <IconButton
                   onClick={handleOpenUserMenu}
-                  sx={{ p: 0 }} // Reset padding for IconButton containing Avatar
+                  sx={{ p: 0 }}
                   aria-label="open user menu"
                   aria-controls="menu-appbar-user"
                   aria-haspopup="true"
@@ -270,13 +290,11 @@ function Navbar() {
                     sx={{
                       width: { xs: 32, sm: 40 },
                       height: { xs: 32, sm: 40 },
-                      bgcolor: "secondary.main", // Or use a theme color
-                      fontSize: "1rem", // Adjust as needed
-                      // Ensure avatar background contrasts with AppBar
+                      bgcolor: "secondary.main",
                       color: (theme) => theme.palette.getContrastText(theme.palette.secondary.main),
+                      fontSize: "1rem",
                     }}
                   >
-                    {/* Display initials */}
                     {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "?"}
                   </Avatar>
                 </IconButton>
@@ -285,7 +303,7 @@ function Navbar() {
              {/* User Menu Dropdown */}
             <Menu
               id="menu-appbar-user"
-              sx={{ mt: "45px" }} // Position below the AppBar
+              sx={{ mt: "45px" }}
               anchorEl={anchorElUser}
               anchorOrigin={{ vertical: "top", horizontal: "right" }}
               keepMounted
@@ -293,15 +311,12 @@ function Navbar() {
               open={Boolean(anchorElUser)}
               onClose={handleCloseUserMenu}
             >
-              {/* User Info Header */}
               <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
                   <Typography variant="subtitle1" fontWeight="bold">{user?.name || 'User'}</Typography>
                   <Typography variant="body2" color="text.secondary">{user?.email}</Typography>
               </Box>
-              {/* Menu Items */}
               {settings.map((setting) => (
                 <MenuItem key={setting} onClick={() => handleSettingClick(setting)}>
-                  {/* Center text within MenuItem */}
                   <Typography sx={{ textAlign: "center", width: '100%' }}>{setting}</Typography>
                 </MenuItem>
               ))}
