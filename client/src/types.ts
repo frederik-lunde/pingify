@@ -254,6 +254,16 @@ export interface AlertStats {
   }>;
 }
 
+// --- NEW TYPE ADDED HERE ---
+/**
+ * Represents the response structure for the API endpoint fetching
+ * the count of distinct websites with recent monitoring incidents (e.g., down/slow).
+ */
+export interface IncidentCountResponse {
+  incidentCount: number;
+}
+// --- END OF NEW TYPE ---
+
 
 // --- SECTION 7: Frontend Specific Context/Hook Types ---
 

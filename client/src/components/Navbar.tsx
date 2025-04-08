@@ -1,3 +1,4 @@
+
 /*
 * client/src/components/Navbar.tsx
 *
@@ -5,9 +6,10 @@
 * - Removed `responseTime` from `otherStatsValues` memoization.
 * - Passed `incidentsLast24h` prop to `StatsHeader` instead of `responseTime`.
 */
+
 import * as React from "react";
 import { useCallback, useState, useMemo } from "react";
-import { useLocation } from 'react-router'; // Import useLocation
+import { useLocation, useNavigate } from 'react-router';
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
@@ -29,6 +31,7 @@ import { useWebsiteData } from "../hooks/domain/useWebsiteData"; // Keep hook ca
 // Use the same StatsHeader component
 import StatsHeader from "./dashboard/StatsHeader";
 
+
 // --- Navigation Items ---
 const pages = [
   {
@@ -42,15 +45,14 @@ const pages = [
 // --- User Menu Items ---
 const settings = ["Profile", "Logout"];
 
+
 function Navbar() {
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
 
-  const { logout, user } = useAuth();
+  const { logout, user } = useAuth(); // Get user object
   const navigate = useNavigate();
-  const location = useLocation(); // Get location object
 
-  // --- Fetch Website Data ---
   const {
       overallStats,
       // Destructure incidentsLast24h
@@ -60,6 +62,7 @@ function Navbar() {
       totalWebsitesCount,
       upWebsitesCount,
   } = useWebsiteData(
+
       undefined, // Use default results limit
       'week',    // Uptime period
       60000      // Refetch interval
@@ -70,6 +73,7 @@ function Navbar() {
       return {
           // Use null if stats not loaded yet
           uptime: overallStats?.overallUptime ?? null,
+
       }
   }, [overallStats]);
 
@@ -105,6 +109,7 @@ function Navbar() {
       if (setting === "Logout") {
         try {
           await logout();
+          navigate('/login');
         } catch (error) {
           console.error("Failed to logout:", error);
         }
@@ -115,8 +120,9 @@ function Navbar() {
     [logout, navigate],
   );
 
+
   // --- Render Logic ---
-  const isDashboard = location.pathname === '/'; // Check if on Dashboard route
+  const isDashboard = location.pathname === '/';
 
   return (
     <AppBar position="static">
@@ -125,7 +131,7 @@ function Navbar() {
 
           {/* === Left Section === */}
           <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: { xs: 0, md: 1 } }}>
-             <Box
+<Box
               onClick={() => navigate("/")}
               sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", cursor: "pointer", mr: 1 }}
             >
@@ -146,6 +152,7 @@ function Navbar() {
                 PINGIFY
               </Typography>
             </Box>
+            {/* Mobile Menu Icon */}
             <Box sx={{ display: { xs: "flex", md: "none" } }}>
               <IconButton
                 size="large"
@@ -157,6 +164,7 @@ function Navbar() {
               >
                 <MenuIcon />
               </IconButton>
+              {/* Mobile Navigation Menu */}
               <Menu
                 id="menu-appbar-nav"
                 anchorEl={anchorElNav}
@@ -177,6 +185,7 @@ function Navbar() {
                 ))}
               </Menu>
             </Box>
+            {/* Logo and Title (Mobile) */}
             <Box
               onClick={() => navigate("/")}
               sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", cursor: "pointer", flexGrow: 1 }}
@@ -197,10 +206,11 @@ function Navbar() {
                 PINGIFY
               </Typography>
             </Box>
+             {/* Desktop Navigation Icons */}
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1, ml: 2 }}>
               {pages.map((page) => (
                 <Tooltip key={page.name} title={page.ariaLabel || page.name} arrow>
-                  <span>
+                  <span> {/* Tooltip needs a DOM element child */}
                     <IconButton
                       aria-label={page.ariaLabel || page.name}
                       onClick={() => handlePageClick(page.path)}
@@ -217,7 +227,6 @@ function Navbar() {
 
 
           {/* === Center Section (Conditional Stats) === */}
-          {/* Render StatsHeader ONLY if NOT on the dashboard */}
           {!isDashboard && (
             <StatsHeader
               // Pass loading state - true if stats haven't loaded yet
@@ -226,21 +235,33 @@ function Navbar() {
               upCount={upWebsitesCount}
               totalCount={totalWebsitesCount}
               uptime={otherStatsValues.uptime}
+
               // Pass the incidents count instead of response time
               incidentsLast24h={incidentsLast24h}
               center={true} // Explicitly use centered layout for Navbar
+
             />
           )}
 
 
           {/* === Right Section === */}
+
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: { xs: 0, md: 1 } }}>
              <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1, sm: 2 } }}>
               <AlertsDropdown
-                options={{ limit: 50 }}
+   options={{ limit: 50 }}
                 pollingInterval={60000}
               />
-              <Tooltip title="Open settings">
+
+             {/* Theme Toggle Button */}
+             <Tooltip title={`Toggle ${mode === 'dark' ? 'light' : 'dark'} mode`}>
+                <IconButton sx={{ ml: 1 }} onClick={handleThemeToggle} color="inherit">
+                    {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+                </IconButton>
+             </Tooltip>
+
+             {/* User Avatar and Menu */}
+             <Tooltip title="Open settings">
                 <IconButton
                   onClick={handleOpenUserMenu}
                   sx={{ p: 0 }}
@@ -254,6 +275,7 @@ function Navbar() {
                       width: { xs: 32, sm: 40 },
                       height: { xs: 32, sm: 40 },
                       bgcolor: "secondary.main",
+                      color: (theme) => theme.palette.getContrastText(theme.palette.secondary.main),
                       fontSize: "1rem",
                     }}
                   >
@@ -261,7 +283,8 @@ function Navbar() {
                   </Avatar>
                 </IconButton>
               </Tooltip>
-            </Box>
+
+             {/* User Menu Dropdown */}
             <Menu
               id="menu-appbar-user"
               sx={{ mt: "45px" }}
@@ -278,7 +301,7 @@ function Navbar() {
               </Box>
               {settings.map((setting) => (
                 <MenuItem key={setting} onClick={() => handleSettingClick(setting)}>
-                  <Typography sx={{ textAlign: "center" }}>{setting}</Typography>
+                  <Typography sx={{ textAlign: "center", width: '100%' }}>{setting}</Typography>
                 </MenuItem>
               ))}
             </Menu>

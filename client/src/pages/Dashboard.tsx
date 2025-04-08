@@ -5,6 +5,7 @@
 * - Removed `responseTime` from `otherStatsValues` memo.
 * - Passed `incidentsLast24h` to `StatsHeader` instead of `responseTime`.
 */
+
 import React, { useMemo } from "react";
 import { Container, Box, CircularProgress, Typography, Button, Alert, Paper } from "@mui/material";
 import WebsiteGrid from "../components/dashboard/WebsiteGrid";
@@ -12,12 +13,16 @@ import { useWebsiteData } from "../hooks/domain/useWebsiteData";
 import StatsHeader from "../components/dashboard/StatsHeader"; // Correct path
 
 const Dashboard: React.FC = () => {
+  const refetchInterval = 60000; // 1 minute
+
+  // Fetch base website data (list, results, overall stats)
   const {
     websitesWithResults,
     overallStats, // Needed for uptime
     // Destructure the new incidents count
     incidentsLast24h,
     isLoading: isLoadingData,
+    isFetching: isFetchingData, // Get fetching state as well
     error: dataError,
     refetch,
     totalWebsitesCount,
@@ -36,10 +41,12 @@ const Dashboard: React.FC = () => {
       }
   }, [overallStats]);
 
+
   // --- Render Logic ---
 
   // 1. Show full-screen spinner ONLY during the very initial load phase
   if (isLoadingData && websitesWithResults.length === 0 && !overallStats) {
+
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
@@ -49,9 +56,10 @@ const Dashboard: React.FC = () => {
 
   // 2. Show a global error message if loading failed catastrophically
   if (dataError && websitesWithResults.length === 0 && !overallStats) {
+
       return (
            <Container maxWidth="lg" sx={{ mt: 4 }}>
-               <Typography color="error">Error loading dashboard data: {dataError.message}</Typography>
+               <Typography color="error">Error loading dashboard data: {primaryError.message}</Typography>
                <Button onClick={() => refetch()} sx={{ mt: 1 }}>Retry</Button>
            </Container>
        );
@@ -60,6 +68,27 @@ const Dashboard: React.FC = () => {
   // 3. Render the main dashboard structure including the StatsHeader
   return (
     <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: 2, mb: 4 }}>
+       {/* Render Header and Grid only if not showing initial spinner or error */}
+       {(!showInitialSpinner || websitesWithResults.length > 0 || overallStats) && (!primaryError || websitesWithResults.length > 0 || overallStats) && (
+          <>
+            <Paper elevation={1} sx={{ mb: 2, overflow: 'hidden' }}>
+              <StatsHeader
+                  isLoading={isLoadingData} // Loading for base stats (Status, Uptime)
+                  error={dataError} // Error for base stats
+                  upCount={upWebsitesCount}
+                  totalCount={totalWebsitesCount}
+                  uptime={dashboardUptime}
+                  // --- Pass props from the *new* monitoring-based incident count ---
+                  isLoadingIncidents={isLoadingIncidentCount} // Loading specifically for the count
+                  incidentsError={incidentCountError} // Error specifically for the count
+                  incidentCount={incidentCount} // The count value
+                  // --- Pass alert list props *only* for the popover ---
+                  // Note: Error/Loading state for popover list is not explicitly shown in header display
+                  incidentsLast24h={incidentsLast24h} // Alert list for the popover detail
+                  center={false}
+              />
+            </Paper>
+
 
       {/* Dashboard Specific Stats Header */}
       <Paper elevation={1} sx={{ mb: 2, overflow: 'hidden' }}>
@@ -91,6 +120,7 @@ const Dashboard: React.FC = () => {
         loading={isLoadingData}
         error={null} // Global error handled above
       />
+
     </Container>
   );
 };

@@ -6,12 +6,13 @@ import {
     MonitoringResult as PrismaMonitoringResult,
     PrismaClient,
     Prisma // Keep for types like Prisma.SortOrder etc.
+
 } from '@prisma/client';
 import { TIMEOUT_MS } from '../config/config';
 import * as AlertService from './alertService';
 import prisma from '../prisma/prismaClient';
 import {
-    subHours, subDays, subYears, subMonths,
+    subHours, subDays, subYears, subMonths, // <-- Add subHours
     startOfDay, endOfDay, startOfMonth, endOfMonth,
     eachDayOfInterval, eachMonthOfInterval, format, getUnixTime,
     sub // Keep 'sub' for date subtraction
@@ -26,6 +27,7 @@ import {
     TimeframeKey,
     ChartDataPoint,
     MonitoringResult,
+
     DowntimeInfo
 } from '../types';
 
@@ -93,6 +95,7 @@ export class WebsiteMonitor {
         }
     }
 
+
     static async checkWebsite(website: PrismaWebsite): Promise<PrismaMonitoringResult> {
         const logPrefix = `[Monitor W:${website.id} ${website.url}]`;
         console.log(`${logPrefix} Starting check.`);
@@ -102,6 +105,7 @@ export class WebsiteMonitor {
             const checkResultData = await this.performWebsiteCheck(website.url);
             savedResult = await ResultsManager.saveResult(website.id, checkResultData);
             console.log(`${logPrefix} Result saved (ID: ${savedResult.id}): Avail=${savedResult.isAvailable}, RT=${savedResult.responseTime}ms, Status=${savedResult.statusCode}, Err=${savedResult.errorMessage ?? 'None'}`);
+
 
             if (savedResult) {
                  await AlertService.handlePotentialAlertCondition(website, savedResult);
@@ -127,6 +131,7 @@ export class WebsiteMonitor {
         }
     }
 
+
 }
 
 // ============================================================================
@@ -134,6 +139,7 @@ export class WebsiteMonitor {
 // ============================================================================
 // ... (ResultsManager class remains unchanged) ...
 export class ResultsManager {
+
 
     static async saveResult( websiteId: number, result: MonitoringResponse ): Promise<PrismaMonitoringResult> {
         const { responseTime, isAvailable, statusCode, errorMessage } = result;
@@ -180,6 +186,7 @@ export class ResultsManager {
         });
     }
 
+
     static async getAllResults(options: ResultsQueryOptions = {}): Promise< (PrismaMonitoringResult & { website: { url: string } | null })[] > {
         const { limit = 100, from, to } = options;
         const whereClause: Prisma.MonitoringResultWhereInput = {};
@@ -196,6 +203,7 @@ export class ResultsManager {
         });
     }
 
+
     static async getFilteredResultsByWebsite( websiteId: number, options: ResultsQueryOptions = {} ): Promise<PrismaMonitoringResult[]> {
         const { limit = 100, from, to } = options;
         const whereClause: Prisma.MonitoringResultWhereInput = { websiteId };
@@ -210,6 +218,7 @@ export class ResultsManager {
             take: limit
         });
     }
+
 
     static async getResultsForUser( userId: number, options: ResultsQueryOptions = {} ): Promise< (PrismaMonitoringResult & { website: { websiteUsers: { name: string | null }[] } | null })[] > {
         const { limit = 100, from, to } = options;
@@ -279,6 +288,7 @@ export class StatsCalculator {
     }
 
     // --- getConsecutiveFailures (unchanged) ---
+
     static async getConsecutiveFailures(websiteId: number): Promise<number> {
         const results = await prisma.monitoringResult.findMany({
             where: { websiteId },
@@ -299,6 +309,7 @@ export class StatsCalculator {
     }
 
     // --- getCurrentDowntimeInfo (unchanged) ---
+
     static async getCurrentDowntimeInfo(websiteId: number): Promise<DowntimeInfo> {
         const recentResults = await prisma.monitoringResult.findMany({
             where: { websiteId },
@@ -312,6 +323,7 @@ export class StatsCalculator {
         }
 
         if (recentResults[0].isAvailable) {
+
             return { consecutiveFailures: 0, downtimeStartedAt: null };
         }
 
@@ -348,6 +360,7 @@ export class StatsCalculator {
     }
 
     // --- getWebsiteStats (unchanged) ---
+
     static async getWebsiteStats( websiteId: number, userId?: number, period: TimeframeKey | string = 'week' ): Promise<WebsiteStatsData> {
         const days = this.periodToDays(period);
         const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -356,6 +369,7 @@ export class StatsCalculator {
             where: { id: websiteId },
             select: { url: true }
         });
+
         if (!website) throw new Error(`Website with ID ${websiteId} not found`);
 
         let websiteName = website.url;
@@ -387,6 +401,7 @@ export class StatsCalculator {
             prisma.monitoringResult.count({
                 where: { websiteId, checkedAt: { gte: startDate } }
             })
+
         ]);
 
         return {
@@ -406,6 +421,7 @@ export class StatsCalculator {
      * Returns the SHARED OverallStats type.
      * MODIFIED: incidentsLast24h calculation counts transitions from UP to DOWN
      * based on MonitoringResult history.
+
      */
     static async getOverallStats( userId?: number, period: TimeframeKey | string = 'week' ): Promise<OverallStats> {
         const days = this.periodToDays(period);
@@ -413,12 +429,8 @@ export class StatsCalculator {
         // Calculate start time for 24-hour incident window
         const twentyFourHoursAgo = sub(new Date(), { hours: 24 });
 
-        // Define the base filter for websites (all or user-specific)
-        const websiteWhere: Prisma.WebsiteWhereInput = userId
-            ? { websiteUsers: { some: { userId } } }
-            : {};
+        const websiteWhere: Prisma.WebsiteWhereInput = userId ? { websiteUsers: { some: { userId } } } : {};
 
-        // Get total and active counts based on the filter
         const [totalWebsites, activeWebsitesCount] = await Promise.all([
             prisma.website.count({ where: websiteWhere }),
             prisma.website.count({ where: { ...websiteWhere, isActive: true } })
@@ -516,7 +528,7 @@ export class StatsCalculator {
             ? Math.round(validResponseStats.reduce((sum, stat) => sum + stat.averageResponseTime!, 0) / validResponseStats.length)
             : null;
 
-        // Construct object matching the SHARED OverallStats type
+
         return {
             totalWebsites,
             activeWebsites: activeWebsitesCount,
@@ -535,6 +547,7 @@ export class StatsCalculator {
     }
 
     // --- getChartDataForWebsite (unchanged) ---
+
     static async getChartDataForWebsite( websiteId: number, timeframe: TimeframeKey ): Promise<ChartDataPoint[]> {
         const endDate = new Date();
         let chartData: ChartDataPoint[] = [];
@@ -553,6 +566,7 @@ export class StatsCalculator {
             const avgResponseTime = validResponseTimes.length > 0
                 ? Math.round(validResponseTimes.reduce((s, rt) => s + rt, 0) / validResponseTimes.length)
                 : null;
+
             const uptimeRatio = successfulChecks / totalChecks;
             return { avgResponseTime, uptimeRatio: parseFloat(uptimeRatio.toFixed(4)), checkCount: totalChecks };
         };
@@ -572,8 +586,8 @@ export class StatsCalculator {
                     uptimeRatio: r.isAvailable ? 1.0 : 0.0,
                     checkCount: 1,
                 }));
-                break;
 
+                break;
             case 'day':
                 startDate = subDays(endDate, 1);
                 intervalStart = startOfDay(startDate);
@@ -626,8 +640,8 @@ export class StatsCalculator {
                         ...stats
                     };
                 });
-                break;
 
+                break;
             case 'year':
                 startDate = subYears(endDate, 1);
                 intervalStart = startOfMonth(startDate);
@@ -654,8 +668,8 @@ export class StatsCalculator {
                         ...stats
                     };
                 });
-                break;
 
+                break;
             default:
                 console.warn(`[StatsCalculator] Unsupported timeframe for chart data: ${timeframe}. Defaulting to 'week'.`);
                 return this.getChartDataForWebsite(websiteId, 'week');
@@ -663,6 +677,70 @@ export class StatsCalculator {
 
         chartData.sort((a, b) => a.timestamp - b.timestamp);
         return chartData;
+    }
+
+    /**
+     * NEW: Counts distinct websites monitored by a user that had an incident
+     * (down or slow based on user threshold) in the last 24 hours.
+     */
+    static async countUserDistinctWebsiteIncidentsLast24h(userId: number): Promise<number> {
+        const twentyFourHoursAgo = subHours(new Date(), 24);
+
+        // 1. Fetch all relevant results AND user thresholds in one go
+        const resultsWithThresholds = await prisma.monitoringResult.findMany({
+            where: {
+                checkedAt: { gte: twentyFourHoursAgo },
+                // Filter results for websites the user monitors
+                website: {
+                    websiteUsers: {
+                        some: { userId }
+                    }
+                },
+            },
+            select: {
+                websiteId: true,
+                isAvailable: true,
+                responseTime: true,
+                // Include the relevant WebsiteUser record to get the threshold
+                website: {
+                    select: {
+                        websiteUsers: {
+                            where: { userId }, // Filter for the specific user's settings
+                            select: {
+                                alertThreshold: true,
+                            },
+                            take: 1 // Only need one record per website for this user
+                        }
+                    }
+                }
+            }
+        });
+
+        // 2. Process results in code to identify distinct websites with incidents
+        const incidentWebsiteIds = new Set<number>();
+
+        for (const result of resultsWithThresholds) {
+            const userSettings = result.website?.websiteUsers?.[0]; // Get user's settings for this site
+
+            // Condition 1: Website was down
+            if (!result.isAvailable) {
+                incidentWebsiteIds.add(result.websiteId);
+                continue; // Move to next result if already marked as incident
+            }
+
+            // Condition 2: Website was slow (based on user threshold)
+            const threshold = userSettings?.alertThreshold;
+            if (
+                threshold !== null && // User has a threshold set
+                result.responseTime !== null && // Result has a response time
+                result.responseTime > threshold // Response time exceeds threshold
+            ) {
+                incidentWebsiteIds.add(result.websiteId);
+            }
+        }
+
+        // 3. Return the count of distinct website IDs
+        return incidentWebsiteIds.size;
     }
 
 } // End StatsCalculator Class

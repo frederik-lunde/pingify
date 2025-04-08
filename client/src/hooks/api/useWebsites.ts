@@ -31,6 +31,7 @@ import { useAuth } from '../../context/AuthContext'; // <--- ADJUST PATH AS NEED
 
 // --- Import Monitoring hooks/keys ---
 import { monitoringQueryKeys, useWebsiteCheckMutation } from './useMonitoring'; // <--- ADJUST PATH AS NEEDED
+import { alertQueryKeys } from "../../hooks"; // <-- Import alert keys for invalidation
 
 // Query Keys (remain the same)
 export const websiteQueryKeys = {
@@ -56,7 +57,7 @@ export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>
         queryKey: websiteQueryKeys.lists(userId),
         queryFn: () => { if (!userId) return Promise.resolve([]); return fetchUserWebsites(); },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 1000 * 60 * 5, // Example: 5 min stale time for user list
+        staleTime: 1000, 
         gcTime: 1000 * 60 * 15,
         ...options,
     });
@@ -69,7 +70,7 @@ export function useUserWebsiteQuery(websiteId: number | undefined, options?: Cus
         queryKey: websiteQueryKeys.detail(websiteId, userId),
         queryFn: () => { if (!userId || !websiteId) return Promise.reject(new Error("Missing user or website ID for query")); return fetchUserWebsite(websiteId); },
         enabled: options?.enabled === undefined ? (!!userId && !!websiteId && websiteId > 0) : options.enabled,
-        staleTime: 1000 * 60 * 1, // Example: 1 min stale time for detail
+        staleTime: 1000,
         gcTime: 1000 * 60 * 5,
         ...options,
 
@@ -100,6 +101,9 @@ export function useWebsiteMutations() {
     // Define PATTERNS using partial keys up to the user ID where applicable
     const userMonitoringResultsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'userResults', { userId }];
     const userOverallStatsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'stats', 'user', { userId }];
+    const userAlertListKeyPattern: QueryKey = alertQueryKeys.lists();
+    const userAlertStatsKeyPattern: QueryKey = alertQueryKeys.stats();
+    // const userIncidentCountKey: QueryKey = alertQueryKeys.incidentCountLast24h();
 
 
     // --- CREATE Mutation (Adds website TO USER) ---
@@ -128,6 +132,13 @@ export function useWebsiteMutations() {
             // 3. Invalidate user's overall stats
             queryClient.invalidateQueries({ queryKey: userOverallStatsKeyPattern });
             console.log(`Invalidating overall user stats:`, userOverallStatsKeyPattern);
+
+            // 4. Invalidate user alerts and incident count
+            queryClient.invalidateQueries({ queryKey: userAlertListKeyPattern, exact: false });
+            queryClient.invalidateQueries({ queryKey: userAlertStatsKeyPattern, exact: false });
+            // queryClient.invalidateQueries({ queryKey: userIncidentCountKey });
+            console.log(`Invalidating alerts and incident count`);
+
 
             console.log('Caches invalidated.');
 
@@ -185,6 +196,15 @@ export function useWebsiteMutations() {
                 queryClient.invalidateQueries({ queryKey: userOverallStatsKeyPattern });
                 console.log(`Invalidating overall user stats due to interval change:`, userOverallStatsKeyPattern);
             }
+
+            // 4. Invalidate alerts if alert settings changed
+            if (variables.websiteData.alertEnabled !== undefined || variables.websiteData.alertThreshold !== undefined) {
+                 queryClient.invalidateQueries({ queryKey: userAlertListKeyPattern, exact: false });
+                 queryClient.invalidateQueries({ queryKey: userAlertStatsKeyPattern, exact: false });
+                //  queryClient.invalidateQueries({ queryKey: userIncidentCountKey });
+                 console.log(`Invalidating alerts due to settings change`);
+            }
+
         },
         onError: (error, variables) => {
             console.error(`[Mutation Error] Error updating website ${variables.websiteId}:`, error.message);
@@ -260,6 +280,12 @@ export function useWebsiteMutations() {
             queryClient.removeQueries({ queryKey: detailsKeyPatternForUser, exact: false }); // Use exact: false to match subsets if params vary
             console.log(`Removing monitoring details query for user from cache:`, detailsKeyPatternForUser);
 
+             // 5. Invalidate user alerts and incident count
+            queryClient.invalidateQueries({ queryKey: userAlertListKeyPattern, exact: false });
+            queryClient.invalidateQueries({ queryKey: userAlertStatsKeyPattern, exact: false });
+            // queryClient.invalidateQueries({ queryKey: userIncidentCountKey });
+            console.log(`Invalidating alerts and incident count after removal`);
+
             console.log(`Website ${websiteId} deletion cleanup complete.`);
         },
         onError: (error, websiteId) => {
@@ -284,6 +310,12 @@ export function useWebsiteMutations() {
              const detailKey: QueryKey = websiteQueryKeys.detail(websiteId, userId);
              queryClient.setQueryData(detailKey, updatedWebsiteUser);
              console.log(`Setting website detail cache after toggle:`, detailKey);
+
+             // Also invalidate alert queries
+             queryClient.invalidateQueries({ queryKey: userAlertListKeyPattern, exact: false });
+             queryClient.invalidateQueries({ queryKey: userAlertStatsKeyPattern, exact: false });
+            //  queryClient.invalidateQueries({ queryKey: userIncidentCountKey });
+             console.log(`Invalidating alerts after toggle`);
         },
         onError: (error, variables) => {
             console.error(`[Mutation Error] Error toggling alert status for website ${variables.websiteId}:`, error.message);
