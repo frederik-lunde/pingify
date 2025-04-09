@@ -8,7 +8,8 @@ import {
     TimeframeKey,
     WebsiteDetailsData,
     MonitoringResult,
-    IncidentCountResponse
+    IncidentCountResponse,
+    DownWebsite
 } from '../types';
 
 export interface FetchWebsiteDetailsParams {
@@ -44,6 +45,22 @@ export const fetchWebsiteDetails = async ({
  */
 export const fetchUserStats = async (period: TimeframeKey | string = 'week'): Promise<OverallStats> => {
     return apiClient.get<OverallStats>("/monitoring/user/stats", { params: { period } });
+};
+
+
+/**
+ * Fetches the list of down websites in the last 24 hours
+ * Endpoint: GET /monitoring/user/down-websites/last24h
+ */
+export const fetchDownWebsitesLast24h = async (): Promise<DownWebsite[]> => {
+    const url = "/monitoring/user/down-websites/last24h";
+    try {
+        const data = await apiClient.get<DownWebsite[]>(url);
+        return data ?? [];
+    } catch (error: any) {
+        console.error(`API Error fetching down websites: ${error.message}`);
+        throw error;
+    }
 };
 
 /**

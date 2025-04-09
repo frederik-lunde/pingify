@@ -28,6 +28,8 @@ router.get('/user/results', monitoringController.getUserResults);
 router.get('/user/stats', monitoringController.getUserStats);
 // --- NEW ROUTE FOR INCIDENT COUNT ---
 router.get('/user/incidents/last24h', monitoringController.getUserIncidentCountLast24h); // <-- ADDED
+router.get('/user/down-websites/last24h', monitoringController.getDownWebsitesLast24h);
+
 
 // --- Website-Specific Routes ---
 router.get('/website/:websiteId/results', monitoringController.getResultsByWebsite);

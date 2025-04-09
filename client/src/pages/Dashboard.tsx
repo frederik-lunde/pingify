@@ -1,5 +1,4 @@
 // src/pages/Dashboard.tsx
-
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
     Container,
@@ -31,19 +30,15 @@ import DashboardSearchFilter from "../components/dashboard/DashboardSearchFilter
 import StatsHeader from "../components/dashboard/StatsHeader";
 
 // Hook Imports
-import { useWebsiteData } from "../hooks"; // Explicit import for clarity
+import { useWebsiteData } from "../hooks";
 import { useFocusMode } from "../context/FocusModeContext";
-import {Link} from "react-router";
+import { useDownWebsitesLast24h } from "../hooks";
+import { Link } from "react-router";
 
 // Type Imports
+import { SortOption } from "../types";
 
 // Define Sort Options
-type SortOption =
-    | 'name-asc'
-    | 'name-desc'
-    | 'response-asc'
-    | 'response-desc';
-
 interface SortOptionConfig {
     value: SortOption;
     label: string;
@@ -64,10 +59,16 @@ const Dashboard: React.FC = () => {
     const [sortOption, setSortOption] = useState<SortOption>('name-asc');
     const { isFocusMode, toggleFocusMode } = useFocusMode();
     const [isHighlightActive, setIsHighlightActive] = useState(false);
+    const [showDownWebsites, setShowDownWebsites] = useState(false);
 
-    const openSortMenu = Boolean(anchorEl);
+    // Data Hooks
+    const {
+        data: downWebsites = [],
+        isLoading: isLoadingDownWebsites,
+        error: downWebsitesError,
+        refetch: refetchDownWebsites
+    } = useDownWebsitesLast24h();
 
-    // Data Fetching Hook
     const {
         websitesWithResults: allWebsites,
         overallStats,
@@ -80,10 +81,12 @@ const Dashboard: React.FC = () => {
         totalWebsitesCount,
         upWebsitesCount,
     } = useWebsiteData(
-        undefined, // Default results limit
-        'week',    // Stats period
-        60000      // Refetch interval (1 minute)
+        undefined,
+        'week',
+        60000
     );
+
+    const openSortMenu = Boolean(anchorEl);
 
     // Callbacks
     const handleFilterChange = useCallback((term: string) => {
@@ -107,7 +110,6 @@ const Dashboard: React.FC = () => {
         const shouldActivate = !isHighlightActive;
         setIsHighlightActive(shouldActivate);
 
-        // Scroll to highlighted item if activating
         if (shouldActivate && lastIncidentWebsiteId) {
             setTimeout(() => {
                 const elementId = `website-card-grid-${lastIncidentWebsiteId}`;
@@ -118,16 +120,24 @@ const Dashboard: React.FC = () => {
                         block: 'center',
                         inline: 'nearest'
                     });
-                    console.log(`Scrolling to ${elementId}`);
-                } else {
-                    console.warn(`Element with ID ${elementId} not found for scrolling.`);
                 }
-            }, 100); // Delay to ensure element is rendered
+            }, 100);
         }
     }, [isHighlightActive, lastIncidentWebsiteId]);
 
+    const toggleDownWebsitesView = useCallback(async () => {
+        if (!showDownWebsites) {
+            try {
+                await refetchDownWebsites();
+            } catch (error) {
+                console.error("Failed to fetch down websites:", error);
+                return;
+            }
+        }
+        setShowDownWebsites(!showDownWebsites);
+    }, [showDownWebsites, refetchDownWebsites]);
+
     // Effects
-    // Reset highlight state if the underlying incident changes
     useEffect(() => {
         setIsHighlightActive(false);
     }, [lastIncidentWebsiteId]);
@@ -144,23 +154,28 @@ const Dashboard: React.FC = () => {
     }, [allWebsites, filterTerm]);
 
     const sortedAndFilteredWebsites = useMemo(() => {
-        const websitesToSort = [...filteredWebsites]; // Create a shallow copy for sorting
-        websitesToSort.sort((a, b) => {
+        if (showDownWebsites && downWebsites.length > 0) {
+            const downWebsiteIds = new Set(downWebsites.map(website => website.id));
+            return filteredWebsites.filter(website => 
+                downWebsiteIds.has(website.userWebsite.websiteId)
+            );
+        }
+        return [...filteredWebsites].sort((a, b) => {
             if (!a?.userWebsite || !b?.userWebsite) return 0;
 
-            // 1. Pinned sites always come first
+            // 1. Pinned sites first
             if (a.userWebsite.isPinned !== b.userWebsite.isPinned) {
                 return a.userWebsite.isPinned ? -1 : 1;
             }
 
-            // 2. Down sites come before up sites (after pinning)
-            const aIsAvailable = a.latestResult?.isAvailable ?? true; // Treat unknown as available
+            // 2. Down sites come before up sites
+            const aIsAvailable = a.latestResult?.isAvailable ?? true;
             const bIsAvailable = b.latestResult?.isAvailable ?? true;
             if (aIsAvailable !== bIsAvailable) {
-                return aIsAvailable ? 1 : -1; // Down (false) comes before up (true)
+                return aIsAvailable ? 1 : -1;
             }
 
-            // 3. Apply user-selected secondary sort
+            // 3. Apply user-selected sort
             switch (sortOption) {
                 case 'name-asc': {
                     const nameA = a.userWebsite.name ?? a.userWebsite.website?.url ?? '';
@@ -172,30 +187,27 @@ const Dashboard: React.FC = () => {
                     const nameB = b.userWebsite.name ?? b.userWebsite.website?.url ?? '';
                     return nameB.localeCompare(nameA);
                 }
-                case 'response-asc': { // Fastest first
-                    const respA = a.latestResult?.responseTime ?? Infinity; // Treat null/undefined as slowest
+                case 'response-asc': {
+                    const respA = a.latestResult?.responseTime ?? Infinity;
                     const respB = b.latestResult?.responseTime ?? Infinity;
                     return respA - respB;
                 }
-                case 'response-desc': { // Slowest first
-                    const respA = a.latestResult?.responseTime ?? -1; // Treat null/undefined as fastest
+                case 'response-desc': {
+                    const respA = a.latestResult?.responseTime ?? -1;
                     const respB = b.latestResult?.responseTime ?? -1;
-                    return respB - respA; // Sort descending, handle -1 correctly
+                    return respB - respA;
                 }
                 default:
                     return 0;
             }
         });
-        return websitesToSort;
-    }, [filteredWebsites, sortOption]);
+    }, [filteredWebsites, sortOption, showDownWebsites, downWebsites]);
 
     const headerStats = useMemo(() => ({
         uptime: overallStats?.overallUptime ?? null,
     }), [overallStats]);
 
     // Render Logic
-
-    // Initial Loading State
     if (isLoadingData && allWebsites.length === 0 && !overallStats) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -204,7 +216,6 @@ const Dashboard: React.FC = () => {
         );
     }
 
-    // Global Error State (when no data could be loaded initially)
     if (dataError && allWebsites.length === 0 && !overallStats) {
         return (
             <Container maxWidth="lg" sx={{ mt: 4, textAlign: 'center' }}>
@@ -218,13 +229,11 @@ const Dashboard: React.FC = () => {
         );
     }
 
-    // Main Dashboard Layout
     return (
         <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: 2, mb: 2 }}>
-
             {/* Statistics Header Section */}
             {!isFocusMode && (
-                <Paper elevation={1} sx={{ mb: 2, overflow: 'hidden' }}> {/* Increased margin-bottom */}
+                <Paper elevation={1} sx={{ mb: 2, overflow: 'hidden' }}>
                     <StatsHeader
                         isLoading={isLoadingData && !overallStats}
                         error={dataError}
@@ -232,12 +241,14 @@ const Dashboard: React.FC = () => {
                         totalCount={totalWebsitesCount}
                         uptime={headerStats.uptime}
                         incidentsLast24h={incidentsLast24h}
-                        // Highlight props
                         lastIncidentTimestamp={lastIncidentTimestamp}
                         lastIncidentWebsiteId={lastIncidentWebsiteId}
                         onToggleHighlight={handleToggleHighlight}
                         isHighlightActive={isHighlightActive}
-                        center={false} // Dashboard layout style
+                        center={false}
+                        downWebsites={downWebsites}
+                        onShowDownWebsites={toggleDownWebsitesView}
+                        showDownWebsites={showDownWebsites}
                     />
                 </Paper>
             )}
@@ -246,30 +257,27 @@ const Dashboard: React.FC = () => {
             <Box sx={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between', // Center search bar between buttons
-                gap: { xs: 1, sm: 0 },          // Add slightly more gap on larger screens
-                mb: 1,                         // Increased margin-bottom
-                flexWrap: 'wrap'               // Allow wrapping
+                justifyContent: 'space-between',
+                gap: { xs: 1, sm: 0 },
+                mb: 1,
+                flexWrap: 'wrap'
             }}>
-                 {/* Focus Mode Toggle */}
-                 <Tooltip title={isFocusMode ? "Show Full Dashboard" : "Focus Mode (Hide Stats)"}>
-                     <IconButton onClick={toggleFocusMode} color="default" aria-label="toggle focus mode">
-                         {isFocusMode ? <ViewAgendaOutlinedIcon /> : <ViewCompactOutlinedIcon />}
-                     </IconButton>
-                 </Tooltip>
+                <Tooltip title={isFocusMode ? "Show Full Dashboard" : "Focus Mode (Hide Stats)"}>
+                    <IconButton onClick={toggleFocusMode} color="default" aria-label="toggle focus mode">
+                        {isFocusMode ? <ViewAgendaOutlinedIcon /> : <ViewCompactOutlinedIcon />}
+                    </IconButton>
+                </Tooltip>
 
-                {/* Search Input */}
                 <DashboardSearchFilter
                     onFilterChange={handleFilterChange}
                     sx={{
-                        maxWidth: { xs: 'calc(100% - 100px)', sm: 450 }, // Max width constraint
-                        width: '100%', // Allow flexible width up to maxWidth
-                        mx: { xs: 0, sm: 1 }, // Optional horizontal margin for spacing
-                     }}
-                 />
+                        maxWidth: { xs: 'calc(100% - 100px)', sm: 450 },
+                        width: '100%',
+                        mx: { xs: 0, sm: 1 },
+                    }}
+                />
 
-                {/* Sort Button Group */}
-                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <Tooltip title="Sort websites">
                         <IconButton
                             id="sort-button"
@@ -282,9 +290,8 @@ const Dashboard: React.FC = () => {
                             <FilterListIcon />
                         </IconButton>
                     </Tooltip>
-                 </Box>
+                </Box>
 
-                {/* Sort Options Menu */}
                 <Menu
                     id="sort-menu"
                     anchorEl={anchorEl}
@@ -300,16 +307,32 @@ const Dashboard: React.FC = () => {
                             selected={option.value === sortOption}
                             onClick={() => handleSortOptionSelect(option.value)}
                         >
-                             <ListItemIcon sx={{ minWidth: '36px' }}>{option.icon}</ListItemIcon>
+                            <ListItemIcon sx={{ minWidth: '36px' }}>{option.icon}</ListItemIcon>
                             <ListItemText primary={option.label} />
                         </MenuItem>
                     ))}
                 </Menu>
             </Box>
 
-            {/* Alert for Partial Errors during Refetch */}
+            {/* Loading State for Down Websites */}
+            {isLoadingDownWebsites && showDownWebsites && (
+                <Box display="flex" justifyContent="center" sx={{ my: 4 }}>
+                    <CircularProgress />
+                </Box>
+            )}
+
+            {/* Error Alerts */}
+            {downWebsitesError && showDownWebsites && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    Failed to load down websites: {downWebsitesError.message}
+                    <Button onClick={() => refetchDownWebsites()} size="small" sx={{ ml: 1 }}>
+                        Retry
+                    </Button>
+                </Alert>
+            )}
+
             {!isFocusMode && dataError && (allWebsites.length > 0 || overallStats) && (
-                <Alert severity="warning" sx={{ mb: 1 }}> {/* Consistent margin-bottom */}
+                <Alert severity="warning" sx={{ mb: 1 }}>
                     There might be issues displaying the latest data: {dataError.message}.
                     <Button onClick={() => refetch()} size="small" sx={{ ml: 1 }}>Retry</Button>
                 </Alert>
@@ -318,45 +341,41 @@ const Dashboard: React.FC = () => {
             {/* Website Grid */}
             <WebsiteGrid
                 websitesWithResults={sortedAndFilteredWebsites}
-                // Show loading specifically if filtering/sorting is active but results aren't ready yet
                 loading={isLoadingData && sortedAndFilteredWebsites.length === 0 && (!!filterTerm || sortOption !== 'name-asc')}
-                error={null} // Grid-level errors aren't handled here
-                // Highlight props
+                error={null}
                 lastIncidentWebsiteId={lastIncidentWebsiteId}
                 isHighlightActive={isHighlightActive}
-                
             />
 
-            {/* Message: Filter/Sort yields no results */}
+            {/* Empty States */}
             {!isLoadingData && sortedAndFilteredWebsites.length === 0 && (!!filterTerm || sortOption !== 'name-asc') && (
                 <Typography sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
                     No websites match your current filter or sort criteria.
                 </Typography>
             )}
 
-            {/* Message: No websites added yet (Initial State) */}
-             {!isLoadingData && allWebsites.length === 0 && !filterTerm && sortOption === 'name-asc' && !dataError && (
-                 <Box sx={{
-                     display: "flex",
-                     flexDirection: "column",
-                     alignItems: "center",
-                     justifyContent: "center",
-                     p: { xs: 2, sm: 4 },
-                     borderRadius: 2, // Use theme's border radius convention
-                     bgcolor: "background.paper",
-                     boxShadow: 1,
-                     textAlign: "center",
-                     mt: 4 // Add some top margin
-                 }}>
-                     <Typography variant="h6" gutterBottom>No websites added yet</Typography>
-                     <Typography variant="body2" color="text.secondary" paragraph>
-                         Add your first website to start monitoring its uptime and performance.
-                     </Typography>
-                     {/* Consider adding an "Add Website" button here linking to the appropriate page */}
-                     {<Button variant="contained" component={Link} to="/add-website" sx={{ mt: 2 }}>Add Your First Website</Button>}
-                 </Box>
-             )}
-
+            {!isLoadingData && allWebsites.length === 0 && !filterTerm && sortOption === 'name-asc' && !dataError && (
+                <Box sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    p: { xs: 2, sm: 4 },
+                    borderRadius: 2,
+                    bgcolor: "background.paper",
+                    boxShadow: 1,
+                    textAlign: "center",
+                    mt: 4
+                }}>
+                    <Typography variant="h6" gutterBottom>No websites added yet</Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        Add your first website to start monitoring its uptime and performance.
+                    </Typography>
+                    <Button variant="contained" component={Link} to="/add-website" sx={{ mt: 2 }}>
+                        Add Your First Website
+                    </Button>
+                </Box>
+            )}
         </Container>
     );
 };

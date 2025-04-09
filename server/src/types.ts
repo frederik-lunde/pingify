@@ -282,6 +282,13 @@ export interface AuthContextType {
   logout: () => void;
 }
 
+export interface DownWebsite {
+  id: number;
+  name: string;
+  url: string;
+  lastDownTime: string; // ISO 8601 date string
+  consecutiveFailures: number;
+}
 
 // --- ADDED: Type for Downtime Info Calculation Result ---
 export interface DowntimeInfo {

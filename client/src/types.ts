@@ -29,6 +29,14 @@ export interface MonitoringResult {
   };
 }
 
+export interface DownWebsite {
+  id: number;
+  name: string;
+  url: string;
+  lastDownTime: string; // ISO 8601 date string
+  consecutiveFailures: number;
+}
+
 export interface Website {
   id: number;
   url: string;

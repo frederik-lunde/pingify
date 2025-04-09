@@ -27,7 +27,7 @@ import {
     OverallStats, // This type needs 'lastIncidentWebsiteId?' added
     TimeframeKey,
     ChartDataPoint,
-    MonitoringResult,
+    DownWebsite,
     DowntimeInfo
 } from '../types'; // Ensure path is correct and OverallStats is updated
 
@@ -185,6 +185,7 @@ export class ResultsManager {
     }
 
 
+
     static async getAllResults(options: ResultsQueryOptions = {}): Promise< (PrismaMonitoringResult & { website: { url: string } | null })[] > {
         const { limit = 100, from, to } = options;
         const whereClause: Prisma.MonitoringResultWhereInput = {};
@@ -306,6 +307,50 @@ export class StatsCalculator {
             }
         }
         return count;
+    }
+
+    static async getDownWebsitesLast24h(userId: number): Promise<DownWebsite[]> {
+        const twentyFourHoursAgo = subHours(new Date(), 24);
+        
+        // Get all websites monitored by user that had down incidents in last 24h
+        const downWebsites = await prisma.website.findMany({
+            where: {
+                websiteUsers: { some: { userId } },
+                monitoringResults: {
+                    some: {
+                        checkedAt: { gte: twentyFourHoursAgo },
+                        isAvailable: false
+                    }
+                }
+            },
+            include: {
+                websiteUsers: {
+                    where: { userId },
+                    select: { name: true }
+                },
+                monitoringResults: {
+                    where: {
+                        checkedAt: { gte: twentyFourHoursAgo },
+                        isAvailable: false
+                    },
+                    orderBy: { checkedAt: 'desc' },
+                    take: 1
+                }
+            }
+        });
+    
+        return Promise.all(downWebsites.map(async (website) => {
+            const lastDownResult = website.monitoringResults[0];
+            const downtimeInfo = await this.getCurrentDowntimeInfo(website.id);
+            
+            return {
+                id: website.id,
+                name: website.websiteUsers[0]?.name || website.url,
+                url: website.url,
+                lastDownTime: lastDownResult.checkedAt.toISOString(),
+                consecutiveFailures: downtimeInfo.consecutiveFailures
+            };
+        }));
     }
 
     // --- getCurrentDowntimeInfo (unchanged) ---

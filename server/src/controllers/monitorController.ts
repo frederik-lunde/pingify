@@ -14,7 +14,7 @@ import {
     ChartDataPoint,
     WebsiteStatsData,
     OverallStats,
-    DowntimeInfo,
+    DownWebsite,
     IncidentCountResponse // <-- Import type
 } from '../types';
 
@@ -405,6 +405,25 @@ export const getUserIncidentCountLast24h = async (
 
     } catch (error) {
         console.error(`Error fetching monitoring-based incident count for user ${req.user?.id}:`, error);
+        next(error);
+    }
+};
+
+/**
+ * GET /api/monitoring/user/down-websites/last24h
+ * Gets list of websites with down incidents in last 24h
+ */
+export const getDownWebsitesLast24h = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const userId = req.user!.id;
+        const downWebsites = await StatsCalculator.getDownWebsitesLast24h(userId);
+        res.json(downWebsites);
+    } catch (error) {
+        console.error(`Error fetching down websites for user ${req.user?.id}:`, error);
         next(error);
     }
 };

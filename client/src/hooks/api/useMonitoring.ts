@@ -17,6 +17,7 @@ import {
     fetchAllUserMonitoringResults,
     fetchUserIncidentCountLast24h, // <-- Import the new fetcher
     FetchWebsiteDetailsParams,
+    fetchDownWebsitesLast24h,
 } from '../../api/monitoringApi';
 import {
     WebsiteDetailsData,
@@ -72,6 +73,14 @@ export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, option
         ...options,
     });
 }
+
+export const useDownWebsitesLast24h = () => {
+    return useQuery({
+        queryKey: ['downWebsitesLast24h'],
+        queryFn: () => fetchDownWebsitesLast24h(),
+        staleTime: 5 * 60 * 1000, // 5 minutes
+    });
+};
 
 /**
  * Hook for triggering an immediate website check (mutation).
