@@ -1,6 +1,9 @@
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
+import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit'
+import compression from 'compression';
 
 // Routes
 import authRoutes from './routes/authRoutes';
@@ -18,10 +21,19 @@ import { scheduleMonitoring } from './utils/scheduler';
 // Initialize app and database connection
 const app = express();
 
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 500, // Limit each IP to 100 requests per windowMs
+    message: 'Too many requests, please try again later.'
+});
 // Global middlewares
 app.use(cors());
+app.use(helmet()); // Security headers
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+app.use(limiter); // Rate limiting
 app.use(express.json());
-app.use(morgan('dev'));
+app.use(morgan('tiny'));
+app.use(compression());
 
 // Public routes
 app.use('/api/auth', authRoutes);
