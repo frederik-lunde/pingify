@@ -30,9 +30,8 @@ import DashboardSearchFilter from "../components/dashboard/DashboardSearchFilter
 import StatsHeader from "../components/dashboard/StatsHeader";
 
 // Hook Imports
-import { useWebsiteData } from "../hooks";
+import { useWebsiteData, useDownWebsitesLast24h } from "../hooks";
 import { useFocusMode } from "../context/FocusModeContext";
-import { useDownWebsitesLast24h } from "../hooks";
 import { Link } from "react-router";
 
 // Type Imports
