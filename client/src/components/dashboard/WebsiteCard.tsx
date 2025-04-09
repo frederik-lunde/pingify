@@ -125,7 +125,7 @@ const useCardChartConfig = (chartDataPoints: ChartDataPoint[] | undefined): { ch
         },
         scales: { // Hide scales for card view
             x: { display: false },
-            y: { display: false, beginAtZero: true }
+            y: { display: false, beginAtZero: false}, // Adjust y-axis range if needed
         },
         interaction: {
             mode: 'nearest',
