@@ -10,6 +10,7 @@ import authRoutes from './routes/authRoutes';
 import websiteRoutes from './routes/websiteRoutes';
 import monitoringRoutes from './routes/monitoringRoutes';
 import alertRoutes from './routes/alertRoutes';
+import incidentRoutes from './routes/incidentRoutes';
 
 // Middleware
 import errorMiddleware from './middleware/errorMiddleware';
@@ -42,7 +43,9 @@ app.use('/api/auth', authRoutes);
 // Protected routes for user-specific data
 app.use('/api/websites',authenticate, websiteRoutes);
 app.use('/api/monitoring',authenticate, monitoringRoutes);
+app.use('/api/incidents',authenticate, incidentRoutes);
 app.use('/api/alerts',authenticate, alertRoutes);
+
 
 // Start monitoring scheduler (runs for all websites regardless of user access)
 scheduleMonitoring();

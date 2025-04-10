@@ -1,11 +1,11 @@
 // server/src/types.ts
-// --- SECTION 1: Prisma Type Re-exports (Minimal Required) ---
 import {
   Website as PrismaWebsite,
   MonitoringResult as PrismaMonitoringResult,
   Alert as PrismaAlert,
   User as PrismaUser,
   WebsiteUser as PrismaWebsiteUser,
+  Incident as PrismaIncident, // Import new Prisma type
 } from '@prisma/client';
 
 // Re-export core Prisma types if needed directly elsewhere
@@ -14,6 +14,7 @@ export type MonitoringResultPrisma = PrismaMonitoringResult;
 export type AlertPrisma = PrismaAlert;
 export type UserPrisma = PrismaUser;
 export type WebsiteUserPrisma = PrismaWebsiteUser;
+export type IncidentPrisma = PrismaIncident; // Export new Prisma type
 
 // --- SECTION 2: Core API/Service Types (Reflecting New Schema) ---
 
@@ -55,7 +56,7 @@ export interface WebsiteUser {
   interval: number | null; // User-specific interval override (seconds)
   alertEnabled: boolean;
   alertThreshold: number | null; // Response time threshold (ms) for alerts
-  notifyEmail: boolean | null; // User preference for email alerts
+  notifyEmail: string | null; // User's email for notifications // Changed from boolean|null
   createdAt: string; // ISO 8601 date string
   isPinned: boolean; // User preference to pin the website
 
@@ -64,8 +65,11 @@ export interface WebsiteUser {
   latestResult?: MonitoringResult | null; // Last monitoring result
   chartData?: ChartDataPoint[]; // Pre-calculated chart data for the card (daily, last 24 points)
   uptimePercent?: number; // Uptime percentage for the card timeframe (e.g., 'day')
-  consecutiveFailures?: number; // Current count if down
-  downtimeStartedAt?: string | null; // ISO timestamp if down
+  // --- REMOVED: No longer directly calculated/stored here ---
+  // consecutiveFailures?: number;
+  // downtimeStartedAt?: string | null;
+  // --- ADDED: Info about current open incident ---
+  currentIncident?: Incident | null; // Add current open incident if any
 }
 
 // Define the *simplified* alert types based on the new schema/requirements
@@ -90,7 +94,35 @@ export interface Alert {
         id: number;
         name: string | null;
     }
+     incidentId?: number | null; 
 }
+
+// --- NEW: Incident Type ---
+export type IncidentType = "down" | "slow"; // Same as AlertType for now
+export const VALID_INCIDENT_TYPES: IncidentType[] = ["down", "slow"];
+
+export interface Incident {
+    id: number;
+    websiteId: number;
+    type: IncidentType;
+    startTime: string; // ISO 8601 date string
+    endTime: string | null; // ISO 8601 date string or null
+    durationSeconds: number | null;
+    initialResultId: number | null;
+    confirmingResultId: number | null;
+    resolvingResultId: number | null;
+    // Optional nested data for API responses
+    website?: {
+        id: number;
+        url: string;
+        name?: string | null; // User's custom name for this website
+    };
+    // Optional: Include results if needed, but can be large
+    // initialResult?: MonitoringResult | null;
+    // confirmingResult?: MonitoringResult | null;
+    // resolvingResult?: MonitoringResult | null;
+}
+
 
 // --- SECTION 3: Utility & Shared Types ---
 
@@ -172,6 +204,18 @@ export interface AlertQueryOptions {
   websiteId?: number;// Filter by website
 }
 
+// --- NEW: Incident Query Options ---
+export interface IncidentQueryOptions {
+    limit?: number;
+    type?: IncidentType;
+    from?: Date; // Filter by startTime >= from
+    to?: Date; // Filter by startTime <= to
+    userId?: number; // Filter by user who monitors the website
+    websiteId?: number; // Filter by specific website
+    status?: 'open' | 'closed'; // Filter by incident status
+}
+
+
 // --- SECTION 6: API Response Shapes & ViewModels ---
 
 /**
@@ -192,11 +236,16 @@ export interface WebsiteStatsData {
   websiteId: number;
   websiteName: string;
   url: string;
-  uptime: number;
-  averageResponseTime: number | null;
-  totalChecks: number;
-  lastCheck: string | null; // ISO 8601 string
-  consecutiveFailures: number; // Already exists, calculated differently maybe, keep for general stats
+  uptime: number; // Uptime percentage over the period
+  averageResponseTime: number | null; // Average response time over the period
+  totalChecks: number; // Total checks in the period
+  lastCheck: string | null; // ISO 8601 string of the last check (anytime)
+  // --- REMOVED: No longer directly calculated here ---
+  // consecutiveFailures: number;
+  // --- ADDED: Incident counts for the period ---
+  incidentCount: number; // Total incidents started in the period
+  downIncidentCount: number; // 'down' incidents started in the period
+  slowIncidentCount: number; // 'slow' incidents started in the period
 }
 
 /**
@@ -205,14 +254,13 @@ export interface WebsiteStatsData {
 export interface OverallStats {
   totalWebsites: number;
   activeWebsites: number;
-  websiteStats: WebsiteStatsData[];
-  overallUptime: number;
-  overallResponseTime: number | null;
-  // --- ADDED ---
-  incidentsLast24h: number; 
-  lastIncidentTimestamp?: string | null;
-  lastIncidentWebsiteId?: number | null;
-  // --- END ADDED ---
+  websiteStats: WebsiteStatsData[]; // Stats for each website *over the selected period*
+  overallUptime: number; // Average uptime across websites *over the selected period*
+  overallResponseTime: number | null; // Average response time across websites *over the selected period*
+  // --- UPDATED: Now based on Incident table ---
+  incidentsLast24h: number; // Count of incidents started in last 24h
+  lastIncidentTimestamp?: string | null; // Start time of the most recent incident
+  lastIncidentWebsiteId?: number | null; // Website ID of the most recent incident
 }
 
 /**
@@ -238,11 +286,9 @@ export interface WebsiteDetailsData {
   chartData: ChartDataPoint[];       // Array of points formatted for charts
   recentChecks: MonitoringResult[];  // Array of shared MonitoringResult types
   uptimePercent: number;             // Calculated uptime for the selected timeframe
-  // --- ADDED FOR DOWNTIME INFO ---
-  // Only populated if the latest status is 'down'
-  consecutiveFailures?: number;
-  downtimeStartedAt?: string | null; // ISO 8601 date string of the first failure in the sequence
-  // --- END ADDED ---
+  // --- UPDATED FOR INCIDENT INFO ---
+  currentIncident?: Incident | null; // Details of the currently open incident, if any
+  recentIncidents?: Incident[]; // List of recent incidents (e.g., last 7 days)
 }
 
 
@@ -281,20 +327,6 @@ export interface AuthContextType {
   loading: boolean;
   error: string | null;
   logout: () => void;
-}
-
-export interface DownWebsite {
-  id: number;
-  name: string;
-  url: string;
-  lastDownTime: string; // ISO 8601 date string
-  consecutiveFailures: number;
-}
-
-// --- ADDED: Type for Downtime Info Calculation Result ---
-export interface DowntimeInfo {
-    consecutiveFailures: number;
-    downtimeStartedAt: Date | null; // Use Date internally, convert to string for API
 }
 
 export interface WebsiteIncidentInfo {
