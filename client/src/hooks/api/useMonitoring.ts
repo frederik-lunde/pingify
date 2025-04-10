@@ -1,12 +1,12 @@
-// client/src/hooks/api/useMonitoring.ts
-
+/*
+client/src/hooks/api/useMonitoring.ts
+*/
 import {
     useQuery,
     useMutation,
     useQueryClient,
     UseQueryOptions,
-    QueryKey,
-    QueryFilters
+    QueryFilters // Keep QueryFilters import
 } from '@tanstack/react-query';
 import {
     fetchWebsiteDetails,
@@ -14,7 +14,7 @@ import {
     fetchUserStats,
     fetchWebsiteStats,
     fetchAllUserMonitoringResults,
-    fetchUserIncidentCountLast24h, // <-- Import the new fetcher
+    fetchUserIncidentCountLast24h,
     FetchWebsiteDetailsParams,
     fetchDownWebsitesLast24h,
 } from '../../api/monitoringApi';
@@ -25,10 +25,11 @@ import {
     MonitoringResult,
     ApiError,
     TimeframeKey,
-    IncidentCountResponse // <-- Import type
+    IncidentCountResponse,
+    DownWebsite
 } from '../../types';
 import { useAuth } from '../../context/AuthContext';
-import { alertQueryKeys } from './useAlerts'; // Keep for alert invalidation on check
+import { alertQueryKeys } from '../';
 
 // --- Query Keys ---
 export const monitoringQueryKeys = {
@@ -41,9 +42,10 @@ export const monitoringQueryKeys = {
         [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { userId, period }] as const,
     userResults: (limit: number | undefined, userId: number | undefined) =>
         [...monitoringQueryKeys.all, 'userResults', { userId, limit }] as const,
-    // --- NEW KEY FOR THE MONITORING-BASED INCIDENT COUNT ---
     incidentCountLast24h: (userId: number | undefined) =>
         [...monitoringQueryKeys.all, 'incidentCount', 'last24h', { userId }] as const,
+    downWebsitesLast24h: (userId: number | undefined) =>
+        [...monitoringQueryKeys.all, 'downWebsites', 'last24h', { userId }] as const,
 };
 
 // --- Helper type ---
@@ -73,22 +75,34 @@ export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, option
     });
 }
 
-export const useDownWebsitesLast24h = () => {
-    return useQuery({
-        queryKey: ['downWebsitesLast24h'],
-        queryFn: () => fetchDownWebsitesLast24h(),
-        staleTime: 5 * 60 * 1000, // 5 minutes
+/**
+ * Hook to fetch the list of down websites in the last 24 hours for the user.
+ */
+export const useDownWebsitesLast24h = (options?: CustomQueryOptions<DownWebsite[]>) => {
+    const { user } = useAuth();
+    const userId = user?.id;
+    const queryKey = monitoringQueryKeys.downWebsitesLast24h(userId);
+
+    return useQuery<DownWebsite[], ApiError>({
+        queryKey: queryKey,
+        queryFn: () => {
+            if (!userId) return Promise.resolve([]);
+            return fetchDownWebsitesLast24h();
+        },
+        enabled: options?.enabled === undefined ? !!userId : options.enabled,
+        staleTime: options?.staleTime ?? 5 * 60 * 1000,
+        gcTime: options?.gcTime ?? 15 * 60 * 1000,
+        ...options,
     });
 };
 
 /**
  * Hook for triggering an immediate website check (mutation).
- * Invalidates the new monitoring-based incident count.
  */
 export function useWebsiteCheckMutation() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
-    const userId = user?.id; // Needed for invalidation targeting
+    const userId = user?.id;
 
     return useMutation<MonitoringResult, ApiError, number>({
         mutationFn: (websiteId: number) => {
@@ -100,44 +114,35 @@ export function useWebsiteCheckMutation() {
         onSuccess: (newCheckResult, websiteId) => {
             console.log(`[Mutation Success] Check completed for website ${websiteId}`);
             // --- Optimistic Update ---
+            // *** FIX: Explicitly type the filter ***
             const detailsQueryFilter: QueryFilters<WebsiteDetailsData> = { queryKey: [...monitoringQueryKeys.all, 'details', websiteId], type: 'active', exact: false };
             queryClient.setQueriesData<WebsiteDetailsData>(detailsQueryFilter, (oldData) => {
                 if (!oldData) return undefined;
                 console.log(`[setQueriesData] Updating cache for details query...`);
                 const updatedRecentChecks = [newCheckResult, ...(oldData.recentChecks ?? [])].slice(0, 10);
                 const isDown = !newCheckResult.isAvailable;
-                const updatedDowntimeInfo = isDown ? { consecutiveFailures: (oldData.consecutiveFailures ?? 0) + 1, downtimeStartedAt: oldData.downtimeStartedAt ?? newCheckResult.checkedAt } : { consecutiveFailures: undefined, downtimeStartedAt: null };
+                const updatedDowntimeInfo = isDown
+                    ? { consecutiveFailures: (oldData.consecutiveFailures ?? 0) + 1, downtimeStartedAt: oldData.downtimeStartedAt ?? newCheckResult.checkedAt }
+                    : { consecutiveFailures: 0, downtimeStartedAt: null };
                 return { ...oldData, latestResult: newCheckResult, recentChecks: updatedRecentChecks, ...updatedDowntimeInfo };
             });
             // --- End Optimistic Update ---
 
-            // --- Invalidation (Includes NEW Incident Count) ---
+            // --- Invalidation ---
             console.log(`[Invalidation] Invalidating data related to website ${websiteId} for user ${userId}`);
-            const detailsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'details', websiteId];
-            queryClient.invalidateQueries({ queryKey: detailsKeyPattern, exact: false });
-            const websiteStatsPrefix: QueryKey = monitoringQueryKeys.websiteStats(websiteId, '', userId); // Use base key pattern
-            queryClient.invalidateQueries({ queryKey: websiteStatsPrefix, exact: false });
-            const userResultsPrefix: QueryKey = monitoringQueryKeys.userResults(undefined, userId);
-            queryClient.invalidateQueries({ queryKey: userResultsPrefix, exact: false });
-            const userStatsPrefix: QueryKey = monitoringQueryKeys.userStats('', userId); // Use base key pattern
-            queryClient.invalidateQueries({ queryKey: userStatsPrefix, exact: false });
-
-            // *** INVALIDATE THE NEW MONITORING-BASED INCIDENT COUNT ***
-            const incidentCountKey: QueryKey = monitoringQueryKeys.incidentCountLast24h(userId);
-            queryClient.invalidateQueries({ queryKey: incidentCountKey });
-            console.log(`Invalidating monitoring incident count:`, incidentCountKey);
-            // --- End NEW Incident Count Invalidation ---
-
-            // --- Invalidate Alert-related queries (as before) ---
+            queryClient.invalidateQueries({ queryKey: [...monitoringQueryKeys.all, 'details', websiteId], exact: false });
+            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.websiteStats(websiteId, '', userId), exact: false });
+            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId), exact: false });
+            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userStats('', userId), exact: false });
+            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.downWebsitesLast24h(userId) });
+            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.incidentCountLast24h(userId) });
             queryClient.invalidateQueries({ queryKey: alertQueryKeys.lists(), exact: false });
             queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats(), exact: false });
-            console.log(`Invalidating alerts`);
-            // --- End Alert Invalidation ---
-
             console.log(`[Invalidation Complete]`);
         },
         onError: (error: ApiError, websiteId) => {
             console.error(`[Mutation Error] Failed to trigger check for website ${websiteId}:`, error.message || error);
+            queryClient.invalidateQueries({ queryKey: [...monitoringQueryKeys.all, 'details', websiteId], exact: false });
         },
     });
 }
@@ -156,7 +161,7 @@ export function useUserStatsQuery(period: TimeframeKey | string = 'week', option
             return fetchUserStats(period);
         },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 1000,
+        staleTime: 60 * 1000,
         gcTime: 1000 * 60 * 15,
         ...options,
     });
@@ -178,7 +183,7 @@ export function useWebsiteStatsQuery(websiteId: number | undefined, period: Time
             return fetchWebsiteStats(websiteId, period);
         },
         enabled: isQueryEnabled,
-        staleTime: 1000,
+        staleTime: 60 * 1000,
         gcTime: 1000 * 60 * 10,
         ...options,
     });
@@ -199,7 +204,7 @@ export function useUserMonitoringResultsQuery(limit: number = 500, options?: Cus
              return fetchAllUserMonitoringResults(limit);
         },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 1000,
+        staleTime: 60 * 1000,
         gcTime: 1000 * 60 * 5,
         ...options,
     });
@@ -224,15 +229,13 @@ export function useUserIncidentCountQuery(
     return useQuery<IncidentCountResponse, ApiError>({
         queryKey: queryKey,
         queryFn: () => {
-             if (!userId) return Promise.resolve({ incidentCount: 0 }); // Return default if no user
+             if (!userId) return Promise.resolve({ incidentCount: 0 });
              return fetchUserIncidentCountLast24h();
         },
-        // --- React Query Options ---
-        enabled: options?.enabled === undefined ? !!userId : options.enabled, // Enable if user exists
-        refetchInterval: options?.refetchInterval, // Allow component override
+        enabled: options?.enabled === undefined ? !!userId : options.enabled,
+        refetchInterval: options?.refetchInterval,
         staleTime: options?.staleTime ?? DEFAULT_MONITORING_INCIDENT_COUNT_STALE_TIME,
         gcTime: options?.gcTime ?? DEFAULT_MONITORING_INCIDENT_COUNT_GC_TIME,
-        // Start with undefined to clearly indicate loading state vs loaded zero
         initialData: undefined,
     });
 }

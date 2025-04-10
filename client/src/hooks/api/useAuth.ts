@@ -1,4 +1,6 @@
-// src/hooks/api/useAuth.ts
+/*
+src/hooks/api/useAuth.ts
+*/
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -7,7 +9,8 @@ import {
   storeAuthToken,
   removeAuthToken,
 } from "../../utils/authTokenUtils";
-import { User, AuthContextType, ApiError } from "../../types";
+// Removed unused import AuthContextType
+import { User, ApiError } from "../../types";
 import {
     fetchCurrentUser,
     loginUser,
@@ -24,25 +27,25 @@ export const authQueryKeys = {
 /**
  * Hook managing core authentication state
  */
-export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
+// Removed Omit<AuthContextType...> as it wasn't fully used and the type wasn't imported
+export function useAuthCore() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [token, setToken] = useState<string | null>(getAuthToken);
 
+  // Tracks if the initial check for user data (based on token) has finished
   const [isInitialCheckComplete, setIsInitialCheckComplete] = useState(false);
 
   const {
       data: userData,
-      isLoading: isUserQueryLoading,
       isSuccess: isUserQuerySuccess,
       isError: isUserQueryError,
-      error: userQueryErrorData, 
-      isFetching: isUserQueryFetching,
+      error: userQueryErrorData,
   } = useQuery<{ user: User }, ApiError>({
       queryKey: authQueryKeys.me,
       queryFn: fetchCurrentUser,
-      enabled: !!token, 
+      enabled: !!token,
       staleTime: 1000 * 60 * 30, // 30 minutes
       gcTime: 1000 * 60 * 60,    // 1 hour
       retry: (failureCount, error) => {
@@ -56,15 +59,19 @@ export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
 
   useEffect(() => {
     if (isInitialCheckComplete) return;
+    // Mark as complete if there's no token initially
     if (!token) {
-      setIsInitialCheckComplete(true); 
+      setIsInitialCheckComplete(true);
+    // Mark as complete once the query finishes (successfully or with error) when a token exists
     } else if (isUserQuerySuccess || isUserQueryError) {
-      setIsInitialCheckComplete(true); 
+      setIsInitialCheckComplete(true);
     }
   }, [token, isUserQuerySuccess, isUserQueryError, isInitialCheckComplete]);
 
+  // Loading is true until the initial check completes
   const loading = !isInitialCheckComplete;
 
+  // Error is relevant only after the initial check is done, a token existed, and the query failed
   const error = (isInitialCheckComplete && token && isUserQueryError)
       ? (userQueryErrorData?.message || "Failed to load user data.")
       : null;
@@ -86,13 +93,17 @@ export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
   // Token Synchronization Listener
   useEffect(() => {
     const syncToken = (event: StorageEvent) => {
-        if (event.key === "authToken" || (event.storageArea === sessionStorage && event.key === null)) {
+        // Check if the event is for the authToken or a general storage clear event
+        if (event.key === "authToken" || (event.storageArea === sessionStorage && event.key === null) || (event.storageArea === localStorage && event.key === null)) {
              const currentToken = getAuthToken();
              if (token !== currentToken) {
+                 console.debug("Auth token changed in another tab/window. Syncing state.");
                  setToken(currentToken);
+                 // If token removed, clear user data immediately
                  if (!currentToken) {
                     queryClient.setQueryData(authQueryKeys.me, null);
                  }
+                 // Invalidate to refetch user data if token was added/changed
                  queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
              }
         }
@@ -103,21 +114,23 @@ export function useAuthCore(): Omit<AuthContextType, 'login' | 'register'> {
 
   // Logout Function
   const logout = useCallback(() => {
+    console.debug("User logout initiated.");
     removeAuthToken();
     setToken(null);
-    queryClient.setQueryData(authQueryKeys.me, null); 
+    queryClient.setQueryData(authQueryKeys.me, null);
     queryClient.removeQueries({ queryKey: authQueryKeys.me });
     setIsInitialCheckComplete(true); // Check is complete (no user)
-    // Consider resetting other queries if needed: queryClient.resetQueries();
+    // Resetting all queries might be too broad, but consider if specific domains need clearing
+    // queryClient.resetQueries();
     navigate("/login", { replace: true });
   }, [navigate, queryClient]);
 
- 
+
   return {
     user,
     token,
     loading,
-    error,   
+    error,
     logout,
   };
 }
@@ -139,6 +152,7 @@ export function useLoginMutation() {
             // Set user data in cache immediately for faster UI update
             queryClient.setQueryData(authQueryKeys.me, { user: data.user });
             // Invalidate to ensure it fetches fresh data if needed or confirms the cached data
+            // This might be slightly redundant if setQueryData is trusted, but safe.
             queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
             console.log("Login successful via mutation hook");
             // Navigate after state update seems likely

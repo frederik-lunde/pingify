@@ -1,7 +1,9 @@
-// src/components/dashboard/StatsHeader.tsx
+/*
+src/components/dashboard/StatsHeader.tsx
+*/
 import React from 'react';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid';
+import Grid from '@mui/material/Grid2'; // Using Grid v2
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -19,12 +21,6 @@ import { useTimeSince } from '../../hooks';
 
 type StatusColorKey = 'success' | 'warning' | 'error' | 'default';
 
-interface DownWebsite {
-    id: number;
-    name: string;
-    lastDownTime: string;
-}
-
 interface StatsHeaderProps {
     isLoading: boolean;
     error: ApiError | null;
@@ -37,7 +33,6 @@ interface StatsHeaderProps {
     lastIncidentWebsiteId?: number | null | undefined;
     onToggleHighlight?: () => void;
     isHighlightActive?: boolean;
-    downWebsites?: DownWebsite[];
     onShowDownWebsites: () => void;
     showDownWebsites: boolean;
 }
@@ -52,31 +47,9 @@ const getTextColor = (theme: Theme, colorKey: StatusColorKey, isNavbar: boolean)
     return theme.palette[colorKey]?.main || theme.palette.text.primary;
 };
 
-const getIncidentProps = (theme: Theme, count: number | null | undefined, isNavbar: boolean) => {
-    let iconComponent: React.ReactNode = null;
-    let valueColor: string;
-    let text: string;
-
-    if (count === null || count === undefined) {
-        valueColor = getTextColor(theme, 'default', isNavbar);
-        if (!isNavbar) { 
-            iconComponent = <ReportProblemOutlinedIcon fontSize="inherit" sx={{ color: theme.palette.action.disabled }} />; 
-        }
-        text = '-';
-    } else if (count > 0) {
-        valueColor = isNavbar ? theme.palette.common.white : theme.palette.warning.main;
-        if (!isNavbar) { 
-            iconComponent = <ReportProblemOutlinedIcon fontSize="inherit" sx={{ color: valueColor }} />; 
-        }
-        text = count.toString();
-    } else {
-        valueColor = isNavbar ? 'inherit' : theme.palette.success.main;
-        if (!isNavbar) { 
-            iconComponent = <CheckCircleOutlineIcon fontSize="inherit" sx={{ color: valueColor }} />; 
-        }
-        text = '0';
-    }
-    return { icon: iconComponent, valueColor, text };
+const getIcon = (IconComponent: React.ElementType, color: string, isNavbar: boolean, iconSize: string) => {
+    if (isNavbar) return null;
+    return <IconComponent fontSize="inherit" sx={{ color, fontSize: iconSize, lineHeight: 1, mb: 0.5 }} />;
 };
 
 const StatsHeader: React.FC<StatsHeaderProps> = ({
@@ -91,7 +64,6 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     lastIncidentWebsiteId,
     onToggleHighlight,
     isHighlightActive = false,
-    downWebsites,
     onShowDownWebsites,
     showDownWebsites,
 }) => {
@@ -101,71 +73,50 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     const timeSinceLastIncident = useTimeSince(lastIncidentTimestamp, {
         noIncidentText: isNavbarLayout ? 'None' : 'No recent incidents'
     });
+    const uptimeColorKey = getStatusColor(uptime);
+    const formattedUptimeValue = formatUptime(uptime);
 
-    const getStatusProps = () => {
-        let iconComponent: React.ReactNode = null;
-        let valueColor: string;
+    const statusProps = React.useMemo(() => {
+        let iconType: React.ElementType | null = null;
+        let valueColorKey: StatusColorKey = 'default';
         let text: string;
         let tooltip: string;
 
         if (totalCount === 0 && !isLoading) {
-            const iconColor = isNavbarLayout ? 'inherit' : theme.palette.action.disabled;
-            valueColor = isNavbarLayout ? 'inherit' : theme.palette.text.disabled;
-            if (!isNavbarLayout) { 
-                iconComponent = <ErrorOutlineIcon fontSize="inherit" sx={{ color: iconColor }} />; 
-            }
-            text = "0 / 0"; 
-            tooltip = 'No websites monitored';
+            iconType = ErrorOutlineIcon; valueColorKey = 'default'; text = "0 / 0"; tooltip = 'No websites monitored';
         } else if (upCount === totalCount && totalCount > 0) {
-            const iconColor = isNavbarLayout ? theme.palette.common.white : theme.palette.success.main;
-            valueColor = isNavbarLayout ? theme.palette.common.white : theme.palette.success.main;
-            if (!isNavbarLayout) { 
-                iconComponent = <CheckCircleOutlineIcon fontSize="inherit" sx={{ color: iconColor }} />; 
-            }
-            text = `${upCount} / ${totalCount}`; 
-            tooltip = 'All websites are up';
+            iconType = CheckCircleOutlineIcon; valueColorKey = 'success'; text = `${upCount} / ${totalCount}`; tooltip = 'All websites are up';
         } else {
-            const iconColor = isNavbarLayout ? theme.palette.common.white : theme.palette.error.main;
-            valueColor = isNavbarLayout ? theme.palette.common.white : theme.palette.error.main;
-            if (!isNavbarLayout) { 
-                iconComponent = <WarningAmberIcon fontSize="inherit" sx={{ color: iconColor }} />; 
-            }
-            text = `${upCount} / ${totalCount}`; 
-            tooltip = `${totalCount - upCount} website(s) are down or having issues`;
+            iconType = WarningAmberIcon; valueColorKey = totalCount > 0 ? 'error' : 'default'; text = `${upCount} / ${totalCount}`; tooltip = `${totalCount - upCount} website(s) are down or having issues`;
         }
-        return { icon: iconComponent, valueColor, text, tooltip };
-    };
+        const valueColor = getTextColor(theme, valueColorKey, isNavbarLayout);
+        return { iconType, valueColor, text, tooltip };
+    }, [totalCount, upCount, isLoading, theme, isNavbarLayout]);
 
-    const statusProps = getStatusProps();
-    const uptimeColorKey = getStatusColor(uptime);
-    const incidentProps = getIncidentProps(theme, incidentsLast24h, isNavbarLayout);
+    const incidentProps = React.useMemo(() => {
+        let iconType: React.ElementType | null = null;
+        let valueColorKey: StatusColorKey = 'default';
+        let text: string;
+
+        if (incidentsLast24h === null || incidentsLast24h === undefined) {
+            iconType = ReportProblemOutlinedIcon; valueColorKey = 'default'; text = '-';
+        } else if (incidentsLast24h > 0) {
+            iconType = ReportProblemOutlinedIcon; valueColorKey = 'warning'; text = incidentsLast24h.toString();
+        } else {
+            iconType = CheckCircleOutlineIcon; valueColorKey = 'success'; text = '0';
+        }
+        const valueColor = getTextColor(theme, valueColorKey, isNavbarLayout);
+        return { iconType, valueColor, text };
+    }, [incidentsLast24h, theme, isNavbarLayout]);
 
     const containerSx = isNavbarLayout
-        ? {
-            display: { xs: 'none', md: 'flex' },
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            height: '100%',
-            px: 1,
-            minHeight: 'auto',
-            overflow: 'hidden',
-          }
-        : {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            py: 2.25,
-            px: { xs: 1, sm: 2, md: 3 },
-            minHeight: '76px'
-          };
+        ? { display: { xs: 'none', md: 'flex' }, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', px: 1, minHeight: 'auto', overflow: 'hidden' }
+        : { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', py: 2.25, px: { xs: 1, sm: 2, md: 3 }, minHeight: '76px' };
 
     const valueVariant = isNavbarLayout ? 'body2' : 'h6';
     const labelVariant = isNavbarLayout ? 'caption' : 'body2';
     const iconSize = isNavbarLayout ? '0.9rem' : '1.4rem';
     const gridSpacing = isNavbarLayout ? 1.2 : { xs: 1.5, sm: 2, md: 3 };
-    const valueTopMargin = isNavbarLayout ? 0 : 0.5;
     const valueLabelMargin = isNavbarLayout ? 0.2 : 0.5;
 
     if (isLoading) {
@@ -190,28 +141,41 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     const canHighlight = !isNavbarLayout && !!lastIncidentWebsiteId && !!onToggleHighlight;
     const canClickIncidents = !isNavbarLayout && incidentsLast24h !== null && incidentsLast24h !== undefined;
 
+    const gridItemContentSx = {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        p: isNavbarLayout ? 0.5 : 0,
+        borderRadius: isNavbarLayout ? 1 : 0,
+        minHeight: isNavbarLayout ? 'auto' : 50,
+    };
+
+    const clickableBoxSx = (isClickable: boolean, isActiveState: boolean = false) => ({
+        ...gridItemContentSx,
+        cursor: isClickable ? 'pointer' : 'default',
+        '&:hover': isClickable ? { bgcolor: alpha(theme.palette.action.hover, 0.1) } : {},
+        bgcolor: !isNavbarLayout && isActiveState ? alpha(theme.palette.warning.light, 0.15) : 'transparent',
+        transition: theme.transitions.create('background-color'),
+    });
+
     return (
         <Box sx={containerSx}>
             <Grid
                 container
                 spacing={gridSpacing}
-                justifyContent="center"
-                alignItems="center"
-                sx={isNavbarLayout ? { maxWidth: 420, width: '100%' } : {}}
+                // --- CHANGE HERE: Use space-around to distribute items ---
+                justifyContent="space-around"
+                alignItems="stretch"
+                sx={isNavbarLayout ? { maxWidth: 420, width: '100%' } : { width: '100%' }} // Ensure container takes full width in dashboard
             >
                 {/* Stat 1: Status (Up/Total) */}
-                <Grid item xs={gridItemSize} textAlign="center">
+                <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
                     <Tooltip title={statusProps.tooltip}>
-                        <Box sx={isNavbarLayout ? { p: 0.5, borderRadius: 1 } : {}}>
-                           {!isNavbarLayout && statusProps.icon && (
-                               <Typography component="span" variant="inherit" sx={{ fontSize: iconSize, lineHeight: 1.1, display: 'block', color: statusProps.valueColor }}>
-                                  {statusProps.icon}
-                               </Typography>
-                           )}
-                          <Typography
-                            variant={valueVariant} component="div" fontWeight="medium"
-                            sx={{ color: statusProps.valueColor, lineHeight: 1.2, mt: valueTopMargin }}
-                          >
+                        <Box sx={gridItemContentSx}>
+                           {statusProps.iconType && getIcon(statusProps.iconType, statusProps.valueColor, isNavbarLayout, iconSize)}
+                          <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: statusProps.valueColor, lineHeight: 1.2 }}>
                             {statusProps.text}
                           </Typography>
                         </Box>
@@ -222,19 +186,12 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                 </Grid>
 
                 {/* Stat 2: Uptime */}
-                <Grid item xs={gridItemSize} textAlign="center">
+                <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
                    <Tooltip title="Overall Uptime (Last 7 Days)">
-                     <Box sx={isNavbarLayout ? { p: 0.5, borderRadius: 1 } : {}}>
-                        {!isNavbarLayout && (
-                            <Typography component="span" variant="inherit" sx={{ fontSize: iconSize, lineHeight: 1.1, display: 'block', color: getTextColor(theme, uptimeColorKey, isNavbarLayout) }}>
-                               <NetworkCheckIcon fontSize="inherit" />
-                            </Typography>
-                        )}
-                       <Typography
-                            variant={valueVariant} component="div" fontWeight="medium"
-                            sx={{ color: getTextColor(theme, uptimeColorKey, isNavbarLayout), lineHeight: 1.2, mt: valueTopMargin }}
-                       >
-                         {formatUptime(uptime)}%
+                     <Box sx={gridItemContentSx}>
+                        {getIcon(NetworkCheckIcon, getTextColor(theme, uptimeColorKey, isNavbarLayout), isNavbarLayout, iconSize)}
+                       <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: getTextColor(theme, uptimeColorKey, isNavbarLayout), lineHeight: 1.2 }}>
+                         {formattedUptimeValue}%
                        </Typography>
                      </Box>
                    </Tooltip>
@@ -244,31 +201,18 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                 </Grid>
 
                 {/* Stat 3: Incidents Last 24 Hours */}
-                <Grid item xs={gridItemSize} textAlign="center">
-                   <Tooltip title={showDownWebsites ? 
-                       "Click to show all websites" : 
-                       (incidentsLast24h ? "Click to show down websites" : "No incidents in last 24 hours")}>
-                     <Box 
+                <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
+                   <Tooltip title={
+                       isNavbarLayout ? `Incidents (24h): ${incidentProps.text}` :
+                       showDownWebsites ? "Click to show all websites" :
+                       (incidentsLast24h && incidentsLast24h > 0 ? "Click to show down websites" : "No incidents in last 24 hours")
+                   }>
+                     <Box
                          onClick={canClickIncidents ? onShowDownWebsites : undefined}
-                         sx={{
-                             ...(isNavbarLayout ? { p: 0.5, borderRadius: 1 } : {}),
-                             cursor: canClickIncidents ? 'pointer' : 'default',
-                             '&:hover': canClickIncidents ? { 
-                                 bgcolor: alpha(theme.palette.action.hover, 0.1) 
-                             } : {},
-                             bgcolor: showDownWebsites ? alpha(theme.palette.warning.light, 0.15) : 'transparent',
-                             transition: theme.transitions.create('background-color')
-                         }}
+                         sx={clickableBoxSx(canClickIncidents, !isNavbarLayout && showDownWebsites)}
                      >
-                         {!isNavbarLayout && incidentProps.icon && (
-                             <Typography component="span" variant="inherit" sx={{ fontSize: iconSize, lineHeight: 1.1, display: 'block', color: incidentProps.valueColor }}>
-                                {incidentProps.icon}
-                             </Typography>
-                         )}
-                       <Typography
-                            variant={valueVariant} component="div" fontWeight="medium"
-                            sx={{ color: incidentProps.valueColor, lineHeight: 1.2, mt: valueTopMargin }}
-                        >
+                         {incidentProps.iconType && getIcon(incidentProps.iconType, incidentProps.valueColor, isNavbarLayout, iconSize)}
+                       <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: incidentProps.valueColor, lineHeight: 1.2 }}>
                          {incidentProps.text}
                        </Typography>
                      </Box>
@@ -279,31 +223,24 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                 </Grid>
 
                 {/* Stat 4: Time Since Last Incident */}
-                <Grid item xs={gridItemSize} textAlign="center">
+                <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
                    <Tooltip
-                       title={canHighlight ? (isHighlightActive ? "Click to remove highlight" : "Click to highlight affected website") : `Time since last downtime (up to 30 days)`}
+                       title={
+                           isNavbarLayout ? `Last Incident: ${timeSinceLastIncident}` :
+                           canHighlight ? (isHighlightActive ? "Click to remove highlight" : "Click to highlight affected website") :
+                           `Time since last downtime (up to 30 days)`
+                       }
                        placement="top"
-                       arrow
+                       arrow={!isNavbarLayout}
                     >
                      <Box
                          onClick={canHighlight ? onToggleHighlight : undefined}
-                         sx={{
-                             cursor: canHighlight ? 'pointer' : 'default',
-                             p: 0.5, 
-                             borderRadius: 1,
-                             '&:hover': canHighlight ? { bgcolor: alpha(theme.palette.action.hover, 0.1) } : {},
-                             bgcolor: canHighlight && isHighlightActive ? alpha(theme.palette.warning.light, 0.15) : 'transparent',
-                             transition: theme.transitions.create('background-color')
-                         }}
+                         sx={clickableBoxSx(canHighlight, canHighlight && isHighlightActive)}
                      >
-                         {!isNavbarLayout && (
-                            <Typography component="span" variant="inherit" sx={{ fontSize: iconSize, lineHeight: 1.1, display: 'block', color: theme.palette.text.secondary }}>
-                                <HistoryIcon fontSize="inherit" />
-                            </Typography>
-                         )}
+                         {getIcon(HistoryIcon, theme.palette.text.secondary, isNavbarLayout, iconSize)}
                        <Typography
                             variant={valueVariant} component="div" fontWeight="medium"
-                            sx={{ color: theme.palette.text.primary, lineHeight: 1.2, mt: valueTopMargin }}
+                            sx={{ color: isNavbarLayout ? 'inherit' : theme.palette.text.primary, lineHeight: 1.2 }}
                        >
                          {timeSinceLastIncident}
                        </Typography>

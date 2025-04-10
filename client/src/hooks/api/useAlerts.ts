@@ -1,12 +1,12 @@
 // client/src/hooks/query/useAlerts.ts
-import { useQuery, useMutation, useQueryClient, QueryKey } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, AlertStats, AlertQueryOptions, ApiError } from "../../types";
 import {
     fetchUserAlerts,
     fetchWebsiteAlerts,
     fetchAlertStats,
     dismissAlert as dismissAlertAPI
-} from '../../api/alertApi'; 
+} from '../../api/alertApi';
 
 export const alertQueryKeys = {
     all: ['alerts'] as const,
@@ -93,11 +93,6 @@ export function useAlertStatsQuery(
 }
 
 
-interface AlertDismissMutationContext {
-    queryKey: QueryKey;
-    previousAlerts?: Alert[];
-}
-
 /**
  * Hook providing mutation functions for alert actions (e.g., dismissing).
  */
@@ -105,19 +100,17 @@ export function useAlertActions() {
     const queryClient = useQueryClient();
     const userAlertListsQueryKeyPattern = alertQueryKeys.list();
 
-    const dismissAlertMutation = useMutation<void, ApiError, number, AlertDismissMutationContext | undefined>({
+    // Removed unused context type from useMutation signature
+    const dismissAlertMutation = useMutation<void, ApiError, number>({
         mutationFn: dismissAlertAPI,
-        onMutate: async (): Promise<AlertDismissMutationContext | undefined> => {
-            await queryClient.cancelQueries({ queryKey: userAlertListsQueryKeyPattern });
-            return undefined;
-        },
-         onError: (error, alertId, ) => {
+         onError: (error, alertId) => {
+            // Log error, invalidation happens in onSettled
             console.error(`Failed to dismiss alert ${alertId}:`, error.message);
-            queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern });
-            queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats() });
         },
+        // onSettled will run regardless of success or error
         onSettled: (data, error, alertId) => {
             console.log(`DismissAlert mutation settled for alert ${alertId}. Error: ${error?.message ?? 'None'}`);
+            // Invalidate relevant queries after the mutation attempt
             queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern });
             queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats() });
         },

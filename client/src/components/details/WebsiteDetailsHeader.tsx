@@ -1,78 +1,92 @@
-import React, { useMemo } from 'react';
-import { Paper, Box, Grid, Typography, Stack, Chip, Button, IconButton, Tooltip, CircularProgress, useTheme } from '@mui/material';
+/*
+src/components/details/WebsiteDetailsHeader.tsx
+*/
+import { useMemo, memo } from 'react';
+import { Paper, Typography, Stack, Chip, IconButton, Tooltip, Box, CircularProgress } from '@mui/material'; // Removed Button, added CircularProgress back for refetch indicator
+import Grid from '@mui/material/Grid2';
 import {
-    CheckCircleOutline as CheckIcon, ErrorOutline as ErrorIcon, NetworkCheck as NetworkCheckIcon,
+    CheckCircleOutline as CheckIcon, ErrorOutline as ErrorIcon,
     Settings as SettingsIcon, Timer as TimerIcon
-} from '@mui/icons-material';
+} from '@mui/icons-material'; // Removed NetworkCheckIcon
 import { MonitoringResult } from '../../types';
 
 interface WebsiteDetailsHeaderProps {
     name: string;
     url: string;
     latestResult: MonitoringResult | null;
-    isChecking: boolean;
-    isRefetching: boolean;
-    onCheckNow: () => void;
+    // isChecking is no longer needed here as the button is removed
+    isRefetching: boolean; // Background query refetching (keep for indicator)
+    // onCheckNow is no longer needed here
     onSettingsClick: () => void;
 }
 
-const WebsiteDetailsHeader = React.memo(({
+const WebsiteDetailsHeader = memo(({
     name,
     url,
     latestResult,
-    isChecking,
-    isRefetching,
-    onCheckNow,
-    onSettingsClick,
+    isRefetching, // Removed isChecking
+    onSettingsClick, // Removed onCheckNow
 }: WebsiteDetailsHeaderProps) => {
-    const theme = useTheme();
 
     const isOnline = useMemo(() => latestResult?.isAvailable ?? false, [latestResult]);
     const currentStatusCode = useMemo(() => latestResult?.statusCode, [latestResult]);
     const statusColor = isOnline ? "success" : "error";
     const statusText = isOnline ? "Up" : "Down";
     const lastCheckedDate = latestResult?.checkedAt ? new Date(latestResult.checkedAt) : null;
+    const lastCheckedTimeString = lastCheckedDate?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) ?? 'N/A';
 
     return (
-        <Paper elevation={3} sx={{ p: 3, borderRadius: 2, mb: 3, position: 'relative', overflow: 'hidden' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, position: 'relative' }}>
-                <Box>
-                    <Typography variant="h5" component="h1" fontWeight={600} noWrap gutterBottom>{name}</Typography>
-                    <Typography variant="body2" color="textSecondary" noWrap>{url}</Typography>
-                </Box>
-                <Tooltip title="Website Settings">
-                    <IconButton size="medium" onClick={onSettingsClick} sx={{ position: 'absolute', top: 0, right: 0, color: theme.palette.text.secondary }}>
-                        <SettingsIcon />
-                    </IconButton>
-                </Tooltip>
-            </Box>
-            <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={8}>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+        <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, mb: 3, position: 'relative', overflow: 'hidden' }}>
+            {/* Settings Icon Button */}
+            <Tooltip title="Website Settings">
+                <IconButton size="medium" onClick={onSettingsClick} sx={{ position: 'absolute', top: 8, right: 8, color: 'text.secondary' }} aria-label="Website Settings">
+                    <SettingsIcon />
+                </IconButton>
+            </Tooltip>
+
+            {/* Main Content Grid - Align items center for vertical centering */}
+            <Grid container spacing={{ xs: 2, sm: 3 }} alignItems="center">
+                {/* Left Column: Name and URL */}
+                <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 1, pr: { md: 4 }, minWidth: 0 }}>
+                    <Stack spacing={0.5}>
+                        <Typography variant="h5" component="h1" fontWeight={600} noWrap title={name}>{name}</Typography>
+                        <Typography variant="body2" color="text.secondary" noWrap title={url}>{url}</Typography>
+                    </Stack>
+                </Grid>
+
+                {/* Right Column: Status Info Only */}
+                {/* Size auto, content dictates width */}
+                <Grid size={{ xs: 12, md: 'auto' }}>
+                    <Stack
+                        direction="row" // Always row now
+                        spacing={1}
+                        alignItems="center"
+                        flexWrap="wrap" // Allow chips to wrap
+                        useFlexGap // Better spacing for wrapped items
+                        sx={{ justifyContent: { xs: 'flex-start', sm: 'flex-end' } }} // Align chips right on sm+
+                    >
                         <Chip icon={isOnline ? <CheckIcon /> : <ErrorIcon />} label={statusText} color={statusColor} size="small" sx={{ fontWeight: "bold" }} />
                         <Chip label={`HTTP ${currentStatusCode ?? "N/A"}`} variant="outlined" size="small" />
                         {lastCheckedDate && (
                             <Tooltip title={`Last checked: ${lastCheckedDate.toLocaleString()}`} arrow>
-                                <Typography variant="caption" color="textSecondary" sx={{ display: 'flex', alignItems: 'center' }}>
-                                    <TimerIcon fontSize="inherit" sx={{ mr: 0.5 }} />
-                                    {lastCheckedDate.toLocaleTimeString()}
-                                </Typography>
+                                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                                    <TimerIcon sx={{ fontSize: '1rem' }} />
+                                    <Typography variant="caption">
+                                        {lastCheckedTimeString}
+                                    </Typography>
+                                </Stack>
+                            </Tooltip>
+                        )}
+                        {/* Refetch Indicator (moved slightly for better spacing without button) */}
+                        {isRefetching && (
+                            <Tooltip title="Refreshing data...">
+                                <Box sx={{ display: 'flex', alignItems: 'center', ml: 1 }}> {/* Added margin left */}
+                                    <CircularProgress size={20} sx={{ opacity: 0.7 }} /> {/* Slightly smaller */}
+                                </Box>
                             </Tooltip>
                         )}
                     </Stack>
-                </Grid>
-                <Grid item xs={12} md={4} sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mt: { xs: 2, md: 0 } }}>
-                    <Button 
-                        variant="contained" 
-                        startIcon={isChecking ? <CircularProgress size={20} color="inherit" /> : <NetworkCheckIcon />} 
-                        onClick={onCheckNow} 
-                        disabled={isChecking || isRefetching} 
-                        size="medium"
-                        sx={{ borderRadius: 2 }}
-                    >
-                        {isChecking ? "Checking..." : "Check Now"}
-                    </Button>
-                    {isRefetching && !isChecking && <CircularProgress size={24} sx={{ ml: 2 }} />}
+                    {/* Removed Actions Group Stack */}
                 </Grid>
             </Grid>
         </Paper>

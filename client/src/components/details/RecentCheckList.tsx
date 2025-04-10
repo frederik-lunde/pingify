@@ -1,9 +1,12 @@
-// src/components/details/RecentChecksList.tsx
-import React from 'react';
+/*
+src/components/details/RecentChecksList.tsx
+*/
+import { memo } from 'react'; // Removed React prefix
 import {
     Paper, Box, Typography, Stack, FormControl, InputLabel, Select, MenuItem,
-    List, Grid, Tooltip, ButtonBase, SelectChangeEvent, alpha, useTheme, ListItem
+    List, Tooltip, ButtonBase, SelectChangeEvent, alpha, useTheme, ListItem
 } from '@mui/material';
+import Grid from '@mui/material/Grid2'; // <-- Use Grid v2
 import {
     ListAlt as ListAltIcon, InfoOutlined as InfoOutlinedIcon,
     CheckCircleOutline as CheckIcon, CalendarToday as CalendarTodayIcon, Code as CodeIcon,
@@ -21,23 +24,23 @@ interface RecentChecksListProps {
     checkLimit: number;
     sortBy: SortableColumn;
     sortDir: SortDirection;
-    isLoading: boolean; // Combined loading/fetching state
+    isLoading: boolean;
     onCheckLimitChange: (event: SelectChangeEvent<number | string>) => void;
     onSort: (column: SortableColumn) => void;
 }
 
 // Helper to render sort icon
 const renderSortIcon = (column: SortableColumn, sortBy: SortableColumn, sortDir: SortDirection) => {
-    if (sortBy !== column) {
-        return <SwapVertIcon fontSize="inherit" sx={{ ml: 0.5, color: 'text.disabled', opacity: 0.5, verticalAlign: 'middle' }} />;
-    }
-    return sortDir === 'asc'
-        ? <ArrowUpwardIcon fontSize="inherit" sx={{ ml: 0.5, color: 'text.primary', verticalAlign: 'middle' }} />
-        : <ArrowDownwardIcon fontSize="inherit" sx={{ ml: 0.5, color: 'text.primary', verticalAlign: 'middle' }} />;
+    const isActive = sortBy === column;
+    const IconComponent = isActive ? (sortDir === 'asc' ? ArrowUpwardIcon : ArrowDownwardIcon) : SwapVertIcon;
+    const color = isActive ? 'text.primary' : 'text.disabled';
+    const opacity = isActive ? 1 : 0.5;
+
+    return <IconComponent fontSize="inherit" sx={{ ml: 0.5, color, opacity, verticalAlign: 'middle' }} />;
 };
 
 // Memoize the component
-const RecentChecksList = React.memo(({
+const RecentChecksList = memo(({
     recentChecks,
     checkLimit,
     sortBy,
@@ -74,35 +77,36 @@ const RecentChecksList = React.memo(({
                 </FormControl>
             </Box>
 
-            {/* Column Headers */}
+            {/* Column Headers - Use Grid v2 */}
              <Grid container spacing={1} sx={{
                     borderBottom: 1, borderColor: 'divider', pb: 1, mb: 1,
                     display: { xs: 'none', sm: 'flex' }, alignItems: 'center',
                     background: alpha(theme.palette.action.hover, 0.04),
                     borderRadius: 1, px: 1
                 }}>
-                <Grid item sm={1} sx={{ textAlign: 'center' }}>
+                {/* Use size prop */}
+                <Grid size={1} display="flex" justifyContent="center" alignItems="center">
                     <Tooltip title="Sort by Status">
                         <ButtonBase onClick={() => onSort('isAvailable')} sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 1, p: 0.5, '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08)} }} aria-label="Sort by Status">
                             <CheckIcon fontSize="small" sx={{ color: 'text.secondary' }} />{renderSortIcon('isAvailable', sortBy, sortDir)}
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
-                <Grid item sm={5} >
+                <Grid size={5} >
                     <Tooltip title="Sort by Date & Time">
                         <ButtonBase onClick={() => onSort('timestamp')} sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', borderRadius: 1, p: 0.5, width: '100%', justifyContent: 'flex-start', '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08) } }} aria-label="Sort by Date and Time">
                             <CalendarTodayIcon fontSize="small" sx={{ color: 'text.secondary', mr: 0.5 }} /><Typography variant="caption" color="textSecondary" fontWeight="bold">Date & Time</Typography>{renderSortIcon('timestamp', sortBy, sortDir)}
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
-                <Grid item sm={3} sx={{ textAlign: 'center' }}>
+                <Grid size={3} display="flex" justifyContent="center" alignItems="center">
                     <Tooltip title="Sort by HTTP Status Code">
                         <ButtonBase onClick={() => onSort('statusCode')} sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 1, p: 0.5, width: '100%', justifyContent: 'center', '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08) } }} aria-label="Sort by HTTP Status Code">
                             <CodeIcon fontSize="small" sx={{ color: 'text.secondary', mr: 0.5 }} /><Typography variant="caption" color="textSecondary" fontWeight="bold">HTTP Status</Typography>{renderSortIcon('statusCode', sortBy, sortDir)}
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
-                <Grid item sm={3} sx={{ textAlign: 'center' }}>
+                <Grid size={3} display="flex" justifyContent="center" alignItems="center">
                     <Tooltip title="Sort by Response Time">
                         <ButtonBase onClick={() => onSort('responseTime')} sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 1, p: 0.5, width: '100%', justifyContent: 'center', '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08) } }} aria-label="Sort by Response Time">
                             <TimerIcon fontSize="small" sx={{ color: 'text.secondary', mr: 0.5 }} /><Typography variant="caption" color="textSecondary" fontWeight="bold">Response (ms)</Typography>{renderSortIcon('responseTime', sortBy, sortDir)}
@@ -117,7 +121,7 @@ const RecentChecksList = React.memo(({
                     {recentChecks.length > 0 ? (
                         recentChecks.map((check, index) => (
                             <CheckListItem
-                                key={check.id ?? `check-${index}`} // Use stable key
+                                key={check.id ?? `check-${index}`}
                                 check={check}
                                 isLastItem={index === recentChecks.length - 1}
                             />
