@@ -10,8 +10,6 @@ import { useUserWebsitesQuery } from "../api/useWebsites"; // Assuming correct p
 // Remove useUserMonitoringResultsQuery import
 import { useUserStatsQuery } from "../api/useMonitoring"; // Assuming correct path
 
-// This limit is no longer needed here as chart data comes pre-calculated
-// const RECENT_RESULTS_LIMIT_FOR_CARD = 20;
 
 
 // Interface for the combined data structure for each website card

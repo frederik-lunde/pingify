@@ -39,7 +39,6 @@ import {
 } from "../../hooks";
 
 import {
-  MonitoringResult,
   WebsiteUser,
   TimeframeKey,
   ChartDataPoint
@@ -52,7 +51,6 @@ interface WebsiteCardProps {
 
 // Constants remain the same
 const CARD_TIMEFRAME: TimeframeKey = 'day'; // Used for Uptime tooltip text
-const MAX_CARD_DATA_POINTS = 24; // Used for chart logic checks
 
 // Memoized chart component (no changes)
 const ResponseTimeChart = React.memo(
