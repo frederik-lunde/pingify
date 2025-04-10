@@ -444,25 +444,3 @@ export async function getUserAlertStats(userId: number, days = 7): Promise<Alert
 
     return { totalAlerts, byType, byWebsite };
 }
-
-
-/**
- * Gets the count of 'down' or 'slow' alerts created in the last 24 hours for a specific user.
- */
-export async function getUserIncidentCountLast24h(userId: number): Promise<number> {
-    const twentyFourHoursAgo = subHours(new Date(), 24);
-
-    const count = await prisma.alert.count({
-        where: {
-            userId: userId,
-            type: {
-                in: ['down', 'slow'], // Only count incident types
-            },
-            createdAt: {
-                gte: twentyFourHoursAgo, // Within the last 24 hours
-            },
-        },
-    });
-
-    return count;
-}
