@@ -1,7 +1,7 @@
 /*
 * client/src/types.ts
 *
-* - Added `incidentsLast24h` to `OverallStats` interface.
+* - Changed `notifyEmail` type in `WebsiteUser` to `string | null`.
 */
 // --- SECTION 1: Keep Basic Prisma Type Names if helpful for context, but don't rely on backend structure ---
 // These are just illustrative names now for the concepts
@@ -56,26 +56,27 @@ export interface User {
 
 // Represents the user's specific settings for a website
 export interface WebsiteUser {
-    id: number;
-    userId: number;
-    websiteId: number;
-    name: string | null; // User's custom name for this site
-    interval: number | null; // User's custom interval
-    alertEnabled: boolean;
-    alertThreshold: number | null; // User's custom threshold
-    notifyEmail: string | null; // User's notification email for this site
-    createdAt: string; // ISO 8601 date string
-    isPinned: boolean;
-    // Nested Website object is commonly included when fetching user's dashboard data
-    website?: Website;
-    // --- ADDED DOWNTIME FIELDS (Optional) ---
-    // These fields are populated by the backend API (`/websites/user/dashboard`)
-    // ONLY when the latest status is determined to be 'down'.
-    consecutiveFailures?: number;
-    downtimeStartedAt?: string | null; // ISO 8601 date string
-    // --- END ADDED ---
-}
+  id: number;
+  userId: number;
+  websiteId: number;
+  name: string | null; // User-defined alias
+  interval: number | null; // User-specific interval override (seconds)
+  alertEnabled: boolean;
+  alertThreshold: number | null; // Response time threshold (ms) for alerts
+  // --- CORRECTED TYPE ---
+  notifyEmail: string | null; // User preference for email alerts (email address or null)
+  // --- END CORRECTION ---
+  createdAt: string; // ISO 8601 date string
+  isPinned: boolean; // User preference to pin the website
 
+  // --- Data Added by Backend Service ---
+  website?: Website; // Nested core website data
+  latestResult?: MonitoringResult | null; // Last monitoring result
+  chartData?: ChartDataPoint[]; // Pre-calculated chart data for the card (daily, last 24 points)
+  uptimePercent?: number; // Uptime percentage for the card timeframe (e.g., 'day')
+  consecutiveFailures?: number; // Current count if down
+  downtimeStartedAt?: string | null; // ISO timestamp if down
+}
 // --- UPDATED ALERT TYPES ---
 
 // Define the *simplified* alert types matching the refactored backend
@@ -122,6 +123,10 @@ export interface ApiError extends Error {
   isNetworkError?: boolean;
 }
 
+// Define SortOption based on the constant used in Dashboard
+export const SORT_OPTIONS = ['name-asc', 'name-desc', 'response-asc', 'response-desc'] as const;
+export type SortOption = typeof SORT_OPTIONS[number];
+
 
 // --- SECTION 4: API DTOs (Data Transfer Objects - Sent from Frontend) ---
 
@@ -132,6 +137,7 @@ export interface AddWebsiteUserDTO {
   interval?: number | null;
   alertThreshold?: number | null;
   alertEnabled?: boolean;
+  // Keep as string | null for sending to API
   notifyEmail?: string | null;
   isPinned?: boolean;
 }
@@ -142,6 +148,7 @@ export interface UpdateWebsiteUserDTO {
   interval?: number | null;
   alertThreshold?: number | null;
   alertEnabled?: boolean | null;
+  // Keep as string | null for sending to API
   notifyEmail?: string | null;
   isPinned?: boolean;
 }
@@ -216,10 +223,10 @@ export interface OverallStats {
   websiteStats: WebsiteStatsData[];
   overallUptime: number;
   overallResponseTime: number | null;
-  // Added to match backend response
-  incidentsLast24h: number;
- lastIncidentTimestamp: string | null; // ISO 8601 date string 
- lastIncidentWebsiteId?: number | null;
+  // Allow null for incidentsLast24h if backend might return null initially
+  incidentsLast24h: number | null;
+  lastIncidentTimestamp: string | null; // ISO 8601 date string
+  lastIncidentWebsiteId?: number | null;
 }
 
 // Data point for charts
@@ -287,18 +294,15 @@ export interface AuthContextType {
 }
 
 // Example combined type for dashboard cards/hooks
-// This type is used by useWebsiteData hook and passed to WebsiteGrid/WebsiteCard
-// It uses the updated WebsiteUser type which includes optional downtime fields
-export interface WebsiteWithDetails {
-  userWebsite: WebsiteUser; // User's settings + nested Website core data + OPTIONAL DOWNTIME INFO
-  latestResult?: MonitoringResult; // Latest check result
-  activeAlertCount?: number; // Example: Count of active alerts for this site/user
+// This type is returned by the useWebsiteData hook structure
+export interface WebsiteWithResults {
+    userWebsite: WebsiteUser; // User's settings + nested Website core data + OPTIONAL DOWNTIME + LatestResult + ChartData etc.
 }
 
 // Example structure returned by a high-level dashboard data hook
-// This uses WebsiteWithDetails above
+// CORRECTED: Use WebsiteWithResults[]
 export interface WebsiteDataSummary {
-    websitesWithDetails: WebsiteWithDetails[];
+    websitesWithResults: WebsiteWithResults[];
     overallStats: OverallStats | null;
     isLoading: boolean;
     isFetching: boolean;
@@ -307,5 +311,6 @@ export interface WebsiteDataSummary {
     totalWebsitesCount: number;
     upWebsitesCount: number;
     incidentsLast24h: number | null;
-    lastIncidentWebsiteId?: number | null; // ID of the website with the last incident
+    lastIncidentTimestamp: string | null | undefined;
+    lastIncidentWebsiteId: number | null | undefined; // Added this line based on hook return
 }

@@ -5,7 +5,7 @@ import { Container, Box, Alert, Button, Skeleton, Paper, Grid as MuiGrid, Select
 import { keepPreviousData } from '@tanstack/react-query';
 
 import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks'; // Adjust path if needed
-import { TimeframeKey, MonitoringResult } from '../types'; // Adjust path if needed
+import { TimeframeKey } from '../types'; // Adjust path if needed
 
 import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader'; // Adjust path if needed
 import RecentChecksList from '../components/details/RecentCheckList'; // Adjust path if needed

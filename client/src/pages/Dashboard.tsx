@@ -32,10 +32,12 @@ import StatsHeader from "../components/dashboard/StatsHeader";
 // Hook Imports
 import { useWebsiteData, useDownWebsitesLast24h } from "../hooks";
 import { useFocusMode } from "../context/FocusModeContext";
+// Correct Link import for react-router-dom v6+
 import { Link } from "react-router";
 
 // Type Imports
-import { SortOption } from "../types";
+// Ensure SortOption is imported or defined in types.ts
+import { SortOption, WebsiteWithResults } from "../types";
 
 // Define Sort Options
 interface SortOptionConfig {
@@ -69,7 +71,7 @@ const Dashboard: React.FC = () => {
     } = useDownWebsitesLast24h();
 
     const {
-        websitesWithResults: allWebsites,
+        websitesWithResults: allWebsites, // This is WebsiteWithResults[]
         overallStats,
         incidentsLast24h,
         lastIncidentTimestamp,
@@ -79,8 +81,7 @@ const Dashboard: React.FC = () => {
         refetch,
         totalWebsitesCount,
         upWebsitesCount,
-    } = useWebsiteData(
-        undefined,
+    } = useWebsiteData( // Remove the first 'undefined' argument
         'week',
         60000
     );
@@ -144,6 +145,7 @@ const Dashboard: React.FC = () => {
     // Memoized Calculations
     const filteredWebsites = useMemo(() => {
         if (!filterTerm) return allWebsites;
+        // Filter based on data within userWebsite
         return allWebsites.filter(item => {
             if (!item?.userWebsite) return false;
             const name = item.userWebsite.name?.toLowerCase() || '';
@@ -153,13 +155,22 @@ const Dashboard: React.FC = () => {
     }, [allWebsites, filterTerm]);
 
     const sortedAndFilteredWebsites = useMemo(() => {
+        // Base list to sort
+        let listToSort: WebsiteWithResults[] = [];
+
+        // Filter for down websites if needed
         if (showDownWebsites && downWebsites.length > 0) {
             const downWebsiteIds = new Set(downWebsites.map(website => website.id));
-            return filteredWebsites.filter(website => 
-                downWebsiteIds.has(website.userWebsite.websiteId)
+            listToSort = filteredWebsites.filter(item =>
+                item.userWebsite?.websiteId !== undefined && downWebsiteIds.has(item.userWebsite.websiteId)
             );
+        } else {
+            listToSort = filteredWebsites;
         }
-        return [...filteredWebsites].sort((a, b) => {
+
+        // Sort the determined list
+        return [...listToSort].sort((a, b) => {
+            // Ensure userWebsite exists on both items
             if (!a?.userWebsite || !b?.userWebsite) return 0;
 
             // 1. Pinned sites first
@@ -168,38 +179,45 @@ const Dashboard: React.FC = () => {
             }
 
             // 2. Down sites come before up sites
-            const aIsAvailable = a.latestResult?.isAvailable ?? true;
-            const bIsAvailable = b.latestResult?.isAvailable ?? true;
+            // --- ACCESS LATEST RESULT WITHIN userWebsite ---
+            const aIsAvailable = a.userWebsite.latestResult?.isAvailable ?? true; // Default to true if no result yet
+            const bIsAvailable = b.userWebsite.latestResult?.isAvailable ?? true; // Default to true if no result yet
             if (aIsAvailable !== bIsAvailable) {
-                return aIsAvailable ? 1 : -1;
+                return aIsAvailable ? 1 : -1; // Put false (down) first
             }
 
             // 3. Apply user-selected sort
             switch (sortOption) {
                 case 'name-asc': {
+                    // Name or URL from userWebsite
                     const nameA = a.userWebsite.name ?? a.userWebsite.website?.url ?? '';
                     const nameB = b.userWebsite.name ?? b.userWebsite.website?.url ?? '';
                     return nameA.localeCompare(nameB);
                 }
                 case 'name-desc': {
+                    // Name or URL from userWebsite
                     const nameA = a.userWebsite.name ?? a.userWebsite.website?.url ?? '';
                     const nameB = b.userWebsite.name ?? b.userWebsite.website?.url ?? '';
                     return nameB.localeCompare(nameA);
                 }
                 case 'response-asc': {
-                    const respA = a.latestResult?.responseTime ?? Infinity;
-                    const respB = b.latestResult?.responseTime ?? Infinity;
+                    // --- ACCESS LATEST RESULT WITHIN userWebsite ---
+                    const respA = a.userWebsite.latestResult?.responseTime ?? Infinity; // Use Infinity for null/missing
+                    const respB = b.userWebsite.latestResult?.responseTime ?? Infinity; // Use Infinity for null/missing
                     return respA - respB;
                 }
                 case 'response-desc': {
-                    const respA = a.latestResult?.responseTime ?? -1;
-                    const respB = b.latestResult?.responseTime ?? -1;
+                    // --- ACCESS LATEST RESULT WITHIN userWebsite ---
+                    const respA = a.userWebsite.latestResult?.responseTime ?? -1; // Use -1 for null/missing
+                    const respB = b.userWebsite.latestResult?.responseTime ?? -1; // Use -1 for null/missing
                     return respB - respA;
                 }
                 default:
                     return 0;
             }
         });
+        // Adjust dependencies: allWebsites is the raw data, filteredWebsites depends on it.
+        // Use filteredWebsites here as the base for sorting.
     }, [filteredWebsites, sortOption, showDownWebsites, downWebsites]);
 
     const headerStats = useMemo(() => ({
@@ -207,7 +225,10 @@ const Dashboard: React.FC = () => {
     }), [overallStats]);
 
     // Render Logic
-    if (isLoadingData && allWebsites.length === 0 && !overallStats) {
+    // Check loading state based on the hook and whether the final list is empty
+    const showLoadingSkeleton = isLoadingData && sortedAndFilteredWebsites.length === 0;
+
+    if (showLoadingSkeleton && !dataError) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
                 <CircularProgress />
@@ -215,6 +236,7 @@ const Dashboard: React.FC = () => {
         );
     }
 
+    // Handle initial error state where nothing loaded
     if (dataError && allWebsites.length === 0 && !overallStats) {
         return (
             <Container maxWidth="lg" sx={{ mt: 4, textAlign: 'center' }}>
@@ -228,14 +250,21 @@ const Dashboard: React.FC = () => {
         );
     }
 
+    // Determine if the list is empty due to filters or no websites added
+    const isListEmpty = !isLoadingData && sortedAndFilteredWebsites.length === 0;
+    const isEmptyDueToFilter = isListEmpty && (!!filterTerm || sortOption !== 'name-asc' || showDownWebsites);
+    const isEmptyBecauseNoWebsites = isListEmpty && !filterTerm && sortOption === 'name-asc' && !showDownWebsites && !dataError;
+
+
     return (
         <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: 2, mb: 2 }}>
             {/* Statistics Header Section */}
             {!isFocusMode && (
                 <Paper elevation={1} sx={{ mb: 2, overflow: 'hidden' }}>
                     <StatsHeader
+                        // Pass loading state based on initial load OR background fetch if data exists
                         isLoading={isLoadingData && !overallStats}
-                        error={dataError}
+                        error={dataError} // Pass dataError to StatsHeader if needed
                         upCount={upWebsitesCount}
                         totalCount={totalWebsitesCount}
                         uptime={headerStats.uptime}
@@ -323,13 +352,14 @@ const Dashboard: React.FC = () => {
             {/* Error Alerts */}
             {downWebsitesError && showDownWebsites && (
                 <Alert severity="error" sx={{ mb: 2 }}>
-                    Failed to load down websites: {downWebsitesError.message}
+                    Failed to load down websites: {downWebsitesError?.message || 'Unknown error'}
                     <Button onClick={() => refetchDownWebsites()} size="small" sx={{ ml: 1 }}>
                         Retry
                     </Button>
                 </Alert>
             )}
 
+            {/* General Data Error (if data is partially loaded) */}
             {!isFocusMode && dataError && (allWebsites.length > 0 || overallStats) && (
                 <Alert severity="warning" sx={{ mb: 1 }}>
                     There might be issues displaying the latest data: {dataError.message}.
@@ -338,22 +368,25 @@ const Dashboard: React.FC = () => {
             )}
 
             {/* Website Grid */}
+            {/* Pass the correctly sorted/filtered list */}
             <WebsiteGrid
                 websitesWithResults={sortedAndFilteredWebsites}
-                loading={isLoadingData && sortedAndFilteredWebsites.length === 0 && (!!filterTerm || sortOption !== 'name-asc')}
-                error={null}
+                // Pass loading=true only if it's the initial load AND the list is empty
+                // This prevents the skeleton flash on background refetches/sorts
+                loading={showLoadingSkeleton}
+                error={null} // Main error handled above
                 lastIncidentWebsiteId={lastIncidentWebsiteId}
                 isHighlightActive={isHighlightActive}
             />
 
             {/* Empty States */}
-            {!isLoadingData && sortedAndFilteredWebsites.length === 0 && (!!filterTerm || sortOption !== 'name-asc') && (
+            {isEmptyDueToFilter && (
                 <Typography sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
                     No websites match your current filter or sort criteria.
                 </Typography>
             )}
 
-            {!isLoadingData && allWebsites.length === 0 && !filterTerm && sortOption === 'name-asc' && !dataError && (
+            {isEmptyBecauseNoWebsites && (
                 <Box sx={{
                     display: "flex",
                     flexDirection: "column",

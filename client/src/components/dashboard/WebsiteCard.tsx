@@ -7,7 +7,7 @@ import {
   useTheme,
   CircularProgress,
   alpha,
-  Skeleton,
+  // Skeleton, // No longer needed here
   Stack
 } from "@mui/material";
 import {
@@ -19,7 +19,7 @@ import {
   PushPinOutlined as PinOutlinedIcon,
   TimerOff as TimerOffIcon,
   InfoOutlined as InfoIcon,
-  WarningAmber as WarningIcon
+  // WarningAmber as WarningIcon // No longer needed here
 } from "@mui/icons-material";
 const Line = React.lazy(() => import('react-chartjs-2').then(module => ({ default: module.Line })));
 import { ChartOptions, TooltipItem } from 'chart.js';
@@ -32,9 +32,10 @@ import {
   formatDowntimeDuration
 } from "../../utils/statusUtils";
 
+// Remove useWebsiteDetailsQuery import
 import {
-  useWebsiteDetailsQuery,
-  useWebsiteMutations,
+    // useWebsiteDetailsQuery, // REMOVED
+    useWebsiteMutations,
 } from "../../hooks";
 
 import {
@@ -45,12 +46,13 @@ import {
 } from "../../types";
 
 interface WebsiteCardProps {
-  userWebsite: WebsiteUser;
+  userWebsite: WebsiteUser; // This prop now contains all necessary data
   shouldHighlightThisCard?: boolean;
 }
 
-const CARD_TIMEFRAME: TimeframeKey = 'day';
-const MAX_CARD_DATA_POINTS = 24;
+// Constants remain the same
+const CARD_TIMEFRAME: TimeframeKey = 'day'; // Used for Uptime tooltip text
+const MAX_CARD_DATA_POINTS = 24; // Used for chart logic checks
 
 // Memoized chart component (no changes)
 const ResponseTimeChart = React.memo(
@@ -73,7 +75,8 @@ const ResponseTimeChart = React.memo(
 );
 ResponseTimeChart.displayName = 'ResponseTimeChart';
 
-// Helper Function to generate Chart Data/Options for the Card (no changes)
+// Helper Function to generate Chart Data/Options for the Card (no changes needed structurally)
+// It now receives ChartDataPoint[] directly
 const useCardChartConfig = (limitedChartDataPoints: ChartDataPoint[] | undefined): { chartData: any, chartOptions: ChartOptions<'line'> } => {
     const theme = useTheme();
 
@@ -81,7 +84,9 @@ const useCardChartConfig = (limitedChartDataPoints: ChartDataPoint[] | undefined
         if (!limitedChartDataPoints || limitedChartDataPoints.length === 0) {
             return { labels: [], datasets: [] };
         }
+        // Assuming limitedChartDataPoints is already the correct ChartDataPoint[] structure
         const labels = limitedChartDataPoints.map(p => p.label);
+        // Use avgResponseTime directly from ChartDataPoint
         const data = limitedChartDataPoints.map(p => p.avgResponseTime ?? null);
 
         return {
@@ -118,15 +123,17 @@ const useCardChartConfig = (limitedChartDataPoints: ChartDataPoint[] | undefined
                         const uptimePercentFormatted = (point && typeof point.uptimeRatio === 'number')
                             ? (point.uptimeRatio * 100).toFixed(1) + '%'
                             : 'N/A';
-                        // Determine status text based on the new logic (100% = Up, <100% = Down)
+                        // Determine status text based on uptime ratio (100% = Up, <100% = Down)
                         const statusText = (point && typeof point.uptimeRatio === 'number')
                             ? (point.uptimeRatio === 1.0 ? 'Up' : 'Down')
                             : 'Unknown';
-                        return `${point?.label ?? ''} (${statusText} - ${uptimePercentFormatted})`; // Updated tooltip title
+                        // Display label (e.g., 'HH:mm'), status, and uptime percentage
+                        return `${point?.label ?? ''} (${statusText} - ${uptimePercentFormatted})`;
                      },
                      label: (tooltipItem: TooltipItem<'line'>) => {
                         const value = tooltipItem.parsed.y;
                         if (value === null || isNaN(value)) return 'No response data';
+                        // Display average response time for the interval
                         return `Avg Response: ${value.toFixed(0)} ms`;
                     },
                 }
@@ -151,77 +158,62 @@ const useCardChartConfig = (limitedChartDataPoints: ChartDataPoint[] | undefined
 
 const WebsiteCard = React.memo(
   ({
-    userWebsite,
+    userWebsite, // Main prop containing all data
     shouldHighlightThisCard = false,
   }: WebsiteCardProps) => {
     const navigate = useNavigate();
     const theme = useTheme();
     const { setPinStatus, isSettingPin, errorSettingPin } = useWebsiteMutations();
 
-    // Data Fetching (no changes)
-    const {
-        data: websiteDetails,
-        isPending: isLoading,
-        error: queryError,
-        isFetching,
-        // refetch
-    } = useWebsiteDetailsQuery({
-        websiteId: userWebsite.websiteId,
-        timeframe: CARD_TIMEFRAME,
-        limit: MAX_CARD_DATA_POINTS,
-    }, {
-        enabled: !!userWebsite.websiteId,
-        staleTime: 5 * 60 * 1000,
-        refetchOnWindowFocus: true,
-        refetchInterval: 10 * 60 * 1000,
-        refetchIntervalInBackground: true,
-    });
+    // --- Data Fetching REMOVED ---
+    // const { data: websiteDetails, ... } = useWebsiteDetailsQuery(...) // REMOVED
 
-    // Processed Data Points (no changes)
+    // --- Derive Data Directly from userWebsite Prop ---
+    const name = useMemo(() => userWebsite.name ?? userWebsite.website?.url ?? 'Website', [userWebsite.name, userWebsite.website?.url]);
+    const url = useMemo(() => userWebsite.website?.url, [userWebsite.website?.url]);
+    const latestResult = useMemo(() => userWebsite.latestResult, [userWebsite.latestResult]);
+    // Use pre-calculated chart data from the prop
+    const chartDataProp = useMemo(() => userWebsite.chartData, [userWebsite.chartData]);
+    // Use pre-calculated uptime percent from the prop
+    const uptimePercent = useMemo(() => userWebsite.uptimePercent, [userWebsite.uptimePercent]);
+    const isPinned = useMemo(() => userWebsite.isPinned, [userWebsite.isPinned]);
+    // Use downtime info directly from the prop
+    const consecutiveFailures = useMemo(() => userWebsite.consecutiveFailures, [userWebsite.consecutiveFailures]);
+    const downtimeStartedAt = useMemo(() => userWebsite.downtimeStartedAt, [userWebsite.downtimeStartedAt]);
+
+    // Processed Data Points for Chart Config (using data from prop)
+    // Ensure it's memoized based on the prop data
     const limitedChartDataPoints = useMemo(() => {
-        const points = websiteDetails?.chartData;
-        if (!points || points.length === 0) {
-            return undefined;
-        }
-        if (points.length > MAX_CARD_DATA_POINTS) {
-            return points.slice(-MAX_CARD_DATA_POINTS);
-        }
-        return points;
-    }, [websiteDetails?.chartData]);
+        // The data should already be limited by the backend
+        return chartDataProp?.length ? chartDataProp : undefined;
+    }, [chartDataProp]);
 
-
-    // Derived Values (no changes)
-    const name = websiteDetails?.name ?? userWebsite.name ?? 'Loading...';
-    const url = websiteDetails?.url ?? userWebsite.website?.url;
-    const latestResult = websiteDetails?.latestResult;
-    const uptimePercent = websiteDetails?.uptimePercent;
-
+    // --- Derived Values (using data from prop) ---
     const hasPinError = !!errorSettingPin;
-    const isPinned = userWebsite.isPinned;
 
     const isOnline = latestResult?.isAvailable ?? null;
     const responseTime = latestResult?.responseTime ?? null;
     const statusCode = latestResult?.statusCode;
 
-    const consecutiveFailures = isOnline === false ? userWebsite.consecutiveFailures : undefined;
-    const downtimeStartedAt = isOnline === false ? userWebsite.downtimeStartedAt : null;
     const downtimeDuration = formatDowntimeDuration(downtimeStartedAt);
+    const formattedUptime = formatUptime(uptimePercent); // Use uptimePercent from prop
 
-    const formattedUptime = formatUptime(uptimePercent);
-
-    // Use the limited points for chart config (no changes)
+    // Use the limited points for chart config
     const { chartData, chartOptions } = useCardChartConfig(limitedChartDataPoints);
 
-    // Conditions for showing chart/ticks (no changes)
-    const canShowChart = latestResult !== undefined && isOnline === true &&
+    // --- Conditions for showing chart/ticks ---
+    // Check if latestResult exists and indicates online status
+    const isLatestResultAvailable = latestResult !== undefined && latestResult !== null;
+    // Chart can show if latest result is available, indicates 'online', and chart data exists with more than one valid point
+    const canShowChart = isLatestResultAvailable && isOnline === true &&
                          (chartData?.datasets?.[0]?.data?.filter((d: number | null) => d !== null && !isNaN(d)).length ?? 0) > 1;
-
+    // Ticks can show if chart can show and points exist with uptimeRatio
     const canShowTicks = canShowChart &&
                          limitedChartDataPoints && limitedChartDataPoints.length > 0 &&
                          limitedChartDataPoints.every(p => typeof p.uptimeRatio === 'number');
 
 
-    // Handlers (no changes)
+    // --- Handlers (no changes) ---
     const handleClick = useCallback(() => {
       navigate(`/website/${userWebsite.websiteId}`);
     }, [navigate, userWebsite.websiteId]);
@@ -247,7 +239,7 @@ const WebsiteCard = React.memo(
         return isPinned ? "Unpin Website" : "Pin Website";
     }, [isSettingPin, hasPinError, isPinned, errorSettingPin?.message]);
 
-    // Highlighting Styles (no changes)
+    // --- Highlighting Styles (no changes) ---
     const cardHighlightStyles = useMemo(() => {
         const baseSx = {
             transition: theme.transitions.create(['transform', 'box-shadow', 'border-color'], {
@@ -273,65 +265,10 @@ const WebsiteCard = React.memo(
         }
     }, [shouldHighlightThisCard, isPinned, theme]);
 
-    // Loading State (no changes)
-    if (isLoading && !websiteDetails) {
-        return (
-            <Card
-                sx={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    p: 2,
-                    pb: 1,
-                    borderColor: theme.palette.divider,
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
-                }}
-            >
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
-                    <Skeleton variant="text" width="70%" height={28} />
-                    <Skeleton variant="circular" width={24} height={24} />
-                </Box>
-                <Skeleton variant="text" width="50%" height={18} sx={{ mb: 1.5 }} />
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5, minHeight: '24px' }}>
-                    <Skeleton variant="rounded" width={60} height={22} />
-                    <Skeleton variant="rounded" width={50} height={22} />
-                    <Skeleton variant="rounded" width={70} height={22} />
-                </Box>
-                <Box sx={{ flexGrow: 1, minHeight: 60, maxHeight: 80, mt: "auto" }}>
-                    <Skeleton variant="rectangular" width="100%" height="100%" />
-                </Box>
-            </Card>
-        );
-    }
-
-    // Error State (no changes)
-    if (queryError && !websiteDetails) {
-        return (
-            <Card
-                sx={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    p: 2,
-                    borderColor: theme.palette.error.light,
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                }}
-            >
-                 <WarningIcon color="error" sx={{ mb: 1 }} />
-                 <Typography variant="body2" color="textSecondary">
-                      Failed to load data.
-                 </Typography>
-                 <Typography variant="caption" color="error">
-                      {(queryError as Error)?.message || 'Unknown error'}
-                 </Typography>
-            </Card>
-        );
-    }
+    // --- Loading/Error States REMOVED ---
+    // The parent grid/dashboard handles overall loading state.
+    // Skeletons are rendered by the grid.
+    // Card assumes `userWebsite` prop is always provided (even if with default/loading values initially).
 
     // Main Card Render
     const cardContent = (
@@ -344,7 +281,9 @@ const WebsiteCard = React.memo(
                 position: 'relative',
                 pb: 1,
                 ...cardHighlightStyles,
-                opacity: isFetching && !isLoading ? 0.85 : 1,
+                // Opacity can still indicate parent-level fetching if desired,
+                // but remove local isFetching check
+                // opacity: isFetching && !isLoading ? 0.85 : 1, // REMOVED local check
                 transition: theme.transitions.create(['opacity', 'transform', 'box-shadow', 'border-color'], {
                     duration: theme.transitions.duration.short,
                 }),
@@ -358,7 +297,8 @@ const WebsiteCard = React.memo(
                  <Tooltip title={displayName} placement="top-start">
                      <Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)', mr: 1 }}>
                         {displayName}
-                        {isFetching && !isLoading && <CircularProgress size={12} sx={{ ml: 0.5, verticalAlign: 'middle', opacity: 0.7 }} color="inherit" />}
+                        {/* Remove local isFetching check */}
+                        {/* {isFetching && !isLoading && <CircularProgress size={12} sx={{ ml: 0.5, verticalAlign: 'middle', opacity: 0.7 }} color="inherit" />} */}
                      </Typography>
                  </Tooltip>
                  <Tooltip title={pinTooltipText} placement="top">
@@ -390,9 +330,10 @@ const WebsiteCard = React.memo(
                )}
                {(!name || !displayUrl) && <Box sx={{ mb: 1.5, minHeight: '20px' }} />}
 
-               {/* Status Chips (no changes) */}
+               {/* Status Chips (uses data from prop) */}
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5, minHeight: '24px' }}>
-                 {latestResult === undefined || latestResult === null ? (
+                 {/* Use isLatestResultAvailable check */}
+                 {!isLatestResultAvailable ? (
                      <Chip size="small" icon={<PendingIcon fontSize="inherit"/>} label="Pending" variant="outlined" color="warning" sx={{ fontWeight: 500 }}/>
                  ) : (
                      <>
@@ -409,6 +350,7 @@ const WebsiteCard = React.memo(
                                 <Chip size="small" label={formatResponseTime(responseTime)} color={getResponseTimeColor(responseTime)} variant="outlined" />
                              </Tooltip>
                          )}
+                         {/* Use uptimePercent from prop */}
                          {isOnline && formattedUptime !== "N/A" && typeof uptimePercent === 'number' && (
                             <Tooltip title={`Uptime (${CARD_TIMEFRAME}): ${formattedUptime}%`}>
                                 <Chip
@@ -422,11 +364,8 @@ const WebsiteCard = React.memo(
                          )}
                      </>
                  )}
-                 {queryError && websiteDetails && (
-                     <Tooltip title={`Error refreshing: ${(queryError as Error)?.message || 'Unknown'}`}>
-                         <WarningIcon fontSize="small" color="warning" sx={{ ml: 'auto', alignSelf: 'center' }} />
-                     </Tooltip>
-                 )}
+                 {/* Remove queryError check */}
+                 {/* {queryError && websiteDetails && (...)} // REMOVED */}
               </Box>
 
                {/* --- Chart / Downtime / Ticks Area --- */}
@@ -442,23 +381,29 @@ const WebsiteCard = React.memo(
                     }}
                     spacing={0.5}
                >
-                    {/* Box for Chart or Placeholder Text (no changes) */}
+                    {/* Box for Chart or Placeholder Text (uses data from prop) */}
                     <Box sx={{ width: '100%', flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
                         {canShowChart ? (
+                            // Pass chartData/Options derived from limitedChartDataPoints (which comes from prop)
                             <ResponseTimeChart data={chartData} options={chartOptions} key={`chart-${userWebsite.websiteId}`} />
                         ) : (
+                            // Display placeholder based on data from prop
                             <Box sx={{ color: 'text.secondary', textAlign: 'center', width: '100%', p: 1 }}>
-                                {(isLoading || latestResult === undefined || latestResult === null) && !queryError ? (
+                                {/* Check if latest result is available */}
+                                {!isLatestResultAvailable ? (
                                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
                                         <PendingIcon fontSize="small" />
                                         <Typography variant="caption">Awaiting check data...</Typography>
                                     </Stack>
+                                // Check if offline
                                 ) : !isOnline ? (
                                     <Stack alignItems="center" spacing={0.3} color={theme.palette.warning.dark}>
                                         <TimerOffIcon sx={{ fontSize: '1.3rem' }} />
                                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                            {/* Use downtimeDuration derived from prop */}
                                             {downtimeDuration || 'Currently Offline'}
                                         </Typography>
+                                        {/* Use consecutiveFailures/downtimeStartedAt from prop */}
                                         {(consecutiveFailures !== undefined || downtimeStartedAt) && (
                                             <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
                                                 {consecutiveFailures !== undefined && `Failures: ${consecutiveFailures}`}
@@ -467,10 +412,12 @@ const WebsiteCard = React.memo(
                                             </Typography>
                                         )}
                                     </Stack>
+                                // Else: Online but not enough data for chart
                                 ) : (
                                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
                                         <InfoIcon fontSize="small" />
                                         <Typography variant="caption">
+                                            {/* Use limitedChartDataPoints derived from prop */}
                                             {!limitedChartDataPoints || limitedChartDataPoints.length <= 1 ? 'Need more data for chart' : 'No recent chart data'}
                                          </Typography>
                                     </Stack>
@@ -479,7 +426,7 @@ const WebsiteCard = React.memo(
                         )}
                     </Box>
 
-                    {/* Uptime Ticks Row */}
+                    {/* Uptime Ticks Row (uses limitedChartDataPoints derived from prop) */}
                     {canShowTicks && limitedChartDataPoints && (
                         <Stack
                             direction="row"
@@ -490,6 +437,7 @@ const WebsiteCard = React.memo(
                                 width: '95%',
                                 height: '8px',
                                 mb: 0.5,
+                                // Ensure key updates if points change significantly
                                 key: `ticks-${userWebsite.websiteId}-${limitedChartDataPoints.length}`
                             }}
                         >
@@ -500,7 +448,6 @@ const WebsiteCard = React.memo(
                                 let uptimePercentFormatted = 'N/A';
 
                                 if (typeof uptimeRatio === 'number' && !isNaN(uptimeRatio)) {
-                                    // *** UPDATED LOGIC ***
                                     if (uptimeRatio === 1.0) { // Exactly 100% uptime
                                         tickColor = theme.palette.success.light;
                                         tooltipStatus = 'Up';
@@ -508,7 +455,6 @@ const WebsiteCard = React.memo(
                                         tickColor = theme.palette.error.light; // Use RED
                                         tooltipStatus = 'Down'; // Treat as Down
                                     }
-                                    // *** END UPDATED LOGIC ***
                                     uptimePercentFormatted = (uptimeRatio * 100).toFixed(1);
                                 } else {
                                     tickColor = theme.palette.grey[300];
@@ -544,7 +490,7 @@ const WebsiteCard = React.memo(
         </Card>
     );
 
-    // Conditional Tooltip Wrapper
+    // Conditional Tooltip Wrapper (no changes)
     return shouldHighlightThisCard ? (
         <Tooltip title="This website had the most recent downtime incident" placement="top" arrow>
             {cardContent}

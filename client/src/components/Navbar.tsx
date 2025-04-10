@@ -23,7 +23,8 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import { useAuth } from "../context/AuthContext";
 import { useThemeMode } from "../context/ThemeContext";
 // Import the hook that fetches all necessary data, including last incident info
-import { useWebsiteData } from "../hooks/domain/useWebsiteData";
+// Ensure useWebsiteData hook uses the correct types from client/src/types.ts
+import { useWebsiteData } from "../hooks";
 import AlertsDropdown from "./navbar/AlertDropdown";
 // Import the StatsHeader component used in both Dashboard and Navbar
 import StatsHeader from "../components/dashboard/StatsHeader"; // Adjust path if StatsHeader is moved
@@ -58,19 +59,16 @@ function Navbar() {
   const { mode, toggleThemeMode } = useThemeMode();
 
   // --- Fetch Website Data ---
-  // useWebsiteData now fetches everything needed, including last incident info
   const {
       overallStats,
       incidentsLast24h,
-      // Destructure the timestamp and ID, even if not directly used in *this* header's display
       lastIncidentTimestamp,
-      lastIncidentWebsiteId, // Keep this for potential future use or consistency
+      lastIncidentWebsiteId,
       isLoading: isLoadingData,
       error: dataError,
       totalWebsitesCount,
       upWebsitesCount,
-  } = useWebsiteData(
-      undefined, // Default results limit
+  } = useWebsiteData( // Corrected hook call (removed first arg)
       'week',    // Default stats period
       60000      // Refetch interval (e.g., 1 minute)
   );
@@ -79,7 +77,6 @@ function Navbar() {
   const otherStatsValues = useMemo(() => {
       return {
           uptime: overallStats?.overallUptime ?? null,
-          // Note: We don't need lastIncidentTimestamp in this memo for Navbar display
       }
   }, [overallStats]);
 
@@ -102,7 +99,7 @@ function Navbar() {
     } else if (setting === "Profile") {
        navigate("/profile");
     }
-  }, [logout, navigate]);
+  }, [logout, navigate, handleCloseUserMenu]); // Added handleCloseUserMenu dependency
 
   // --- Theme Toggle Handler (No changes) ---
   const handleThemeToggle = useCallback(() => {
@@ -151,7 +148,10 @@ function Navbar() {
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1, ml: 2 }}>
               {pages.map((page) => (
                 <Tooltip key={page.name} title={page.ariaLabel || page.name} arrow>
-                  <span><IconButton aria-label={page.ariaLabel || page.name} onClick={() => handlePageClick(page.path)} color="inherit" size="medium">{page.icon}</IconButton></span>
+                  {/* Ensure IconButton has a span parent for Tooltip when disabled, though not needed here */}
+                  <span>
+                    <IconButton aria-label={page.ariaLabel || page.name} onClick={() => handlePageClick(page.path)} color="inherit" size="medium">{page.icon}</IconButton>
+                  </span>
                 </Tooltip>
               ))}
             </Box>
@@ -161,20 +161,18 @@ function Navbar() {
           {/* Show stats only if NOT on the main dashboard page */}
           {!isDashboard && (
             <StatsHeader
-              isLoading={isLoadingData && !overallStats} // Show loading if stats object not ready
-              error={dataError} // Pass potential error
+              isLoading={isLoadingData && !overallStats}
+              error={dataError}
               upCount={upWebsitesCount}
               totalCount={totalWebsitesCount}
-              uptime={otherStatsValues.uptime} // Pass uptime
-              incidentsLast24h={incidentsLast24h} // Pass incident count
-              // Pass the timestamp and ID, even though StatsHeader won't display
-              // the 4th item when center=true. Good practice for consistency.
+              uptime={otherStatsValues.uptime}
+              incidentsLast24h={incidentsLast24h}
               lastIncidentTimestamp={lastIncidentTimestamp}
               lastIncidentWebsiteId={lastIncidentWebsiteId}
-              // No highlight toggle functionality needed in Navbar version
-              // onToggleHighlight={undefined}
-              // isHighlightActive={false}
-              center={true} // KEY: Use centered layout (3 items max) for Navbar
+              center={true} // KEY: Use centered layout
+              onShowDownWebsites={() => {}} // Pass dummy function
+              showDownWebsites={false} // Pass default state
+            
             />
           )}
 

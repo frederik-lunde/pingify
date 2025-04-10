@@ -48,23 +48,24 @@ export interface User {
 }
 
 export interface WebsiteUser {
-    id: number;
-    userId: number;
-    websiteId: number;
-    name: string | null;
-    interval: number | null;
-    alertEnabled: boolean;
-    alertThreshold: number | null;
-    notifyEmail: string | null;
-    createdAt: string; // ISO 8601 date string
-    isPinned: boolean;
-    website?: Website; // Often included when fetching user's monitored sites
-    user?: User;       // Less common to include
-    // --- ADDED FOR DOWNTIME INFO ---
-    // Only populated if the latest status is 'down'
-    consecutiveFailures?: number;
-    downtimeStartedAt?: string | null; // ISO 8601 date string of the first failure in the sequence
-    // --- END ADDED ---
+  id: number;
+  userId: number;
+  websiteId: number;
+  name: string | null; // User-defined alias
+  interval: number | null; // User-specific interval override (seconds)
+  alertEnabled: boolean;
+  alertThreshold: number | null; // Response time threshold (ms) for alerts
+  notifyEmail: boolean | null; // User preference for email alerts
+  createdAt: string; // ISO 8601 date string
+  isPinned: boolean; // User preference to pin the website
+
+  // --- Data Added by Backend Service ---
+  website?: Website; // Nested core website data
+  latestResult?: MonitoringResult | null; // Last monitoring result
+  chartData?: ChartDataPoint[]; // Pre-calculated chart data for the card (daily, last 24 points)
+  uptimePercent?: number; // Uptime percentage for the card timeframe (e.g., 'day')
+  consecutiveFailures?: number; // Current count if down
+  downtimeStartedAt?: string | null; // ISO timestamp if down
 }
 
 // Define the *simplified* alert types based on the new schema/requirements

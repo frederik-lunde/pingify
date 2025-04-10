@@ -16,17 +16,21 @@ import {
 } from "@mui/icons-material";
 
 // --- Import Hooks & Types ---
-import { useUserWebsiteQuery, useWebsiteMutations } from "../hooks/api/useWebsites"; // Adjust path if needed
+// Ensure hook paths are correct
+import { useUserWebsiteQuery, useWebsiteMutations } from "../hooks";
 import FormNotification, {
     initialNotificationState, FormNotificationState
-} from "../components/common/FormNotification"; // Adjust path if needed
-import { UpdateWebsiteUserDTO, ApiError, WebsiteUser } from "../types"; // Adjust path if needed
+// Ensure component path is correct
+} from "../components/common/FormNotification";
+// Ensure types path is correct
+import { UpdateWebsiteUserDTO, ApiError, WebsiteUser } from "../types";
 
 interface WebsiteSettingsFormValues {
     name: string;
     interval: number | string; // Use string for input flexibility, convert on submit
     alertEnabled: boolean;
     alertThreshold: number | string; // Use string for input flexibility
+    // Ensure notifyEmail type matches DTO/validation (string or null)
     notifyEmail: string;
 }
 
@@ -47,13 +51,16 @@ const WebsiteSettingsSchema = Yup.object().shape({
                     .max(60000, "Threshold must be at most 60000 milliseconds (1 min)")
                     .required("Response threshold is required when alerts are enabled")
                     .typeError("Threshold must be a number")
+                // Allow empty string or null when disabled
                 : schema.nullable().transform((value) => (value === "" || value == null) ? null : value);
         }),
     notifyEmail: Yup.string()
+        // Allow empty string or null when disabled
         .email("Please enter a valid email address")
         .when("alertEnabled", ([alertEnabled], schema) => {
             return alertEnabled
                 ? schema.trim().required("Email is required when alerts are enabled")
+                // Allow empty string or null when disabled, but still validate format if entered
                 : schema.nullable().email("Please enter a valid email address").transform((value) => (value === "" || value == null) ? null : value.trim());
         }),
 });
@@ -83,16 +90,16 @@ const WebsiteSettings: React.FC = () => {
         enabled: !!numericWebsiteId,
         staleTime: 1000 * 60, // 1 minute
         gcTime: 1000 * 60 * 5, // 5 minutes
-        // refetchOnWindowFocus: false, // Optional: prevent refetch on window focus if desired
     });
 
+    // --- Correctly destructure mutation states ---
     const {
         updateSettings,
         removeWebsite,
-        isPending: isUpdating, // Use isPending for TanStack Query v5+
-        isPending: isRemoving, // Use isPending for TanStack Query v5+
-        error: errorUpdating, // Explicit error state for update
-        error: errorRemoving, // Explicit error state for remove
+        isUpdating, // Pending state for updateSettings mutation
+        isRemoving, // Pending state for removeWebsite mutation
+        errorUpdating, // Explicit error state for update
+        errorRemoving, // Explicit error state for remove
     } = useWebsiteMutations();
 
     // State specifically for disabling form fields during SAVE or DELETE actions
@@ -101,14 +108,15 @@ const WebsiteSettings: React.FC = () => {
     // State for disabling core actions (Save/Delete buttons) or showing page-level loading
     // Includes initial load AND mutations
     const isActionLoading = isWebsiteLoading || isUpdating || isRemoving;
+    // --- End Corrected States ---
 
     const initialValues = useMemo((): WebsiteSettingsFormValues => ({
         name: userWebsite?.name || "",
-        interval: userWebsite?.interval ?? 300,
+        interval: userWebsite?.interval ?? 300, // Default interval
         alertEnabled: userWebsite?.alertEnabled ?? false,
-        alertThreshold: userWebsite?.alertThreshold === null || userWebsite?.alertThreshold === undefined
-            ? ""
-            : userWebsite.alertThreshold,
+        // Default alertThreshold to empty string if null/undefined for TextField
+        alertThreshold: userWebsite?.alertThreshold ?? "",
+        // Default notifyEmail to empty string if null/undefined
         notifyEmail: userWebsite?.notifyEmail || "",
     }), [userWebsite]); // Recalculate when userWebsite data changes
 
@@ -123,70 +131,68 @@ const WebsiteSettings: React.FC = () => {
         if (!numericWebsiteId) {
             setStatus({ error: "Cannot save: Invalid Website ID." });
             setNotification({ open: true, message: "Error: Invalid Website ID.", severity: "error" });
-            setSubmitting(false); // Ensure Formik knows submission stopped
+            // No need for setSubmitting(false) in async onSubmit with Formik v2+
             return;
         }
 
-        // Ensure number conversion happens correctly
+        // Convert interval to number, defaulting to null if invalid
         const intervalNum = Number(values.interval);
-        const alertThresholdNum = values.alertEnabled ? Number(values.alertThreshold) : null;
+        const validInterval = isNaN(intervalNum) ? null : intervalNum;
+
+        // Convert threshold only if alerts are enabled, default to null otherwise or if invalid
+        let validAlertThreshold: number | null = null;
+        if (values.alertEnabled) {
+            const thresholdNum = Number(values.alertThreshold);
+            validAlertThreshold = (values.alertThreshold === "" || isNaN(thresholdNum)) ? null : thresholdNum;
+        }
+
+        // Get email only if alerts enabled and email is not empty after trimming
+        const validNotifyEmail = values.alertEnabled && values.notifyEmail.trim() !== ""
+            ? values.notifyEmail.trim()
+            : null;
+
 
         const updateData: UpdateWebsiteUserDTO = {
-            name: values.name.trim() || null,
-            interval: isNaN(intervalNum) ? null : intervalNum, // Send null if somehow NaN
+            name: values.name.trim() || null, // Send null if empty after trimming
+            interval: validInterval,
             alertEnabled: values.alertEnabled,
-            alertThreshold: values.alertEnabled
-                ? (values.alertThreshold === "" || isNaN(alertThresholdNum as number) ? null : alertThresholdNum)
-                : null,
-            notifyEmail: values.alertEnabled && values.notifyEmail.trim() !== ""
-                ? values.notifyEmail.trim()
-                : null,
+            alertThreshold: validAlertThreshold,
+            notifyEmail: validNotifyEmail,
         };
 
-        // Optional: Add robust pre-submit checks even if Yup handles most cases
+        // Optional: Add robust pre-submit checks (Yup should catch most)
+        // These checks are mostly redundant if Yup validation is working correctly
+        // but can provide slightly more specific feedback in `setStatus`
         if (updateData.interval === null || updateData.interval < 30 || updateData.interval > 86400) {
             setStatus({ error: "Invalid interval value (must be 30-86400)." });
             setNotification({ open: true, message: "Error: Invalid check interval.", severity: "error" });
-            setSubmitting(false);
             return;
         }
         if (updateData.alertEnabled) {
              if (updateData.alertThreshold === null || updateData.alertThreshold < 1 || updateData.alertThreshold > 60000) {
                  setStatus({ error: "Invalid alert threshold value (must be 1-60000ms)." });
                  setNotification({ open: true, message: "Error: Invalid alert threshold.", severity: "error" });
-                 setSubmitting(false);
                  return;
              }
-             if (!updateData.notifyEmail) { // Check for null or empty string after potential trim
+             if (!updateData.notifyEmail) {
                  setStatus({ error: "Notification email is required when alerts are enabled." });
                  setNotification({ open: true, message: "Error: Notification email is required.", severity: "error" });
-                 setSubmitting(false);
                  return;
              }
          }
 
         try {
             const updatedWebsite = await updateSettings({ websiteId: numericWebsiteId, websiteData: updateData });
-            
+
             // Set success notification (Snackbar will handle showing it)
             setNotification({ open: true, message: "Settings saved successfully!", severity: "success" });
 
-            // --- *** ADD NAVIGATION ON SUCCESS *** ---
-            // Navigate back to the website detail page
+            // Navigate back to the website detail page on success
             if (numericWebsiteId) {
-                 // Optional: Add a small delay if you want the user to see the snackbar briefly before navigating
-                 // setTimeout(() => {
-                 //    navigate(`/website/${numericWebsiteId}`);
-                 // }, 500); // e.g., 500ms delay
-
-                 // Navigate immediately (recommended)
-                navigate(`/website/${numericWebsiteId}`);
+                 navigate(`/website/${numericWebsiteId}`);
             }
-            // --- *** END NAVIGATION *** ---
 
-
-            // Note: Resetting the form might not be strictly necessary if navigating away immediately,
-            // but it doesn't hurt and clears the 'dirty' state if the user navigates back quickly.
+            // Reset form to new values AFTER successful save AND navigation (optional but good practice)
             resetForm({
                 values: {
                     name: updatedWebsite?.name || "",
@@ -219,6 +225,8 @@ const WebsiteSettings: React.FC = () => {
     const handleDeleteConfirm = useCallback(async () => {
         if (!numericWebsiteId) return;
 
+        setNotification(initialNotificationState); // Clear previous notifications
+
         try {
             await removeWebsite(numericWebsiteId);
             // Success notification
@@ -230,8 +238,9 @@ const WebsiteSettings: React.FC = () => {
             console.error("Failed to delete website:", apiError);
             // Prioritize mutation error state, then caught error
             const message = (errorRemoving as ApiError)?.message || apiError.message || 'Unknown error removing website';
+            // Set notification directly, FormNotification will display it
             setNotification({ open: true, message: `Error removing website: ${message}`, severity: "error" });
-            // Keep dialog open on error? Or close? Current: stays open.
+            // Keep dialog open on error to allow retry or cancel
         }
     }, [numericWebsiteId, removeWebsite, navigate, userWebsite?.name, userWebsite?.website?.url, closeDeleteDialog, errorRemoving, setNotification]); // Added dependencies
 
@@ -240,7 +249,10 @@ const WebsiteSettings: React.FC = () => {
         navigate(numericWebsiteId ? `/website/${numericWebsiteId}` : '/');
     }, [navigate, numericWebsiteId]);
 
-    const handleNotificationClose = useCallback(() => {
+    const handleNotificationClose = useCallback((event?: React.SyntheticEvent | Event, reason?: string) => {
+         if (reason === 'clickaway') {
+             return;
+         }
         setNotification((prev) => ({ ...prev, open: false }));
     }, []);
 
@@ -276,7 +288,7 @@ const WebsiteSettings: React.FC = () => {
     }
 
     // Handle Case where website query succeeded but returned no data (404, permissions etc)
-    if (!userWebsite) { // No need for !isWebsiteLoading check here, as loading state is handled above
+    if (!userWebsite) {
         return (
             <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
                 <Alert severity="warning">Website not found or access denied.</Alert>
@@ -288,7 +300,6 @@ const WebsiteSettings: React.FC = () => {
     }
 
     // --- Main Render ---
-    // Now we know data has loaded (or failed, handled above), and userWebsite exists.
     return (
         <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
             {/* Header */}
@@ -313,7 +324,7 @@ const WebsiteSettings: React.FC = () => {
                 initialValues={initialValues}
                 validationSchema={WebsiteSettingsSchema}
                 onSubmit={handleSubmit}
-                enableReinitialize // Important to update form when initialValues change after load or save
+                enableReinitialize // Important to update form when initialValues change
             >
                 {/* Destructure necessary props from Formik state */}
                 {({ errors, touched, values, isSubmitting, status, dirty, isValid }) => (
@@ -362,14 +373,14 @@ const WebsiteSettings: React.FC = () => {
                             <Typography variant="h6" gutterBottom>Alert Settings</Typography>
                             <Divider sx={{ mb: 3 }} />
 
-                            {/* --- *** FIELD RENDER PROP FOR SWITCH *** --- */}
+                            {/* --- FIELD RENDER PROP FOR SWITCH --- */}
                             <Field name="alertEnabled" type="checkbox">
                                 {({ field }: FieldProps<boolean>) => (
                                     <FormControlLabel
                                         control={
                                             <Switch
-                                                {...field} // Passes necessary props like onChange, onBlur
-                                                checked={field.value} // *** Explicitly set checked state from Formik's value ***
+                                                {...field} // Passes necessary props like name, value, onChange, onBlur
+                                                checked={field.value} // Ensure checked state comes from Formik
                                                 color="primary"
                                                 disabled={isMutating} // Use the correct disabled state
                                             />
@@ -380,7 +391,7 @@ const WebsiteSettings: React.FC = () => {
                                     />
                                 )}
                             </Field>
-                            {/* --- *** END FIELD RENDER PROP *** --- */}
+                            {/* --- END FIELD RENDER PROP --- */}
 
 
                             {/* Conditional Alert Fields - Show/hide based on Formik's 'values' */}
@@ -424,7 +435,7 @@ const WebsiteSettings: React.FC = () => {
                                 color="error"
                                 startIcon={<DeleteIcon />}
                                 onClick={openDeleteDialog}
-                                // Disable button during ANY loading action (initial or mutation)
+                                // Disable button during ANY action (initial load or mutation)
                                 disabled={isActionLoading}
                                 data-testid="delete-button"
                             >
@@ -436,7 +447,7 @@ const WebsiteSettings: React.FC = () => {
                                 // Show spinner only when updating
                                 startIcon={isUpdating ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
                                 // Disable button if:
-                                // - Any action is loading (initial fetch, update, remove)
+                                // - Any action is loading
                                 // - Formik is submitting (safety check, often covered by isUpdating)
                                 // - Form is unchanged (not dirty)
                                 // - Form is invalid
@@ -462,6 +473,12 @@ const WebsiteSettings: React.FC = () => {
                     <DialogContentText id="delete-confirm-description">
                         Are you sure you want to remove "{userWebsite.name || userWebsite.website?.url}"? This action cannot be undone.
                     </DialogContentText>
+                    {/* Display removal error within the dialog */}
+                    {errorRemoving && (
+                        <Alert severity="error" sx={{ mt: 2 }}>
+                           Removal failed: {(errorRemoving as ApiError).message || 'Unknown error'}
+                        </Alert>
+                    )}
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     {/* Disable Cancel only when removal is actively processing */}
@@ -480,6 +497,11 @@ const WebsiteSettings: React.FC = () => {
             </Dialog>
 
             {/* Snackbar Notification */}
+            {/* Render the FormNotification component to display messages */}
+            <FormNotification
+                notification={notification}
+                onClose={handleNotificationClose}
+            />
         </Container>
     );
 };

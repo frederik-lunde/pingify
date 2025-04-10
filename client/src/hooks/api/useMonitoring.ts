@@ -1,5 +1,4 @@
 // client/src/hooks/api/useMonitoring.ts
-// No changes needed in this file.
 
 import {
     useQuery,
