@@ -24,18 +24,12 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import SortByAlphaIcon from '@mui/icons-material/SortByAlpha';
 import ViewCompactOutlinedIcon from '@mui/icons-material/ViewCompactOutlined';
 import ViewAgendaOutlinedIcon from '@mui/icons-material/ViewAgendaOutlined';
-// Removed WarningAmberIcon import as it's no longer used for the button
-
 import WebsiteGrid from "../components/dashboard/WebsiteGrid";
 import DashboardSearchFilter from "../components/dashboard/DashboardSearchFilter";
 import StatsHeader from "../components/dashboard/StatsHeader";
-// Removed DownWebsitesList import
-
-// Removed useDownWebsitesLast24h import, keeping useWebsiteData
 import { useWebsiteData } from "../hooks";
 import { useFocusMode } from "../context/FocusModeContext";
 import { Link } from "react-router";
-
 import { SortOption } from "../types";
 
 // Define Sort Options Config
@@ -56,12 +50,12 @@ const Dashboard: React.FC = () => {
     // --- State ---
     const [filterTerm, setFilterTerm] = useState<string>('');
     const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null);
-    const [sortOption, setSortOption] = useState<SortOption>('name-asc');
+    const [sortOption, setSortOption] = useState<SortOption>('name-asc'); // Default sort
     const { isFocusMode, toggleFocusMode } = useFocusMode();
     const [isHighlightActive, setIsHighlightActive] = useState(false);
-    // Removed showDownWebsitesList state
 
 
+    // --- Data Fetching Hook ---
     const {
         websitesWithResults: allWebsites,
         overallStats,
@@ -74,16 +68,19 @@ const Dashboard: React.FC = () => {
         totalWebsitesCount,
         upWebsitesCount,
     } = useWebsiteData(
-        'week',
-        60000
+        'week',    
+        60000      
     );
 
+    // --- Derived State ---
     const openSortMenu = Boolean(sortAnchorEl);
 
     // --- Callbacks ---
     const handleFilterChange = useCallback((term: string) => {
         setFilterTerm(term.toLowerCase());
-        // No need to close down list anymore
+        if (term) {
+            setIsHighlightActive(false);
+        }
     }, []);
 
     const handleSortMenuClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
@@ -97,61 +94,90 @@ const Dashboard: React.FC = () => {
     const handleSortOptionSelect = useCallback((option: SortOption) => {
         setSortOption(option);
         handleSortMenuClose();
-        // No need to close down list anymore
     }, [handleSortMenuClose]);
 
+    // Toggle highlight and scroll to the relevant card
     const handleToggleHighlight = useCallback(() => {
         const shouldActivate = !isHighlightActive;
         setIsHighlightActive(shouldActivate);
+        // If activating highlight and an ID exists, scroll to it
         if (shouldActivate && lastIncidentWebsiteId) {
+            // Use timeout to ensure element is rendered after state update
             setTimeout(() => {
                 const element = document.getElementById(`website-card-grid-${lastIncidentWebsiteId}`);
                 element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 100);
+            }, 100); // Small delay
         }
     }, [isHighlightActive, lastIncidentWebsiteId]);
 
-    // Removed toggleDownWebsitesView callback
-    // Removed closeDownWebsitesList callback
-
     // --- Effects ---
+    // Deactivate highlight if the last incident changes
     useEffect(() => {
         setIsHighlightActive(false);
     }, [lastIncidentWebsiteId]);
 
     // --- Memoized Calculations ---
+    // Filter websites based on search term
     const filteredWebsites = useMemo(() => {
-        if (!filterTerm) return allWebsites;
+        if (!filterTerm) return allWebsites; // Return all if no filter
         return allWebsites.filter(item => {
+            // Check against name and URL (case-insensitive)
             const name = item.userWebsite?.name?.toLowerCase() || '';
             const url = item.userWebsite?.website?.url?.toLowerCase() || '';
             return name.includes(filterTerm) || url.includes(filterTerm);
         });
     }, [allWebsites, filterTerm]);
 
+    // Sort the filtered websites based on selected option
     const sortedAndFilteredWebsites = useMemo(() => {
-        // Start with the already filtered list
-        const listToSort = [...filteredWebsites];
-
-        // Removed filtering logic based on showDownWebsites
+        const listToSort = [...filteredWebsites]; // Create a mutable copy
 
         return listToSort.sort((a, b) => {
+             // Handle potential missing data defensively
              if (!a?.userWebsite || !b?.userWebsite) return 0;
-             if (a.userWebsite.isPinned !== b.userWebsite.isPinned) return a.userWebsite.isPinned ? -1 : 1;
-             const aIsAvailable = a.userWebsite.latestResult?.isAvailable ?? true;
+
+             // --- Primary Sort Keys (Pinned and Status) ---
+             // 1. Pinned websites first
+             if (a.userWebsite.isPinned !== b.userWebsite.isPinned) {
+                 return a.userWebsite.isPinned ? -1 : 1; // Pinned (true) comes before not pinned (false)
+             }
+             // 2. Offline websites before Online websites
+             const aIsAvailable = a.userWebsite.latestResult?.isAvailable ?? true; // Treat pending/no data as online for sorting initially
              const bIsAvailable = b.userWebsite.latestResult?.isAvailable ?? true;
-             if (aIsAvailable !== bIsAvailable) return aIsAvailable ? 1 : -1;
+             if (aIsAvailable !== bIsAvailable) {
+                 return aIsAvailable ? 1 : -1; // Offline (false) comes before online (true)
+             }
+
+             // --- Secondary Sort Key (User Selected Option) ---
              switch (sortOption) {
-                 case 'name-asc': { const nameA = a.userWebsite.name ?? a.userWebsite.website?.url ?? ''; const nameB = b.userWebsite.name ?? b.userWebsite.website?.url ?? ''; return nameA.localeCompare(nameB); }
-                 case 'name-desc': { const nameA = a.userWebsite.name ?? a.userWebsite.website?.url ?? ''; const nameB = b.userWebsite.name ?? b.userWebsite.website?.url ?? ''; return nameB.localeCompare(nameA); }
-                 case 'response-asc': { const respA = a.userWebsite.latestResult?.responseTime ?? Infinity; const respB = b.userWebsite.latestResult?.responseTime ?? Infinity; return respA - respB; }
-                 case 'response-desc': { const respA = a.userWebsite.latestResult?.responseTime ?? -1; const respB = b.userWebsite.latestResult?.responseTime ?? -1; return respB - respA; }
+                 case 'name-asc': {
+                     const nameA = a.userWebsite.name ?? a.userWebsite.website?.url ?? '';
+                     const nameB = b.userWebsite.name ?? b.userWebsite.website?.url ?? '';
+                     return nameA.localeCompare(nameB);
+                 }
+                 case 'name-desc': {
+                     const nameA = a.userWebsite.name ?? a.userWebsite.website?.url ?? '';
+                     const nameB = b.userWebsite.name ?? b.userWebsite.website?.url ?? '';
+                     return nameB.localeCompare(nameA);
+                 }
+                 case 'response-asc': {
+                     // Treat null/offline response time as Infinity so they go last in ascending sort
+                     const respA = a.userWebsite.latestResult?.responseTime ?? Infinity;
+                     const respB = b.userWebsite.latestResult?.responseTime ?? Infinity;
+                     return respA - respB;
+                 }
+                 case 'response-desc': {
+                      // Treat null/offline response time as -1 so they go last in descending sort
+                     const respA = a.userWebsite.latestResult?.responseTime ?? -1;
+                     const respB = b.userWebsite.latestResult?.responseTime ?? -1;
+                     return respB - respA;
+                 }
                  default: return 0;
              }
         });
-        // Removed showDownWebsites and downWebsites from dependencies
     }, [filteredWebsites, sortOption]);
 
+    // Memoize stats needed specifically for the header
     const headerStats = useMemo(() => ({
         uptime: overallStats?.overallUptime ?? null,
     }), [overallStats]);
@@ -159,26 +185,34 @@ const Dashboard: React.FC = () => {
     // --- Render Logic ---
     const showLoadingSkeleton = isLoadingData && sortedAndFilteredWebsites.length === 0;
     const isListEmpty = !isLoadingData && sortedAndFilteredWebsites.length === 0;
-    const isEmptyDueToFilter = isListEmpty && !!filterTerm;
+    const isEmptyDueToFilter = isListEmpty && !!filterTerm && allWebsites.length > 0;
     const isEmptyBecauseNoWebsites = isListEmpty && !filterTerm && !dataError;
 
-    if (isLoadingData && !overallStats && !dataError) {
+    // --- Initial Loading State ---
+    // Show a full page spinner only if absolutely no data has loaded yet
+    if (isLoadingData && !overallStats && allWebsites.length === 0 && !dataError) {
         return <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress /></Box>;
     }
+
+    // --- Initial Error State ---
+    // Show a full page error only if initial load failed completely
     if (dataError && !overallStats && allWebsites.length === 0) {
         return (
-            <Container maxWidth="lg" sx={{ mt: 4, textAlign: 'center' }}>
-                <Alert severity="error" sx={{ mb: 2 }}>Error loading dashboard data: {dataError.message || 'Unknown error'}</Alert>
+            // Use Container to constrain width of error message
+            <Container maxWidth="sm" sx={{ mt: 4, textAlign: 'center' }}>
+                <Alert severity="error" sx={{ mb: 2, justifyContent: 'center' }}>
+                    Error loading dashboard data: {dataError.message || 'Unknown error'}
+                </Alert>
                 <Button variant="outlined" onClick={() => refetch()} sx={{ mt: 1 }}>Retry</Button>
             </Container>
         );
     }
 
+    // --- Main Dashboard Render ---
     return (
-        <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: 2, mb: 2 }}>
-            {/* Statistics Header */}
+        <Container maxWidth={false} sx={{ px: { xs: 1, sm: 2, md: 3 }, mt: 2, mb: 4 }}>
+            {/* Statistics Header (Hidden in Focus Mode) */}
             {!isFocusMode && (
-                // Removed position: relative and overflow: visible from Paper
                 <Paper elevation={1} sx={{ mb: 2 }}>
                     <StatsHeader
                         isLoading={isLoadingData && !overallStats}
@@ -192,11 +226,9 @@ const Dashboard: React.FC = () => {
                         onToggleHighlight={handleToggleHighlight}
                         isHighlightActive={isHighlightActive}
                         center={false}
-                        // Removed props related to down websites list
-                        onShowDownWebsites={() => { /* No-op or remove prop from StatsHeader if not needed */ }}
+                        onShowDownWebsites={() => {}}
                         showDownWebsites={false}
                     />
-                    {/* Removed conditional rendering of DownWebsitesList */}
                 </Paper>
             )}
 
@@ -205,36 +237,53 @@ const Dashboard: React.FC = () => {
                 direction={{ xs: 'column', sm: 'row' }}
                 spacing={1}
                 alignItems={{ xs: 'stretch', sm: 'center' }}
-                justifyContent="space-between"
                 mb={2}
             >
-                <Stack direction="row" spacing={1} alignItems="center">
+                {/* Left side controls (Focus Toggle) */}
+                {/* This stack will take minimal width */}
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ width: 'auto' }}>
                     <Tooltip title={isFocusMode ? "Show Full Dashboard" : "Focus Mode (Hide Stats)"}>
                         <IconButton onClick={toggleFocusMode} color="default" aria-label="toggle focus mode">
                             {isFocusMode ? <ViewAgendaOutlinedIcon /> : <ViewCompactOutlinedIcon />}
                         </IconButton>
                     </Tooltip>
-                    {/* Removed Button to show down websites */}
                 </Stack>
 
-                <DashboardSearchFilter
-                    onFilterChange={handleFilterChange}
-                    sx={{ flexGrow: 1, maxWidth: { xs: '100%', sm: 450 } }}
-                />
+                {/* Center Search Bar Area */}
+                {/* This Box grows to fill available space and centers its content */}
+                <Box sx={{
+                    flexGrow: 1,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    width: { xs: '100%', sm: 'auto' },
+                    px: { sm: 2 }
+                }}>
+                    <DashboardSearchFilter
+                        onFilterChange={handleFilterChange}
+                        sx={{
+                            width: { xs: '100%', sm: 300, md: 450 }
+                        }}
+                    />
+                </Box>
 
-                <Tooltip title="Sort websites">
-                    <IconButton
-                        id="sort-button"
-                        aria-controls={openSortMenu ? 'sort-menu' : undefined}
-                        aria-haspopup="true"
-                        aria-expanded={openSortMenu ? 'true' : undefined}
-                        onClick={handleSortMenuClick}
-                        color="primary"
-                    >
-                        <FilterListIcon />
-                    </IconButton>
-                </Tooltip>
+                {/* Right side controls (Sort Button) */}
+                {/* This stack will take minimal width */}
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ width: 'auto' }}>
+                    <Tooltip title="Sort websites">
+                        <IconButton
+                            id="sort-button"
+                            aria-controls={openSortMenu ? 'sort-menu' : undefined}
+                            aria-haspopup="true"
+                            aria-expanded={openSortMenu ? 'true' : undefined}
+                            onClick={handleSortMenuClick}
+                            color="primary"
+                        >
+                            <FilterListIcon />
+                        </IconButton>
+                    </Tooltip>
+                </Stack>
 
+                {/* Sort Menu - Rendered outside the layout flow */}
                 <Menu
                     id="sort-menu"
                     anchorEl={sortAnchorEl}
@@ -257,11 +306,12 @@ const Dashboard: React.FC = () => {
                 </Menu>
             </Stack>
 
+
             {/* Inline Warning for partial data errors */}
             {!isFocusMode && dataError && (allWebsites.length > 0 || overallStats) && (
                 <Alert severity="warning" sx={{ mb: 2 }}>
                     There might be issues displaying the latest data: {dataError.message}.
-                    <Button onClick={() => refetch()} size="small" sx={{ ml: 1 }}>Retry</Button>
+                    <Button onClick={() => refetch()} size="small" sx={{ ml: 1 }} variant="outlined" color="inherit">Retry</Button>
                 </Alert>
             )}
 

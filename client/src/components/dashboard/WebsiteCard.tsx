@@ -1,7 +1,7 @@
 /*
 src/components/dashboard/WebsiteCard.tsx
 */
-import React, { useCallback, useMemo } from "react"; // Removed Suspense
+import React, { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
   Card, CardContent, Typography, Box, Chip, IconButton,
@@ -22,6 +22,16 @@ import {
   InfoOutlined as InfoIcon,
 } from "@mui/icons-material";
 import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+} from 'chart.js';
 import { ChartOptions, TooltipItem } from 'chart.js';
 import { format } from "date-fns";
 
@@ -41,24 +51,37 @@ import {
   ChartDataPoint
 } from "../../types";
 
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  ChartTooltip,
+  Legend
+);
+
+
 interface WebsiteCardProps {
   userWebsite: WebsiteUser;
   shouldHighlightThisCard?: boolean;
 }
 
-const CARD_TIMEFRAME: TimeframeKey = 'day'; // Used for Uptime tooltip text
+const CARD_TIMEFRAME: TimeframeKey = 'day';
 
-// Memoized chart component
+const MIN_CARD_WIDTH = 280;
+// Add a maximum width to prevent excessive stretching
+const MAX_CARD_WIDTH = 450; // px - Adjust as needed
+
 const ResponseTimeChart = React.memo(
   ({ data, options }: { data: any; options: ChartOptions<'line'> }) => {
     const hasValidData = data?.datasets?.[0]?.data?.length > 0 &&
                          !data.datasets[0].data.every((d: number | null | undefined) => d === null || d === undefined || d === -1 || isNaN(d));
 
     if (!hasValidData) {
-      return null; // Don't render the chart if no valid data
+      return null;
     }
 
-    // Removed Suspense wrapper
     return (
         <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Line data={data} options={options} />
@@ -68,7 +91,6 @@ const ResponseTimeChart = React.memo(
 );
 ResponseTimeChart.displayName = 'ResponseTimeChart';
 
-// Helper Function to generate Chart Data/Options
 const useCardChartConfig = (limitedChartDataPoints: ChartDataPoint[] | undefined): { chartData: any, chartOptions: ChartOptions<'line'> } => {
     const theme = useTheme();
 
@@ -77,7 +99,6 @@ const useCardChartConfig = (limitedChartDataPoints: ChartDataPoint[] | undefined
             return { labels: [], datasets: [] };
         }
         const labels = limitedChartDataPoints.map(p => p.label);
-        // Ensure data points are numbers or null for Chart.js
         const data = limitedChartDataPoints.map(p => (p.avgResponseTime !== null && !isNaN(p.avgResponseTime)) ? p.avgResponseTime : null);
 
         return {
@@ -131,7 +152,6 @@ const useCardChartConfig = (limitedChartDataPoints: ChartDataPoint[] | undefined
     return { chartData, chartOptions };
 };
 
-// --- Main Component ---
 const WebsiteCard = React.memo(
   ({
     userWebsite,
@@ -141,7 +161,6 @@ const WebsiteCard = React.memo(
     const theme = useTheme();
     const { setPinStatus, isSettingPin, errorSettingPin } = useWebsiteMutations();
 
-    // --- Derived Data ---
     const name = userWebsite.name ?? userWebsite.website?.url ?? 'Website';
     const url = userWebsite.website?.url;
     const latestResult = userWebsite.latestResult;
@@ -153,14 +172,12 @@ const WebsiteCard = React.memo(
 
     const limitedChartDataPoints = aggregatedChartDataProp?.length ? aggregatedChartDataProp : undefined;
 
-    // --- Chart Logic ---
     const validAggregatedPointsCount = useMemo(() => {
         return limitedChartDataPoints?.filter(p => p.avgResponseTime !== null && !isNaN(p.avgResponseTime)).length ?? 0;
     }, [limitedChartDataPoints]);
     const canShowAggregatedChart = validAggregatedPointsCount >= 2;
     const aggregatedChartConfig = useCardChartConfig(canShowAggregatedChart ? limitedChartDataPoints : undefined);
 
-    // --- Other Derived Values ---
     const hasPinError = !!errorSettingPin;
     const isOnline = latestResult?.isAvailable ?? null;
     const responseTime = latestResult?.responseTime ?? null;
@@ -171,7 +188,6 @@ const WebsiteCard = React.memo(
     const canShowTicks = canShowAggregatedChart && limitedChartDataPoints?.every(p => typeof p.uptimeRatio === 'number');
     const canShowSingleTick = !canShowTicks && latestResult !== null && latestResult !== undefined;
 
-    // --- Handlers ---
     const handleClick = useCallback(() => {
       navigate(`/website/${userWebsite.websiteId}`);
     }, [navigate, userWebsite.websiteId]);
@@ -186,7 +202,6 @@ const WebsiteCard = React.memo(
       [setPinStatus, userWebsite.websiteId, isPinned],
     );
 
-    // --- Display Values ---
     const displayName = name || url || 'Website';
     const displayUrl = url;
     const pinTooltipText = useMemo(() => {
@@ -195,55 +210,84 @@ const WebsiteCard = React.memo(
         return isPinned ? "Unpin Website" : "Pin Website";
     }, [isSettingPin, hasPinError, isPinned, errorSettingPin?.message]);
 
-    // Card highlighting styles
-    const cardHighlightStyles = useMemo(() => {
+    const cardStyles = useMemo(() => {
+        let dynamicStyles = {};
         const baseSx = {
-            transition: theme.transitions.create(['transform', 'box-shadow', 'border-color'], { duration: theme.transitions.duration.short }),
-             "&:hover": { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
+            minWidth: MIN_CARD_WIDTH,
+            maxWidth: MAX_CARD_WIDTH,
+            width: '100%',
+            margin: 'auto',
+            cursor: "pointer",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            position: 'relative',
+            pb: 1,
+            transition: theme.transitions.create(['opacity', 'transform', 'box-shadow', 'border-color'], { duration: theme.transitions.duration.short }),
+            "&:hover": {
+                 transform: "translateY(-4px)",
+                 boxShadow: theme.shadows[6]
+            },
         };
+
         if (shouldHighlightThisCard) {
-            return { ...baseSx, borderWidth: '2px', borderStyle: 'solid', borderColor: theme.palette.warning.main, boxShadow: `0 0 10px -1px ${alpha(theme.palette.warning.main, 0.6)}` };
+            dynamicStyles = {
+                 borderWidth: '2px',
+                 borderStyle: 'solid',
+                 borderColor: theme.palette.warning.main,
+                 boxShadow: `0 0 10px -1px ${alpha(theme.palette.warning.main, 0.6)}`
+            };
+        } else if (isPinned) {
+             dynamicStyles = {
+                 borderWidth: '2px',
+                 borderStyle: 'solid',
+                 borderColor: theme.palette.primary.main,
+             };
         } else {
-            return { ...baseSx, borderWidth: isPinned ? '2px' : '1px', borderStyle: 'solid', borderColor: isPinned ? theme.palette.primary.main : theme.palette.divider };
+             dynamicStyles = {
+                 borderWidth: '1px',
+                 borderStyle: 'solid',
+                 borderColor: theme.palette.divider,
+             };
         }
+        return { ...baseSx, ...dynamicStyles };
+
     }, [shouldHighlightThisCard, isPinned, theme]);
 
-    // --- Main Card Render ---
+
     const cardContent = (
         <Card
-            sx={{
-                cursor: "pointer", height: "100%", display: "flex", flexDirection: "column", position: 'relative', pb: 1,
-                ...cardHighlightStyles,
-                transition: theme.transitions.create(['opacity', 'transform', 'box-shadow', 'border-color'], { duration: theme.transitions.duration.short }),
-            }}
+            sx={cardStyles}
             onClick={handleClick}
             aria-label={`View details for ${displayName}${isPinned ? ', Pinned' : ''}${isOnline === false ? ', Offline' : ''}${shouldHighlightThisCard ? ', Highlighted as Last Incident Source' : ''}`}
         >
             <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", p: 2, pb: 1 }}>
-               {/* Header */}
                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
                  <Tooltip title={displayName} placement="top-start">
                      <Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)', mr: 1 }}>{displayName}</Typography>
                  </Tooltip>
                  <Tooltip title={pinTooltipText} placement="top">
                     <span>
-                        <IconButton size="small" onClick={handlePinClick} disabled={isSettingPin} aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`}
-                            sx={{ color: hasPinError && !isSettingPin ? theme.palette.error.main : isPinned ? theme.palette.primary.main : 'inherit' }}>
+                        <IconButton
+                           size="small"
+                           onClick={handlePinClick}
+                           disabled={isSettingPin}
+                           aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`}
+                           sx={{ color: hasPinError && !isSettingPin ? theme.palette.error.main : isPinned ? theme.palette.primary.main : 'inherit' }}
+                        >
                             {isSettingPin ? <CircularProgress size={20} color="inherit" /> : isPinned ? <PinIcon fontSize="small" /> : <PinOutlinedIcon fontSize="small" />}
                         </IconButton>
                     </span>
                  </Tooltip>
                </Box>
 
-               {/* URL */}
-               {name && displayUrl && (
+               {name && displayUrl && name !== displayUrl && (
                    <Tooltip title={displayUrl} placement="bottom-start">
                      <Typography variant="body2" color="textSecondary" noWrap sx={{ mb: 1.5, minHeight: '20px' }}>{displayUrl}</Typography>
                    </Tooltip>
                )}
-               {(!name || !displayUrl) && <Box sx={{ mb: 1.5, minHeight: '20px' }} />}
+               {(!name || !displayUrl || name === displayUrl) && <Box sx={{ mb: 1.5, minHeight: '20px' }} />}
 
-               {/* Status Chips */}
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5, minHeight: '24px' }}>
                  {latestResult === undefined || latestResult === null ? (
                      <Chip size="small" icon={<PendingIcon fontSize="inherit"/>} label="Pending" variant="outlined" color="warning" sx={{ fontWeight: 500 }}/>
@@ -271,15 +315,11 @@ const WebsiteCard = React.memo(
                  )}
               </Box>
 
-               {/* Chart / Downtime / Ticks Area */}
                <Stack sx={{ flexGrow: 1, minHeight: 60, maxHeight: 80, mt: "auto", justifyContent: 'center', alignItems: 'center', width: '100%' }} spacing={0.5}>
-                    {/* Box for Chart or Placeholder Text */}
                     <Box sx={{ width: '100%', flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
                         {canShowAggregatedChart ? (
-                            // Render aggregated chart - Removed unnecessary key
                             <ResponseTimeChart data={aggregatedChartConfig.chartData} options={aggregatedChartConfig.chartOptions} />
                         ) : (
-                            // Placeholder Area
                             <Box sx={{ color: 'text.secondary', textAlign: 'center', width: '100%', p: 1 }}>
                                 {latestResult === undefined || latestResult === null ? (
                                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
@@ -287,19 +327,18 @@ const WebsiteCard = React.memo(
                                         <Typography variant="caption">Awaiting check data...</Typography>
                                     </Stack>
                                 ) : !isOnline ? (
-                                    <Stack alignItems="center" spacing={0.3} color={theme.palette.warning.dark}>
+                                    <Stack alignItems="center" spacing={0.3} color={theme.palette.error.dark}>
                                         <TimerOffIcon sx={{ fontSize: '1.3rem' }} />
                                         <Typography variant="body2" sx={{ fontWeight: 500 }}>{downtimeDuration || 'Currently Offline'}</Typography>
-                                        {(consecutiveFailures !== undefined || downtimeStartedAt) && (
+                                        {(consecutiveFailures !== undefined && consecutiveFailures > 0 || downtimeStartedAt) && (
                                             <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
-                                                {consecutiveFailures !== undefined && `Failures: ${consecutiveFailures}`}
-                                                {(consecutiveFailures !== undefined && downtimeStartedAt) && ' • '}
-                                                {downtimeStartedAt && `Since: ${new Date(downtimeStartedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
+                                                {consecutiveFailures !== undefined && consecutiveFailures > 0 && `Failures: ${consecutiveFailures}`}
+                                                {(consecutiveFailures !== undefined && consecutiveFailures > 0 && downtimeStartedAt) && ' • '}
+                                                {downtimeStartedAt && `Since: ${format(new Date(downtimeStartedAt), 'MMM d, HH:mm')}`}
                                             </Typography>
                                         )}
                                     </Stack>
                                 ) : (
-                                    // Online, but not enough data for chart
                                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
                                         <InfoIcon fontSize="small" />
                                         <Typography variant="caption">Gathering data for chart...</Typography>
@@ -309,9 +348,7 @@ const WebsiteCard = React.memo(
                         )}
                     </Box>
 
-                    {/* Ticks Area */}
                     {canShowTicks && limitedChartDataPoints && (
-                        // Removed unnecessary key
                         <Stack direction="row" spacing={0.5} justifyContent="center" alignItems="center" sx={{ width: '95%', height: '8px', mb: 0.5 }}>
                             {limitedChartDataPoints.map((point, index) => {
                                 const uptimeRatio = point.uptimeRatio;
@@ -342,7 +379,6 @@ const WebsiteCard = React.memo(
                     )}
 
                     {canShowSingleTick && latestResult && (
-                        // Removed unnecessary key
                         <Stack direction="row" justifyContent="center" alignItems="center" sx={{ width: '95%', height: '8px', mb: 0.5 }}>
                             <Tooltip title={`Latest Check (${format(new Date(latestResult.checkedAt), 'HH:mm')}): ${latestResult.isAvailable ? 'Up' : 'Down'}`} placement="top">
                                 <Box sx={{ width: '100%', height: '100%', bgcolor: latestResult.isAvailable ? theme.palette.success.light : theme.palette.error.light, borderRadius: '1px' }} />
