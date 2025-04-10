@@ -1,6 +1,6 @@
-// server/src/services/mailService.ts
+// server/src/services/mail.service.ts
 import nodemailer from 'nodemailer'; // Import nodemailer
-import { mailConfig } from '../config/mail.config'; // Import the configuration we created
+import { mailConfig } from '../config/config'; // Import the configuration we created
 
 // Define the structure for email options
 interface MailOptions {

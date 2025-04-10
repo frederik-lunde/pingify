@@ -1,5 +1,7 @@
 // src/config/config.ts
 import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+
 
 // --- Read and Validate Required Environment Variables First ---
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -33,38 +35,37 @@ export const RESOLVED_ALERT_LINK_CLEANUP_DAYS = parseInt(process.env.RESOLVED_AL
 export const RECHECK_DELAY_SECONDS = parseInt(process.env.RECHECK_DELAY_SECONDS || '60', 10);
 
 
-// --- Export Email Configuration ---
-export const EMAIL_FROM = process.env.EMAIL_FROM || 'uptime-monitor@yourdomain.com';
-export const SMTP_HOST = process.env.SMTP_HOST;
-export const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-export const SMTP_USER = process.env.SMTP_USER;
-export const SMTP_PASS = process.env.SMTP_PASS;
-export const SMTP_SECURE = process.env.SMTP_SECURE === 'true' || SMTP_PORT === 465;
+dotenv.config(); // Load environment variables from .env file
 
-// --- Create and Export Email Transporter ---
-let emailTransporter: nodemailer.Transporter | null = null;
-if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
-  try {
-    emailTransporter = nodemailer.createTransport({ /* ... */ });
-    console.log('Email transporter configured.');
-  } catch (error) {
-      console.error('Error creating email transporter:', error);
-      emailTransporter = null;
+// Validate that necessary mail environment variables are set
+const requiredEnvVars = [
+  'MAIL_HOST',
+  'MAIL_PORT',
+  'MAIL_SECURE',
+  'MAIL_USER',
+  'MAIL_PASS',
+  'MAIL_FROM',
+];
+
+for (const varName of requiredEnvVars) {
+  if (!process.env[varName]) {
+    // Throw an error during startup if a required variable is missing
+    throw new Error(`Environment variable ${varName} is required for mail service.`);
   }
-} else {
-    console.warn('Email transporter not fully configured. Email notifications disabled.');
 }
-export { emailTransporter };
 
-// --- Log effective config ---
-console.log('-------------------- Configuration Loaded --------------------');
-console.log(`NODE_ENV: ${config.nodeEnv}`);
-console.log(`PORT: ${config.port}`);
-console.log(`MONITOR_CONCURRENCY: ${CONCURRENCY}`);
-console.log(`REQUEST_TIMEOUT: ${TIMEOUT_MS}ms`);
-console.log(`DEFAULT_MONITOR_INTERVAL: ${DEFAULT_INTERVAL}s`);
-console.log(`MONITORING_RESULTS_TO_KEEP: ${MONITORING_RESULTS_TO_KEEP}`);
-console.log(`RESOLVED_ALERT_LINK_CLEANUP_DAYS: ${RESOLVED_ALERT_LINK_CLEANUP_DAYS}`);
-console.log(`RECHECK_DELAY_SECONDS: ${RECHECK_DELAY_SECONDS}`); // Log new config
-console.log(`Email Transporter Configured: ${emailTransporter !== null}`);
-console.log('-------------------------------------------------------------');
+export const mailConfig = {
+  host: process.env.MAIL_HOST!, // Non-null assertion because we checked above
+  port: parseInt(process.env.MAIL_PORT!, 10), // Parse port to number
+  secure: process.env.MAIL_SECURE === 'true', // Convert 'true'/'false' string to boolean
+  auth: {
+    user: process.env.MAIL_USER!,
+    pass: process.env.MAIL_PASS!,
+  },
+  from: process.env.MAIL_FROM!, // Default sender address
+};
+
+// Basic validation for port number
+if (isNaN(mailConfig.port)) {
+  throw new Error('MAIL_PORT environment variable must be a valid number.');
+}
