@@ -2,17 +2,14 @@
 import { Router } from 'express';
 import * as websiteController from '../controllers/websiteController';
 import { authenticate } from '../middleware/authMiddleware';
-// Import admin check middleware if you have one, e.g., isAdmin
-// import { isAdmin } from '../middleware/authMiddleware';
+
 
 const router = Router();
 
 // Apply authentication to all routes
 router.use(authenticate);
 
-// Admin routes for managing all websites
-// Optional: Add isAdmin middleware if needed for admin routes
-// Example: router.get('/admin/all', isAdmin, websiteController.getAllWebsites);
+
 router.get('/admin/all', websiteController.getAllWebsites);
 router.post('/admin/create', websiteController.createWebsite);
 router.put('/admin/:id', websiteController.updateWebsite);

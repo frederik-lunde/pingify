@@ -1,6 +1,4 @@
-
 // src/api/monitoringApi.ts
-
 import apiClient from './client';
 import {
     OverallStats,
@@ -8,75 +6,69 @@ import {
     TimeframeKey,
     WebsiteDetailsData,
     MonitoringResult,
-    IncidentCountResponse,
-    DownWebsite
 } from '../types';
 
 export interface FetchWebsiteDetailsParams {
     websiteId: number;
     timeframe?: TimeframeKey;
-    limit?: number;
-    sortBy?: string;
-    sortDir?: 'asc' | 'desc';
+    limit?: number; // Limit for recent checks
+    incidentLimit?: number; // Limit for recent incidents
+    sortBy?: string; // Sort key for recent checks
+    sortDir?: 'asc' | 'desc'; // Sort direction for recent checks
 }
 
 /**
  * Fetches detailed data for a specific website view.
  * Endpoint: GET /monitoring/website/:websiteId
+ * UPDATED: Backend now includes currentIncident and recentIncidents.
  */
 export const fetchWebsiteDetails = async ({
     websiteId,
     timeframe = 'day',
-    limit = 10,
-    sortBy = 'timestamp',
+    limit = 10, // Default limit for recent checks
+    incidentLimit = 10, // Default limit for recent incidents
+    sortBy = 'checkedAt', // Default sort for recent checks
     sortDir = 'desc'
 }: FetchWebsiteDetailsParams): Promise<WebsiteDetailsData> => {
     if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
        throw new Error("Invalid website ID provided for fetching details.");
     }
+    // Pass incidentLimit to the backend
     return apiClient.get<WebsiteDetailsData>(`/monitoring/website/${websiteId}`, {
-        params: { timeframe, limit, sortBy, sortDir }
+        params: { timeframe, limit, incidentLimit, sortBy, sortDir }
     });
 };
 
 /**
  * Fetches statistics for the current user's dashboard.
  * Endpoint: GET /monitoring/user/stats
+ * UPDATED: Backend now uses Incident table for incident stats.
  */
 export const fetchUserStats = async (period: TimeframeKey | string = 'week'): Promise<OverallStats> => {
     return apiClient.get<OverallStats>("/monitoring/user/stats", { params: { period } });
 };
 
 
-/**
- * Fetches the list of down websites in the last 24 hours
- * Endpoint: GET /monitoring/user/down-websites/last24h
- */
-export const fetchDownWebsitesLast24h = async (): Promise<DownWebsite[]> => {
-    const url = "/monitoring/user/down-websites/last24h";
-    try {
-        const data = await apiClient.get<DownWebsite[]>(url);
-        return data ?? [];
-    } catch (error: any) {
-        console.error(`API Error fetching down websites: ${error.message}`);
-        throw error;
-    }
-};
+// --- REMOVED: fetchDownWebsitesLast24h ---
+// This information is now derived from incidents.
 
 /**
  * Fetches statistics for a specific website.
  * Endpoint: GET /monitoring/website/:websiteId/stats
+ * UPDATED: Backend now includes incident counts in the response.
  */
 export const fetchWebsiteStats = async (websiteId: number, period: TimeframeKey | string = 'week'): Promise<WebsiteStatsData> => {
      if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
        throw new Error("Invalid website ID provided for fetching stats.");
     }
+    // The response type WebsiteStatsData now includes incident counts
     return apiClient.get<WebsiteStatsData>(`/monitoring/website/${websiteId}/stats`, { params: { period } });
 };
 
 /**
  * Triggers an immediate check for a website.
  * Endpoint: POST /monitoring/check/:websiteId
+ * NOTE: Backend handles incident creation/resolution based on this check.
  */
 export const triggerWebsiteCheck = async (websiteId: number): Promise<MonitoringResult> => {
     if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
@@ -86,7 +78,7 @@ export const triggerWebsiteCheck = async (websiteId: number): Promise<Monitoring
 };
 
 /**
- * Fetches all monitoring results for the current user 
+ * Fetches all monitoring results for the current user
  * Endpoint: GET /monitoring/user/results
  */
 export const fetchAllUserMonitoringResults = async (limit: number = 500): Promise<MonitoringResult[]> => {
@@ -94,18 +86,5 @@ export const fetchAllUserMonitoringResults = async (limit: number = 500): Promis
     return result ?? [];
 };
 
-/**
- * Fetches the count of distinct websites with incidents (based on MonitoringResults)
- * in the last 24 hours for the user.
- * Endpoint: GET /monitoring/user/incidents/last24h
- */
-export const fetchUserIncidentCountLast24h = async (): Promise<IncidentCountResponse> => {
-    const url = "/monitoring/user/incidents/last24h";
-    try {
-        const data = await apiClient.get<IncidentCountResponse>(url);
-        return data ?? { incidentCount: 0 };
-    } catch (error: any) {
-        console.error(`API Error fetching monitoring-based incident count: ${error.message}`);
-        throw error;
-    }
-};
+// --- REMOVED: fetchUserIncidentCountLast24h ---
+// Moved to incidentApi.ts

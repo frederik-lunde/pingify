@@ -3,7 +3,7 @@ src/components/dashboard/StatsHeader.tsx
 */
 import React from 'react';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Grid2'; // Use Grid2 for better spacing control
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -18,38 +18,42 @@ import Alert from '@mui/material/Alert';
 import { ApiError } from '../../types';
 import { getStatusColor, formatUptime } from '../../utils/statusUtils';
 import { useTimeSince } from '../../hooks';
+import { useNavigate } from 'react-router';
 
 type StatusColorKey = 'success' | 'warning' | 'error' | 'default';
 
 interface StatsHeaderProps {
     isLoading: boolean;
     error: ApiError | null;
-    upCount: number;
-    totalCount: number;
-    uptime: number | null | undefined;
-    incidentsLast24h: number | null | undefined;
-    lastIncidentTimestamp: string | null | undefined;
-    center?: boolean;
-    lastIncidentWebsiteId?: number | null | undefined;
-    onToggleHighlight?: () => void;
-    isHighlightActive?: boolean;
-    onShowDownWebsites: () => void;
-    showDownWebsites: boolean;
+    upCount: number; // Websites currently considered "up"
+    totalCount: number; // Total websites monitored by the user
+    uptime: number | null | undefined; // Overall uptime (e.g., last 7 days)
+    incidentsLast24h: number | null | undefined; // Count of incidents started in last 24h
+    lastIncidentTimestamp: string | null | undefined; // Timestamp of the most recent incident start
+    center?: boolean; // Layout mode (true for navbar, false for dashboard header)
+    lastIncidentWebsiteId?: number | null | undefined; // ID of website with the last incident
+    onToggleHighlight?: () => void; // Callback to toggle highlight on the dashboard
+    isHighlightActive?: boolean; // Whether the highlight is currently active
+    // REMOVED: onShowDownWebsites, showDownWebsites - Replaced by navigating to incidents page
 }
 
 // Helper to get text color based on theme, status, and layout
 const getTextColor = (theme: Theme, colorKey: StatusColorKey, isNavbar: boolean): string => {
     if (isNavbar) {
+        // Use white for colored statuses in navbar, inherit (usually white) for default
         return colorKey === 'default' ? 'inherit' : theme.palette.common.white;
     }
+    // Use theme colors for dashboard header
     if (colorKey === 'default') {
         return theme.palette.text.secondary;
     }
+    // Ensure the color key exists before accessing it
     return theme.palette[colorKey]?.main || theme.palette.text.primary;
 };
 
+// Helper to render icons (or null if in navbar layout)
 const getIcon = (IconComponent: React.ElementType, color: string, isNavbar: boolean, iconSize: string) => {
-    if (isNavbar) return null;
+    if (isNavbar) return null; // No icons in the compact navbar version
     return <IconComponent fontSize="inherit" sx={{ color, fontSize: iconSize, lineHeight: 1, mb: 0.5 }} />;
 };
 
@@ -65,50 +69,63 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     lastIncidentWebsiteId,
     onToggleHighlight,
     isHighlightActive = false,
-    onShowDownWebsites,
-    showDownWebsites,
 }) => {
     const theme = useTheme();
+    const navigate = useNavigate(); // Hook for navigation
     const isNavbarLayout = center;
 
+    // Calculate time since last incident using the custom hook
     const timeSinceLastIncident = useTimeSince(lastIncidentTimestamp, {
-        noIncidentText: isNavbarLayout ? 'None' : 'No recent incidents'
+        noIncidentText: isNavbarLayout ? 'None' : 'No recent incidents',
+        errorText: 'Invalid Date',
+        updateIntervalMs: 30000 // Update every 30 seconds for more freshness
     });
+
+    // Determine color and format for uptime display
     const uptimeColorKey = getStatusColor(uptime);
     const formattedUptimeValue = formatUptime(uptime);
 
+    // --- Memoized Props for Status Display ---
     const statusProps = React.useMemo(() => {
         let iconType: React.ElementType | null = null;
         let valueColorKey: StatusColorKey = 'default';
         let text: string;
         let tooltip: string;
 
-        if (totalCount === 0 && !isLoading) {
+        if (isLoading) { // Handle loading state explicitly
+             iconType = null; valueColorKey = 'default'; text = "- / -"; tooltip = 'Loading status...';
+        } else if (totalCount === 0) {
             iconType = ErrorOutlineIcon; valueColorKey = 'default'; text = "0 / 0"; tooltip = 'No websites monitored';
-        } else if (upCount === totalCount && totalCount > 0) {
-            iconType = CheckCircleOutlineIcon; valueColorKey = 'success'; text = `${upCount} / ${totalCount}`; tooltip = 'All websites are up';
+        } else if (upCount === totalCount) {
+            // All websites are considered up (no 'down' incidents)
+            iconType = CheckCircleOutlineIcon; valueColorKey = 'success'; text = `${upCount} / ${totalCount}`; tooltip = 'All monitored websites are currently up';
         } else {
-            iconType = WarningAmberIcon; valueColorKey = totalCount > 0 ? 'error' : 'default'; text = `${upCount} / ${totalCount}`; tooltip = `${totalCount - upCount} website(s) are down or having issues`;
+            // If upCount < totalCount, indicate issues (at least one website has a 'down' incident)
+            iconType = WarningAmberIcon; valueColorKey = 'error'; text = `${upCount} / ${totalCount}`; tooltip = `${totalCount - upCount} website(s) currently experiencing issues`;
         }
         const valueColor = getTextColor(theme, valueColorKey, isNavbarLayout);
         return { iconType, valueColor, text, tooltip };
     }, [totalCount, upCount, isLoading, theme, isNavbarLayout]);
 
+    // --- Memoized Props for Incident Display ---
     const incidentProps = React.useMemo(() => {
         let iconType: React.ElementType | null = null;
         let valueColorKey: StatusColorKey = 'default';
         let text: string;
+        let tooltip: string;
 
-        if (incidentsLast24h === null || incidentsLast24h === undefined) {
-            iconType = ReportProblemOutlinedIcon; valueColorKey = 'default'; text = '-';
+        if (isLoading || incidentsLast24h === null || incidentsLast24h === undefined) {
+            iconType = null; valueColorKey = 'default'; text = '-'; tooltip = 'Loading incident count...';
         } else if (incidentsLast24h > 0) {
-            iconType = ReportProblemOutlinedIcon; valueColorKey = 'warning'; text = incidentsLast24h.toString();
+            // Incidents occurred in the last 24h
+            iconType = ReportProblemOutlinedIcon; valueColorKey = 'warning'; text = incidentsLast24h.toString(); tooltip = `${incidentsLast24h} incident(s) started in the last 24 hours. Click to view incidents.`;
         } else {
-            iconType = CheckCircleOutlineIcon; valueColorKey = 'success'; text = '0';
+            // No incidents in the last 24h
+            iconType = CheckCircleOutlineIcon; valueColorKey = 'success'; text = '0'; tooltip = 'No new incidents started in the last 24 hours.';
         }
         const valueColor = getTextColor(theme, valueColorKey, isNavbarLayout);
-        return { iconType, valueColor, text };
-    }, [incidentsLast24h, theme, isNavbarLayout]);
+        return { iconType, valueColor, text, tooltip };
+    }, [incidentsLast24h, isLoading, theme, isNavbarLayout]);
 
     // --- Define Container Styles based on layout ---
     const containerSx = isNavbarLayout
@@ -118,15 +135,18 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     // --- Define Responsive Styles based on layout ---
     const valueVariant = isNavbarLayout ? 'body2' : 'h6';
     const labelVariant = isNavbarLayout ? 'caption' : 'body2';
-    const iconSize = isNavbarLayout ? '0.9rem' : '1.4rem';
+    const iconSize = isNavbarLayout ? '0.9rem' : '1.4rem'; // Icons only shown in dashboard header
     const gridSpacing = isNavbarLayout ? 1.2 : { xs: 1.5, sm: 2 };
     const valueLabelMargin = isNavbarLayout ? 0.2 : 0.5;
 
     // --- Loading State ---
-    if (isLoading) {
+    if (isLoading && isNavbarLayout) { // Simpler loading for navbar
+        return <Box sx={containerSx}><CircularProgress size={20} color="inherit" /></Box>;
+    }
+    if (isLoading && !isNavbarLayout) { // Loading for dashboard header
         return (
             <Box sx={{ ...containerSx, justifyContent: 'center', alignItems: 'center' }}>
-                <CircularProgress size={isNavbarLayout ? 20 : 24} color={isNavbarLayout ? 'inherit' : 'primary'} />
+                <CircularProgress size={24} color='primary' />
             </Box>
         );
     }
@@ -146,8 +166,9 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     const gridItemSize = isNavbarLayout ? 3 : { xs: 6, sm: 6, md: 3 };
 
     // Determine if highlight/click actions are enabled (only for dashboard header)
-    const canHighlight = !isNavbarLayout && !!lastIncidentWebsiteId && !!onToggleHighlight;
-    const canClickIncidents = !isNavbarLayout && incidentsLast24h !== null && incidentsLast24h !== undefined;
+    const canHighlightLastIncident = !isNavbarLayout && !!lastIncidentWebsiteId && !!onToggleHighlight;
+    // Determine if clicking incidents navigates (only for dashboard header)
+    const canClickIncidents = !isNavbarLayout;
 
     // --- Base styles for the content box inside each grid item ---
     const gridItemContentSx = {
@@ -155,9 +176,9 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        textAlign: 'center', // Ensure text is centered
+        textAlign: 'center',
         width: '100%',
-        p: isNavbarLayout ? 0.5 : 0, 
+        p: isNavbarLayout ? 0.5 : 0,
         borderRadius: isNavbarLayout ? 1 : 0,
         minHeight: isNavbarLayout ? 'auto' : 50,
     };
@@ -167,9 +188,17 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
         ...gridItemContentSx,
         cursor: isClickable ? 'pointer' : 'default',
         '&:hover': isClickable ? { bgcolor: alpha(theme.palette.action.hover, 0.1) } : {},
+        // Use warning color for highlight active state
         bgcolor: !isNavbarLayout && isActiveState ? alpha(theme.palette.warning.light, 0.15) : 'transparent',
         transition: theme.transitions.create('background-color'),
     });
+
+    // --- Navigation Handler for Incidents ---
+    const handleIncidentsClick = () => {
+        if (canClickIncidents) {
+            navigate('/incidents'); // Navigate to the incidents page (ensure this route exists)
+        }
+    };
 
     // --- Render the Stats Header ---
     return (
@@ -183,19 +212,14 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
             >
                 {/* Stat 1: Status (Up/Total) */}
                 <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
-                    {/* Tooltip provides details on hover */}
-                    <Tooltip title={statusProps.tooltip}>
-                        {/* Box containing icon and value */}
+                    <Tooltip title={statusProps.tooltip} placement="top">
                         <Box sx={gridItemContentSx}>
-                           {/* Render icon if available */}
                            {statusProps.iconType && getIcon(statusProps.iconType, statusProps.valueColor, isNavbarLayout, iconSize)}
-                          {/* Display status value */}
                           <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: statusProps.valueColor, lineHeight: 1.2 }}>
                             {statusProps.text}
                           </Typography>
                         </Box>
                     </Tooltip>
-                    {/* Display label */}
                     <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : 1 }}>
                         Status
                     </Typography>
@@ -203,17 +227,14 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
 
                 {/* Stat 2: Uptime */}
                 <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
-                   <Tooltip title="Overall Uptime (Last 7 Days)">
+                   <Tooltip title="Overall Uptime (Last 7 Days)" placement="top">
                      <Box sx={gridItemContentSx}>
-                        {/* Uptime icon */}
                         {getIcon(NetworkCheckIcon, getTextColor(theme, uptimeColorKey, isNavbarLayout), isNavbarLayout, iconSize)}
-                       {/* Uptime value */}
                        <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: getTextColor(theme, uptimeColorKey, isNavbarLayout), lineHeight: 1.2 }}>
                          {formattedUptimeValue}%
                        </Typography>
                      </Box>
                    </Tooltip>
-                   {/* Uptime label */}
                    <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : 1 }}>
                        Uptime (7d)
                    </Typography>
@@ -221,28 +242,18 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
 
                 {/* Stat 3: Incidents Last 24 Hours */}
                 <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
-                   <Tooltip title={
-                       // Different tooltip based on layout and state
-                       isNavbarLayout ? `Incidents (24h): ${incidentProps.text}` :
-                       showDownWebsites ? "Click to show all websites" :
-                       (incidentsLast24h && incidentsLast24h > 0 ? "Click to show down websites" : "No incidents in last 24 hours")
-                   }>
+                   <Tooltip title={incidentProps.tooltip} placement="top">
                      {/* Clickable box for incidents */}
                      <Box
-                         // Attach click handler if applicable
-                         onClick={canClickIncidents ? onShowDownWebsites : undefined}
-                         // Apply clickable styles and active state if showing down websites
-                         sx={clickableBoxSx(canClickIncidents, !isNavbarLayout && showDownWebsites)}
+                         onClick={handleIncidentsClick} // Navigate on click in dashboard
+                         sx={clickableBoxSx(canClickIncidents)} // Apply clickable style in dashboard
                      >
-                         {/* Incident icon */}
                          {incidentProps.iconType && getIcon(incidentProps.iconType, incidentProps.valueColor, isNavbarLayout, iconSize)}
-                       {/* Incident value */}
                        <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: incidentProps.valueColor, lineHeight: 1.2 }}>
                          {incidentProps.text}
                        </Typography>
                      </Box>
                    </Tooltip>
-                   {/* Incident label */}
                    <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : 1 }}>
                         Incidents (24h)
                    </Typography>
@@ -252,34 +263,27 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                 <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
                    <Tooltip
                        title={
-                           // Different tooltip based on layout and state
                            isNavbarLayout ? `Last Incident: ${timeSinceLastIncident}` :
-                           canHighlight ? (isHighlightActive ? "Click to remove highlight" : "Click to highlight affected website") :
-                           `Time since last downtime (up to 30 days)`
+                           canHighlightLastIncident ? (isHighlightActive ? "Click to remove highlight" : "Click to highlight affected website") :
+                           `Time since last incident started` // Updated tooltip text
                        }
-                       placement="top" // Better placement for potentially longer text
-                       arrow={!isNavbarLayout} // Show arrow only in dashboard
+                       placement="top"
+                       arrow={!isNavbarLayout}
                     >
                      {/* Clickable box for highlight action */}
                      <Box
-                         // Attach click handler if highlight is possible
-                         onClick={canHighlight ? onToggleHighlight : undefined}
-                         // Apply clickable styles and active state if highlight is on
-                         sx={clickableBoxSx(canHighlight, canHighlight && isHighlightActive)}
+                         onClick={canHighlightLastIncident ? onToggleHighlight : undefined}
+                         sx={clickableBoxSx(canHighlightLastIncident, canHighlightLastIncident && isHighlightActive)} // Apply clickable and active styles
                      >
-                         {/* History icon */}
                          {getIcon(HistoryIcon, theme.palette.text.secondary, isNavbarLayout, iconSize)}
-                       {/* Time since value */}
                        <Typography
                             variant={valueVariant} component="div" fontWeight="medium"
-                            // Use inherit color for navbar, primary text for dashboard
                             sx={{ color: isNavbarLayout ? 'inherit' : theme.palette.text.primary, lineHeight: 1.2 }}
                        >
                          {timeSinceLastIncident}
                        </Typography>
                      </Box>
                    </Tooltip>
-                   {/* Last incident label */}
                    <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : 1 }}>
                        Last Incident
                    </Typography>

@@ -234,9 +234,6 @@ export const getWebsiteDetails = async (
             uptimePercent: uptimePercentData,
             currentIncident: currentIncidentData, // Assign fetched open incident
             recentIncidents: recentIncidentsData, // Assign fetched recent incidents
-            // --- REMOVED: Old downtime fields ---
-            // consecutiveFailures: undefined,
-            // downtimeStartedAt: null,
         };
         res.json(responseData);
     } catch (error) {

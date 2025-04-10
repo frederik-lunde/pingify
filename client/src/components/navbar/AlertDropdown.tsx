@@ -13,9 +13,9 @@ import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router";
 
 // Hooks and Types
-import { useUserAlertsQuery, useAlertActions } from "../../hooks/api/useAlerts"; // Adjust path
-import { ApiError, AlertQueryOptions, AlertType, VALID_ALERT_TYPES } from "../../types"; // Adjust path
-import { getAlertTypeColor } from "../../utils/statusUtils"; // Adjust path
+import { useUserAlertsQuery, useAlertActions } from "../../hooks/api/useAlerts"; 
+import { ApiError, AlertQueryOptions, AlertType, VALID_ALERT_TYPES } from "../../types";
+import { getAlertTypeColor } from "../../utils/statusUtils"; 
 
 interface AlertsDropdownProps {
   // Allow passing filter options for the alerts query

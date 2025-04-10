@@ -14,9 +14,9 @@ import {
     fetchUserStats,
     fetchWebsiteStats,
     fetchAllUserMonitoringResults,
-    fetchUserIncidentCountLast24h,
+    // fetchUserIncidentCountLast24h, // Removed
     FetchWebsiteDetailsParams,
-    fetchDownWebsitesLast24h,
+    // fetchDownWebsitesLast24h, // Removed
 } from '../../api/monitoringApi';
 import {
     WebsiteDetailsData,
@@ -25,11 +25,15 @@ import {
     MonitoringResult,
     ApiError,
     TimeframeKey,
-    IncidentCountResponse,
-    DownWebsite
+    // IncidentCountResponse, // Removed
+    // DownWebsite // Removed
 } from '../../types';
-import { useAuth } from '../../context/AuthContext';
-import { alertQueryKeys } from '../';
+import { useAuth } from '../../context/AuthContext'; // Adjust path if needed
+// --- Import incident keys for invalidation ---
+import { incidentQueryKeys } from './useIncidents';
+import { alertQueryKeys } from './useAlerts'; // Keep for alert invalidation
+// --- Import website keys for invalidation ---
+import { websiteQueryKeys } from './useWebsites';
 
 // --- Query Keys ---
 export const monitoringQueryKeys = {
@@ -42,10 +46,8 @@ export const monitoringQueryKeys = {
         [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { userId, period }] as const,
     userResults: (limit: number | undefined, userId: number | undefined) =>
         [...monitoringQueryKeys.all, 'userResults', { userId, limit }] as const,
-    incidentCountLast24h: (userId: number | undefined) =>
-        [...monitoringQueryKeys.all, 'incidentCount', 'last24h', { userId }] as const,
-    downWebsitesLast24h: (userId: number | undefined) =>
-        [...monitoringQueryKeys.all, 'downWebsites', 'last24h', { userId }] as const,
+    // --- REMOVED: incidentCountLast24h ---
+    // --- REMOVED: downWebsitesLast24h ---
 };
 
 // --- Helper type ---
@@ -56,6 +58,7 @@ type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
 
 /**
  * Hook to fetch detailed data for the Website Details page.
+ * UPDATED: Uses the new WebsiteDetailsData type.
  */
 export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, options?: CustomQueryOptions<WebsiteDetailsData>) {
     const { user } = useAuth();
@@ -66,43 +69,33 @@ export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, option
         queryKey: queryKey,
         queryFn: () => {
             if (!userId || !params.websiteId) return Promise.reject(new Error("Missing user or website ID for query"));
+            // API function now returns data including incidents
             return fetchWebsiteDetails(params);
         },
         enabled: options?.enabled === undefined ? (!!userId && !!params.websiteId && params.websiteId > 0) : options.enabled,
-        staleTime: 1000,
-        gcTime: 1000 * 60 * 5,
+        staleTime: 1000 * 30, // Stale after 30 seconds
+        gcTime: 1000 * 60 * 5, // Garbage collect after 5 minutes
         ...options,
     });
 }
 
-/**
- * Hook to fetch the list of down websites in the last 24 hours for the user.
- */
-export const useDownWebsitesLast24h = (options?: CustomQueryOptions<DownWebsite[]>) => {
-    const { user } = useAuth();
-    const userId = user?.id;
-    const queryKey = monitoringQueryKeys.downWebsitesLast24h(userId);
-
-    return useQuery<DownWebsite[], ApiError>({
-        queryKey: queryKey,
-        queryFn: () => {
-            if (!userId) return Promise.resolve([]);
-            return fetchDownWebsitesLast24h();
-        },
-        enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: options?.staleTime ?? 5 * 60 * 1000,
-        gcTime: options?.gcTime ?? 15 * 60 * 1000,
-        ...options,
-    });
-};
+// --- REMOVED: useDownWebsitesLast24h ---
 
 /**
  * Hook for triggering an immediate website check (mutation).
+ * UPDATED: Invalidation logic now includes incident queries.
+ * UPDATED: Removed optimistic update for downtime info.
  */
 export function useWebsiteCheckMutation() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const userId = user?.id;
+
+    // Define patterns for invalidation
+    const userIncidentListKeyPattern = incidentQueryKeys.list({}, userId);
+    const userIncidentCountKey = incidentQueryKeys.countLast24h(userId);
+    const userStatsKeyPattern = monitoringQueryKeys.userStats('', userId); // Match any period
+    const userWebsiteListKeyPattern = websiteQueryKeys.lists(userId);
 
     return useMutation<MonitoringResult, ApiError, number>({
         mutationFn: (websiteId: number) => {
@@ -113,42 +106,55 @@ export function useWebsiteCheckMutation() {
         },
         onSuccess: (newCheckResult, websiteId) => {
             console.log(`[Mutation Success] Check completed for website ${websiteId}`);
-            // --- Optimistic Update ---
-            // *** FIX: Explicitly type the filter ***
-            const detailsQueryFilter: QueryFilters<WebsiteDetailsData> = { queryKey: [...monitoringQueryKeys.all, 'details', websiteId], type: 'active', exact: false };
-            queryClient.setQueriesData<WebsiteDetailsData>(detailsQueryFilter, (oldData) => {
-                if (!oldData) return undefined;
-                console.log(`[setQueriesData] Updating cache for details query...`);
-                const updatedRecentChecks = [newCheckResult, ...(oldData.recentChecks ?? [])].slice(0, 10);
-                const isDown = !newCheckResult.isAvailable;
-                const updatedDowntimeInfo = isDown
-                    ? { consecutiveFailures: (oldData.consecutiveFailures ?? 0) + 1, downtimeStartedAt: oldData.downtimeStartedAt ?? newCheckResult.checkedAt }
-                    : { consecutiveFailures: 0, downtimeStartedAt: null };
-                return { ...oldData, latestResult: newCheckResult, recentChecks: updatedRecentChecks, ...updatedDowntimeInfo };
-            });
-            // --- End Optimistic Update ---
 
             // --- Invalidation ---
-            console.log(`[Invalidation] Invalidating data related to website ${websiteId} for user ${userId}`);
-            queryClient.invalidateQueries({ queryKey: [...monitoringQueryKeys.all, 'details', websiteId], exact: false });
-            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.websiteStats(websiteId, '', userId), exact: false });
+            console.log(`[Invalidation] Invalidating data related to website ${websiteId} for user ${userId} after check...`);
+
+            // Invalidate details for this specific website (will refetch with new result and potentially updated incident status)
+            const detailsKeyPattern: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'details', websiteId];
+            queryClient.invalidateQueries({ queryKey: detailsKeyPattern, exact: false }); // Invalidate any timeframe/limit for this website detail
+            console.log(`Invalidating monitoring details:`, detailsKeyPattern);
+
+            // Invalidate website-specific stats (uptime, avg response, incident counts for period might change)
+            const websiteStatsKeyPattern: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'stats', 'website', websiteId];
+            queryClient.invalidateQueries({ queryKey: websiteStatsKeyPattern, exact: false });
+            console.log(`Invalidating website stats:`, websiteStatsKeyPattern);
+
+            // Invalidate user's overall stats (might change overall uptime, last incident etc.)
+            queryClient.invalidateQueries({ queryKey: userStatsKeyPattern, exact: false });
+            console.log(`Invalidating user overall stats:`, userStatsKeyPattern);
+
+            // Invalidate user's monitoring results list
             queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId), exact: false });
-            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userStats('', userId), exact: false });
-            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.downWebsitesLast24h(userId) });
-            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.incidentCountLast24h(userId) });
+            console.log(`Invalidating user monitoring results list`);
+
+            // Invalidate user's website list (to update latestResult and currentIncident shown on cards)
+            queryClient.invalidateQueries({ queryKey: userWebsiteListKeyPattern });
+            console.log(`Invalidating user website list:`, userWebsiteListKeyPattern);
+
+            // Invalidate user's incident list and count (new incident might start/end)
+            queryClient.invalidateQueries({ queryKey: userIncidentListKeyPattern, exact: false });
+            queryClient.invalidateQueries({ queryKey: userIncidentCountKey });
+            console.log(`Invalidating user incidents list and count`);
+
+            // Invalidate user's alert list and stats (alerts might be created/dismissed)
             queryClient.invalidateQueries({ queryKey: alertQueryKeys.lists(), exact: false });
             queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats(), exact: false });
+            console.log(`Invalidating user alerts list and stats`);
+
             console.log(`[Invalidation Complete]`);
         },
         onError: (error: ApiError, websiteId) => {
             console.error(`[Mutation Error] Failed to trigger check for website ${websiteId}:`, error.message || error);
-            queryClient.invalidateQueries({ queryKey: [...monitoringQueryKeys.all, 'details', websiteId], exact: false });
+            // Optionally invalidate details on error too, in case the UI needs to reflect the failure
+            // queryClient.invalidateQueries({ queryKey: [...monitoringQueryKeys.all, 'details', websiteId], exact: false });
         },
     });
 }
 
 /**
  * Hook to fetch overall statistics for the user dashboard.
+ * UPDATED: Uses the new OverallStats type.
  */
 export function useUserStatsQuery(period: TimeframeKey | string = 'week', options?: CustomQueryOptions<OverallStats>) {
     const { user } = useAuth();
@@ -158,17 +164,19 @@ export function useUserStatsQuery(period: TimeframeKey | string = 'week', option
         queryKey: monitoringQueryKeys.userStats(period, userId),
         queryFn: () => {
             if (!userId) return Promise.reject(new Error("User ID not found for user stats query"));
+            // API returns the updated OverallStats structure
             return fetchUserStats(period);
         },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 60 * 1000,
-        gcTime: 1000 * 60 * 15,
+        staleTime: 60 * 1000, // Stale after 1 minute
+        gcTime: 1000 * 60 * 15, // GC after 15 minutes
         ...options,
     });
 }
 
 /**
  * Hook to fetch statistics for a specific website.
+ * UPDATED: Uses the new WebsiteStatsData type.
  */
 export function useWebsiteStatsQuery(websiteId: number | undefined, period: TimeframeKey | string = 'week', options?: CustomQueryOptions<WebsiteStatsData>) {
     const { user } = useAuth();
@@ -180,11 +188,12 @@ export function useWebsiteStatsQuery(websiteId: number | undefined, period: Time
         queryKey: queryKey,
         queryFn: () => {
             if (!userId || !websiteId) return Promise.reject(new Error("Missing user or website ID for website stats query"));
+            // API returns the updated WebsiteStatsData structure
             return fetchWebsiteStats(websiteId, period);
         },
         enabled: isQueryEnabled,
-        staleTime: 60 * 1000,
-        gcTime: 1000 * 60 * 10,
+        staleTime: 60 * 1000, // Stale after 1 minute
+        gcTime: 1000 * 60 * 10, // GC after 10 minutes
         ...options,
     });
 }
@@ -204,38 +213,12 @@ export function useUserMonitoringResultsQuery(limit: number = 500, options?: Cus
              return fetchAllUserMonitoringResults(limit);
         },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 60 * 1000,
-        gcTime: 1000 * 60 * 5,
+        staleTime: 60 * 1000, // Stale after 1 minute
+        gcTime: 1000 * 60 * 5, // GC after 5 minutes
         ...options,
     });
 }
 
 
-// Default cache times for the new hook
-const DEFAULT_MONITORING_INCIDENT_COUNT_STALE_TIME = 1000 * 60 * 2; // 2 minutes
-const DEFAULT_MONITORING_INCIDENT_COUNT_GC_TIME = 1000 * 60 * 10; // 10 minutes
-
-/**
- * NEW Hook: Fetches the count of distinct websites with monitoring incidents
- * (down or slow based on user threshold) in the last 24 hours.
- */
-export function useUserIncidentCountQuery(
-    options?: CustomQueryOptions<IncidentCountResponse>
-) {
-    const { user } = useAuth();
-    const userId = user?.id;
-    const queryKey = monitoringQueryKeys.incidentCountLast24h(userId);
-
-    return useQuery<IncidentCountResponse, ApiError>({
-        queryKey: queryKey,
-        queryFn: () => {
-             if (!userId) return Promise.resolve({ incidentCount: 0 });
-             return fetchUserIncidentCountLast24h();
-        },
-        enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        refetchInterval: options?.refetchInterval,
-        staleTime: options?.staleTime ?? DEFAULT_MONITORING_INCIDENT_COUNT_STALE_TIME,
-        gcTime: options?.gcTime ?? DEFAULT_MONITORING_INCIDENT_COUNT_GC_TIME,
-        initialData: undefined,
-    });
-}
+// --- REMOVED: useUserIncidentCountQuery ---
+// This is now handled by useUserIncidentCountLast24hQuery in useIncidents.ts
