@@ -72,6 +72,7 @@ const CARD_TIMEFRAME: TimeframeKey = 'day';
 const CHART_AREA_HEIGHT = 80; // px
 const TICKS_AREA_HEIGHT = 8; // px
 const TICKS_MARGIN_TOP = 1; // theme spacing unit
+const CHIPS_ROW_MIN_HEIGHT = '32px'; // Minimum height for the chips row
 
 // Memoized Chart Component
 const ResponseTimeChart = React.memo(
@@ -206,15 +207,14 @@ const WebsiteCard = React.memo(
     const cardStyles = useMemo(() => {
         let dynamicStyles = {};
         const baseSx = {
-            width: '100%', // Fill grid item
+            width: '100%', // Fill grid item width
+            height: '100%', // Explicitly set height to 100% to fill the parent Grid item
             margin: 'auto',
             cursor: "pointer",
-            height: "100%", // Make card fill grid item height
-            display: "flex",
-            flexDirection: "column",
-            position: 'relative',
-            overflow: 'hidden', // Prevent content overflow issues affecting size
-            pb: 1,
+            display: "flex", // Use flexbox for internal layout
+            flexDirection: "column", // Stack content vertically
+            position: 'relative', // Needed for absolute positioning of ticks
+            overflow: 'hidden', // Prevent content spillover
             transition: theme.transitions.create(['opacity', 'transform', 'box-shadow', 'border-color'], { duration: theme.transitions.duration.short }),
             "&:hover": { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
         };
@@ -237,10 +237,9 @@ const WebsiteCard = React.memo(
 
         if (cardStatus === 'up') statusChip = <Tooltip title="Website is online"><Chip size="small" icon={<CheckIcon fontSize="inherit"/>} label="Online" color="success" sx={{ fontWeight: 500 }}/></Tooltip>;
         else if (cardStatus === 'down') {
-            statusChip = <Tooltip title={`Website is down ${incidentStartTimeFormatted ? `(${incidentStartTimeFormatted})` : ''}`}><Chip size="small" icon={<ErrorIcon fontSize="inherit"/>} label="Offline" color="error" sx={{ fontWeight: 500 }}/></Tooltip>;
-            if (incidentStartTimeFormatted) incidentChip = <Tooltip title={`Downtime started ${incidentStartTimeFormatted}`}><Chip size="small" icon={<IncidentIcon fontSize="inherit" />} label={`Down ${incidentStartTimeFormatted}`} variant="outlined" color="error" /></Tooltip>;
+            statusChip = <Tooltip title={`Website is down ${incidentStartTimeFormatted ? `(since ${incidentStartTimeFormatted})` : ''}`}><Chip size="small" icon={<ErrorIcon fontSize="inherit"/>} label="Offline" color="error" sx={{ fontWeight: 500 }}/></Tooltip>;
         } else if (cardStatus === 'slow') {
-            statusChip = <Tooltip title={`Website is responding slowly ${incidentStartTimeFormatted ? `(${incidentStartTimeFormatted})` : ''}`}><Chip size="small" icon={<SlowIcon fontSize="inherit"/>} label="Slow" color="warning" sx={{ fontWeight: 500 }}/></Tooltip>;
+            statusChip = <Tooltip title={`Website is responding slowly ${incidentStartTimeFormatted ? `(since ${incidentStartTimeFormatted})` : ''}`}><Chip size="small" icon={<SlowIcon fontSize="inherit"/>} label="Slow" color="warning" sx={{ fontWeight: 500 }}/></Tooltip>;
             if (incidentStartTimeFormatted) incidentChip = <Tooltip title={`Slow response started ${incidentStartTimeFormatted}`}><Chip size="small" icon={<IncidentIcon fontSize="inherit" />} label={`Slow ${incidentStartTimeFormatted}`} variant="outlined" color="warning" /></Tooltip>;
         }
 
@@ -248,7 +247,7 @@ const WebsiteCard = React.memo(
             <>
                 {statusChip}
                 {statusCode != null && cardStatus !== 'down' && <Tooltip title={`Last HTTP Status: ${statusCode}`}><Chip size="small" label={`${statusCode}`} variant="outlined" /></Tooltip>}
-                {responseTime !== null && <Tooltip title={`Last Response Time: ${formatResponseTime(responseTime)}`}><Chip size="small" label={formatResponseTime(responseTime)} color={getResponseTimeColor(responseTime)} variant="outlined" /></Tooltip>}
+                {responseTime !== null && cardStatus !== 'down' && <Tooltip title={`Last Response Time: ${formatResponseTime(responseTime)}`}><Chip size="small" label={formatResponseTime(responseTime)} color={getResponseTimeColor(responseTime)} variant="outlined" /></Tooltip>}
                 {cardStatus === 'up' && formattedUptime !== "N/A" && typeof uptimePercent === 'number' && <Tooltip title={`Uptime (${CARD_TIMEFRAME}): ${formattedUptime}%`}><Chip size="small" icon={<ChartIcon fontSize="inherit" />} label={`${formattedUptime}%`} color={getStatusColor(uptimePercent)} variant="outlined" /></Tooltip>}
                 {incidentChip}
             </>
@@ -258,8 +257,15 @@ const WebsiteCard = React.memo(
     // --- Card Content Structure ---
     const cardContent = (
         <Card sx={cardStyles} onClick={handleClick} aria-label={`View details for ${displayName}${isPinned ? ', Pinned' : ''}${cardStatus !== 'up' ? `, Status: ${cardStatus}` : ''}${shouldHighlightThisCard ? ', Highlighted as Last Incident Source' : ''}`}>
-            {/* CardContent should grow but internal elements manage their space */}
-            <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", p: 2, pb: `calc(${theme.spacing(1)} + ${TICKS_AREA_HEIGHT}px + ${theme.spacing(TICKS_MARGIN_TOP)})` /* Adjust padding bottom to account for ticks area */ }}>
+            {/* CardContent grows to fill space, reserves padding for ticks */}
+            <CardContent sx={{
+                flexGrow: 1, // Allow this content area to grow and fill the Card's vertical space
+                display: "flex",
+                flexDirection: "column",
+                p: 2,
+                // Reserve space for the absolutely positioned ticks area
+                pb: `calc(${theme.spacing(1)} + ${TICKS_AREA_HEIGHT}px + ${theme.spacing(TICKS_MARGIN_TOP)})`
+             }}>
                {/* Header */}
                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
                  <Tooltip title={displayName} placement="top-start"><Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)', mr: 1, overflow: 'hidden' }}>{displayName}</Typography></Tooltip>
@@ -271,22 +277,30 @@ const WebsiteCard = React.memo(
                </Box>
 
                {/* URL (if different) */}
-               <Box sx={{ minHeight: '20px', mb: 1.5 }}> {/* Ensure this area has consistent height */}
+               <Box sx={{ minHeight: '20px', mb: 1.5 }}>
                    {name && displayUrl && name !== displayUrl && (
                        <Tooltip title={displayUrl} placement="bottom-start"><Typography variant="body2" color="textSecondary" noWrap sx={{ overflow: 'hidden' }}>{displayUrl}</Typography></Tooltip>
                    )}
                </Box>
 
-              {/* Status Chips Row */}
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5, minHeight: '24px' }}>{renderStatusChips()}</Box>
+              {/* Status Chips Row - Add minHeight for stability */}
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5, minHeight: CHIPS_ROW_MIN_HEIGHT, alignItems: 'center' }}>
+                {renderStatusChips()}
+              </Box>
 
-               {/* Chart / Status Area - Use fixed height */}
-               <Box sx={{ flexGrow: 1, height: `${CHART_AREA_HEIGHT}px`, mt: "auto", width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    {/* Always render chart if possible */}
-                    {canShowAggregatedChart ? (
+               {/* Chart / Status Area - Fixed height, pushed down by flexGrow */}
+               <Box sx={{
+                    height: `${CHART_AREA_HEIGHT}px`,
+                    mt: "auto", // Push towards bottom of CardContent
+                    width: '100%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                }}>
+                    {/* Chart/Status rendering logic */}
+                    {canShowAggregatedChart && cardStatus !== 'down' ? (
                         <ResponseTimeChart data={aggregatedChartConfig.chartData} options={aggregatedChartConfig.chartOptions} />
                     ) : (
-                        // Show status message when no chart is possible
                         <Box sx={{ color: 'text.secondary', textAlign: 'center', width: '100%', p: 1 }}>
                             {cardStatus === 'pending' ? (
                                 <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center"><PendingIcon fontSize="small" /><Typography variant="caption">Awaiting check data...</Typography></Stack>
@@ -305,45 +319,48 @@ const WebsiteCard = React.memo(
                             )}
                         </Box>
                     )}
-               </Box> {/* End of Chart/Status Area Box */}
-
-                {/* Ticks Area - Positioned absolutely at the bottom of CardContent */}
-                <Box sx={{ position: 'absolute', bottom: theme.spacing(1), left: '5%', right: '5%', height: `${TICKS_AREA_HEIGHT}px` }}>
-                    {/* Uptime Ticks (Render if data available) */}
-                    {canShowTicks && limitedChartDataPoints && (
-                        <Stack direction="row" spacing={0.5} justifyContent="center" alignItems="center" sx={{ width: '100%', height: '100%'}}>
-                            {limitedChartDataPoints.map((point, index) => {
-                                const uptimeRatio = point.uptimeRatio;
-                                let tickColor = theme.palette.grey[400];
-                                let tooltipStatus = 'Unknown';
-                                let uptimePercentFormatted = 'N/A';
-
-                                if (typeof uptimeRatio === 'number' && !isNaN(uptimeRatio)) {
-                                    tickColor = uptimeRatio === 1.0 ? theme.palette.success.light : theme.palette.error.light;
-                                    tooltipStatus = uptimeRatio === 1.0 ? 'Up' : 'Down';
-                                    uptimePercentFormatted = (uptimeRatio * 100).toFixed(1);
-                                } else { tickColor = theme.palette.grey[300]; tooltipStatus = 'Data Missing'; }
-
-                                const tooltipTitle = `${point.label ?? ('Interval ' + index)}: ${tooltipStatus}${uptimePercentFormatted !== 'N/A' ? ` (${uptimePercentFormatted}%)` : ''}`;
-                                const numberOfTicks = limitedChartDataPoints.length;
-                                const tickMaxWidth = numberOfTicks > 0 ? `calc(${100 / numberOfTicks}% - ${theme.spacing(0.5)})` : '0%';
-
-                                return ( <Tooltip key={`${userWebsite.websiteId}-tick-${index}`} title={tooltipTitle} placement="top"><Box sx={{ flexGrow: 1, maxWidth: tickMaxWidth, height: '100%', bgcolor: tickColor, borderRadius: '1px' }} /></Tooltip> );
-                            })}
-                        </Stack>
-                    )}
-                    {/* Single Tick Fallback */}
-                    {canShowSingleTick && latestResult && (
-                        <Stack direction="row" justifyContent="center" alignItems="center" sx={{ width: '100%', height: '100%' }}>
-                            <Tooltip title={`Latest Check (${format(new Date(latestResult.checkedAt), 'HH:mm')}): ${latestResult.isAvailable ? 'Up' : 'Down'}`} placement="top">
-                                <Box sx={{ width: '100%', height: '100%', bgcolor: latestResult.isAvailable ? theme.palette.success.light : theme.palette.error.light, borderRadius: '1px' }} />
-                            </Tooltip>
-                        </Stack>
-                    )}
-                    {/* No placeholder needed here as the parent Box reserves the space */}
-                </Box>
-
+               </Box>
             </CardContent>
+
+            {/* Ticks Area - Absolutely positioned relative to Card */}
+            <Box sx={{
+                position: 'absolute',
+                bottom: theme.spacing(1),
+                left: '5%',
+                right: '5%',
+                height: `${TICKS_AREA_HEIGHT}px`,
+            }}>
+                {/* Ticks rendering logic */}
+                {canShowTicks && limitedChartDataPoints && (
+                    <Stack direction="row" spacing={0.5} justifyContent="center" alignItems="center" sx={{ width: '100%', height: '100%'}}>
+                        {limitedChartDataPoints.map((point, index) => {
+                            const uptimeRatio = point.uptimeRatio;
+                            let tickColor = theme.palette.grey[400];
+                            let tooltipStatus = 'Unknown';
+                            let uptimePercentFormatted = 'N/A';
+
+                            if (typeof uptimeRatio === 'number' && !isNaN(uptimeRatio)) {
+                                tickColor = uptimeRatio === 1.0 ? theme.palette.success.light : theme.palette.error.light;
+                                tooltipStatus = uptimeRatio === 1.0 ? 'Up' : 'Down';
+                                uptimePercentFormatted = (uptimeRatio * 100).toFixed(1);
+                            } else { tickColor = theme.palette.grey[300]; tooltipStatus = 'Data Missing'; }
+
+                            const tooltipTitle = `${point.label ?? ('Interval ' + index)}: ${tooltipStatus}${uptimePercentFormatted !== 'N/A' ? ` (${uptimePercentFormatted}%)` : ''}`;
+                            const numberOfTicks = limitedChartDataPoints.length;
+                            const tickMaxWidth = numberOfTicks > 0 ? `calc(${100 / numberOfTicks}% - ${theme.spacing(0.5)})` : '0%';
+
+                            return ( <Tooltip key={`${userWebsite.websiteId}-tick-${index}`} title={tooltipTitle} placement="top"><Box sx={{ flexGrow: 1, maxWidth: tickMaxWidth, height: '100%', bgcolor: tickColor, borderRadius: '1px' }} /></Tooltip> );
+                        })}
+                    </Stack>
+                )}
+                {canShowSingleTick && latestResult && (
+                    <Stack direction="row" justifyContent="center" alignItems="center" sx={{ width: '100%', height: '100%' }}>
+                        <Tooltip title={`Latest Check (${format(new Date(latestResult.checkedAt), 'HH:mm')}): ${latestResult.isAvailable ? 'Up' : 'Down'}`} placement="top">
+                            <Box sx={{ width: '100%', height: '100%', bgcolor: latestResult.isAvailable ? theme.palette.success.light : theme.palette.error.light, borderRadius: '1px' }} />
+                        </Tooltip>
+                    </Stack>
+                )}
+            </Box>
         </Card>
     );
 

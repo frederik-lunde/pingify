@@ -27,10 +27,10 @@ import ViewAgendaOutlinedIcon from '@mui/icons-material/ViewAgendaOutlined';
 import WebsiteGrid from "../components/dashboard/WebsiteGrid";
 import DashboardSearchFilter from "../components/dashboard/DashboardSearchFilter";
 import StatsHeader from "../components/dashboard/StatsHeader";
-import { useWebsiteData } from "../hooks"; // Provides updated data structure
+import { useWebsiteData } from "../hooks";
 import { useFocusMode } from "../context/FocusModeContext";
 import { Link } from "react-router";
-import { SortOption, WebsiteUser } from "../types"; // Import WebsiteUser
+import { SortOption, WebsiteUser } from "../types";
 
 // Define Sort Options Config
 interface SortOptionConfig {
@@ -78,7 +78,7 @@ const Dashboard: React.FC = () => {
     // --- Derived State ---
     const openSortMenu = Boolean(sortAnchorEl);
 
-    // --- Callbacks (remain the same) ---
+    // --- Callbacks ---
     const handleFilterChange = useCallback((term: string) => {
         setFilterTerm(term.toLowerCase());
         if (term) setIsHighlightActive(false);
@@ -104,13 +104,13 @@ const Dashboard: React.FC = () => {
         }
     }, [isHighlightActive, lastIncidentWebsiteId]);
 
-    // --- Effects (remain the same) ---
+    // --- Effects ---
     useEffect(() => {
         setIsHighlightActive(false);
     }, [lastIncidentWebsiteId, filterTerm]);
 
     // --- Memoized Calculations ---
-    // Filter websites based on search term (remains the same)
+    // Filter websites based on search term
     const filteredWebsites = useMemo(() => {
         if (!filterTerm) return allWebsites;
         return allWebsites.filter(item => {
@@ -196,10 +196,10 @@ const Dashboard: React.FC = () => {
         });
     }, [filteredWebsites, sortOption]); // Depend on filtered list and secondary sort option
 
-    // Memoize stats needed specifically for the header (remains the same)
+    // Memoize stats needed specifically for the header
     const headerUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
 
-    // --- Render Logic (remains mostly the same) ---
+    // --- Render Logic ---
     const showLoadingSkeleton = isLoadingData && sortedAndFilteredWebsites.length === 0;
     const isListEmpty = !isLoadingData && sortedAndFilteredWebsites.length === 0;
     const isEmptyDueToFilter = isListEmpty && !!filterTerm && allWebsites.length > 0;

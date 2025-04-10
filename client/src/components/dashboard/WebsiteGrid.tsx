@@ -26,11 +26,11 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
       isLoading = false,
   }) => {
 
-    // Define responsive grid item sizes - Using integer for xl
-    const gridItemSize = { xs: 12, sm: 6, md: 4, lg: 3, xl: 3 }; // 4 cards per row on xl
+    // Define responsive grid item sizes
+    const gridItemSize = { xs: 12, sm: 6, md: 4, lg: 3, xl: 3 };
 
     // --- Skeleton Card Rendering ---
-    const renderSkeletonCards = (count = 12) => { // Render more skeletons to fill width potentially
+    const renderSkeletonCards = (count = 12) => {
        const dummyWebsiteUser: WebsiteUser = {
           id: -1, userId: -1, websiteId: -1, name: 'Loading website...',
           interval: 300, alertEnabled: false, alertThreshold: null,
@@ -39,7 +39,7 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
           website: { id: -1, url: 'http://loading.com', isActive: true, lastChecked: null, globalInterval: 300, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
       };
       return Array(count).fill(0).map((_, i) => (
-        // Add display: 'flex' to the Grid item
+        // Grid item for skeleton
         <Grid key={`skeleton-${i}`} {...gridItemSize} display="flex">
           <WebsiteCard
               userWebsite={dummyWebsiteUser}
@@ -52,18 +52,18 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
 
     // --- Render Logic ---
     if (isLoading && websitesWithResults.length === 0) {
-      // Ensure container takes full width even when loading
-      return <Grid container spacing={2} sx={{ pt: 2, width: '100%' }}>{renderSkeletonCards()}</Grid>;
+      // Ensure skeleton container also stretches items
+      return <Grid container spacing={2} sx={{ pt: 2, width: '100%' }} alignItems="stretch">{renderSkeletonCards()}</Grid>;
     }
 
     if (!isLoading && websitesWithResults.length === 0) {
-        return null; // Parent component (Dashboard) handles the empty state message
+        return null; // Parent component handles the empty state
     }
 
     // Render the actual website cards
     return (
-      // Ensure container takes full width
-      <Grid container spacing={2} sx={{ pt: 2, width: '100%' }}>
+      // Add alignItems="stretch" to force grid items in a row to the same height
+      <Grid container spacing={2} sx={{ pt: 2, width: '100%' }} alignItems="stretch">
         {websitesWithResults.map((item) => {
            if (!item?.userWebsite) {
                console.warn("[WebsiteGrid] Skipping item due to missing userWebsite:", item);
@@ -72,14 +72,14 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
            const shouldHighlight = isHighlightActive && item.userWebsite.websiteId === lastIncidentWebsiteId;
 
            return (
-              // Add display: 'flex' to the Grid item to allow card height: 100% to work
+              // Grid item needs display="flex" so the Card inside can use height: 100%
               <Grid
                 key={`website-${item.userWebsite.websiteId}`}
                 id={`website-card-grid-${item.userWebsite.websiteId}`}
                 {...gridItemSize}
                 display="flex" // Make the grid item a flex container
               >
-                <WebsiteCard
+                <WebsiteCard // The Card should fill the height of this Grid item
                   userWebsite={item.userWebsite}
                   shouldHighlightThisCard={shouldHighlight}
                 />
