@@ -1,24 +1,23 @@
 // server/src/services/mail.service.ts
-import nodemailer from 'nodemailer'; // Import nodemailer
-import { mailConfig } from '../config/config'; // Import the configuration we created
+import nodemailer from 'nodemailer';
+import { mailConfig } from '../config/config';
 
 // Define the structure for email options
 interface MailOptions {
-  to: string | string[]; // Recipient(s)
-  subject: string; // Subject line
-  text?: string; // Plain text body
-  html?: string; // HTML body
+  to: string | string[];
+  subject: string;
+  text?: string;
+  html?: string;
 }
 
-// Create a reusable transporter object using the default SMTP transport
-// It uses the configuration loaded from .env via mail.config.ts
+
 const transporter = nodemailer.createTransport({
   host: mailConfig.host,
   port: mailConfig.port,
-  secure: mailConfig.secure, // true for 465, false for other ports
+  secure: mailConfig.secure, 
   auth: {
-    user: mailConfig.auth.user, // User from .env
-    pass: mailConfig.auth.pass, // Password from .env
+    user: mailConfig.auth.user,
+    pass: mailConfig.auth.pass,
   },
 });
 
