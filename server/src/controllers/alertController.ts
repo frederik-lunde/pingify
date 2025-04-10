@@ -217,25 +217,3 @@ export const getUserAlertStats = async (
         next(error);
     }
 };
-
-/**
- * GET /api/alerts/user/incidents/last24h - Get the count of 'down' or 'slow' alerts in the last 24 hours for the user.
- */
-export const getUserIncidentCountLast24h = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
-    try {
-        const userId = req.user!.id;
-
-        const count = await AlertService.getUserIncidentCountLast24h(userId);
-
-        const response: IncidentCountResponse = { incidentCount: count };
-        res.json(response);
-
-    } catch (error) {
-        console.error(`Error fetching incident count for user ${req.user?.id}:`, error);
-        next(error);
-    }
-};
