@@ -1,8 +1,6 @@
-/*
-src/components/dashboard/WebsiteCard.tsx
-*/
+
 import React, { useCallback, useMemo } from "react";
-import { useNavigate } from "react-router"; // Use react-router-dom
+import { useNavigate } from "react-router"; 
 import {
   Card, CardContent, Typography, Box, Chip, IconButton,
   Tooltip,
@@ -69,12 +67,12 @@ interface WebsiteCardProps {
 }
 
 const CARD_TIMEFRAME: TimeframeKey = 'day';
-const CHART_AREA_HEIGHT = 80; // px
-const TICKS_AREA_HEIGHT = 8; // px
-const TICKS_MARGIN_TOP = 1; // theme spacing unit
-const CHIPS_ROW_MIN_HEIGHT = '32px'; // Minimum height for the chips row
+const CHART_AREA_HEIGHT = 80; 
+const TICKS_AREA_HEIGHT = 8; 
+const TICKS_MARGIN_TOP = 1; 
+const CHIPS_ROW_MIN_HEIGHT = '32px'; 
 
-// Memoized Chart Component
+
 const ResponseTimeChart = React.memo(
   ({ data, options }: { data: any; options: ChartOptions<'line'> }) => {
     const hasPlottableData = data?.datasets?.[0]?.data?.some(
@@ -98,7 +96,7 @@ const ResponseTimeChart = React.memo(
 );
 ResponseTimeChart.displayName = 'ResponseTimeChart';
 
-// Hook for Chart Configuration
+
 const useCardChartConfig = (limitedChartDataPoints: ChartDataPoint[] | undefined): { chartData: any, chartOptions: ChartOptions<'line'> } => {
     const theme = useTheme();
     const chartData = useMemo(() => {
@@ -137,7 +135,7 @@ const useCardChartConfig = (limitedChartDataPoints: ChartDataPoint[] | undefined
     return { chartData, chartOptions };
 };
 
-// Helper to format incident start time
+
 const formatIncidentStartTime = (isoDateString: string | null | undefined): string | null => {
     if (!isoDateString) return null;
     try { return formatDistanceToNowStrict(parseISO(isoDateString), { addSuffix: true }); }
@@ -153,7 +151,7 @@ const WebsiteCard = React.memo(
     const theme = useTheme();
     const { setPinStatus, isSettingPin, errorSettingPin } = useWebsiteMutations();
 
-    // --- Extract data ---
+    
     const name = userWebsite.name ?? userWebsite.website?.url ?? 'Website';
     const url = userWebsite.website?.url;
     const latestResult = userWebsite.latestResult;
@@ -162,30 +160,30 @@ const WebsiteCard = React.memo(
     const isPinned = userWebsite.isPinned;
     const currentIncident = userWebsite.currentIncident;
 
-    // --- Process Chart Data ---
+    
     const limitedChartDataPoints = aggregatedChartDataProp?.length ? aggregatedChartDataProp : undefined;
     const validAggregatedPointsCount = useMemo(() => limitedChartDataPoints?.filter(p => p.avgResponseTime !== null && !isNaN(p.avgResponseTime)).length ?? 0, [limitedChartDataPoints]);
     const canShowAggregatedChart = validAggregatedPointsCount >= 2;
     const aggregatedChartConfig = useCardChartConfig(canShowAggregatedChart ? limitedChartDataPoints : undefined);
 
-    // --- Determine Card Status ---
+    
     const cardStatus = useMemo(() => {
         if (currentIncident) return currentIncident.type;
         if (latestResult === undefined || latestResult === null) return 'pending';
         return latestResult.isAvailable ? 'up' : 'down';
     }, [currentIncident, latestResult]);
 
-    // --- Format Display Values ---
+    
     const responseTime = latestResult?.responseTime ?? null;
     const statusCode = latestResult?.statusCode;
     const formattedUptime = formatUptime(uptimePercent);
     const incidentStartTimeFormatted = formatIncidentStartTime(currentIncident?.startTime);
 
-    // --- Determine if ticks can be shown ---
+    
     const canShowTicks = canShowAggregatedChart && limitedChartDataPoints?.every(p => typeof p.uptimeRatio === 'number');
     const canShowSingleTick = !canShowTicks && latestResult !== null && latestResult !== undefined;
 
-    // --- Event Handlers ---
+    
     const handleClick = useCallback(() => navigate(`/website/${userWebsite.websiteId}`), [navigate, userWebsite.websiteId]);
     const handlePinClick = useCallback(async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -193,7 +191,7 @@ const WebsiteCard = React.memo(
         catch (err) { console.error("Failed to set pin status from card:", err); }
     }, [setPinStatus, userWebsite.websiteId, isPinned]);
 
-    // --- Tooltips and Display Text ---
+    
     const displayName = name || url || 'Website';
     const displayUrl = url;
     const hasPinError = !!errorSettingPin;
@@ -203,18 +201,18 @@ const WebsiteCard = React.memo(
         return isPinned ? "Unpin Website" : "Pin Website";
     }, [isSettingPin, hasPinError, isPinned, errorSettingPin?.message]);
 
-    // --- Card Styling ---
+    
     const cardStyles = useMemo(() => {
         let dynamicStyles = {};
         const baseSx = {
-            width: '100%', // Fill grid item width
-            height: '100%', // Explicitly set height to 100% to fill the parent Grid item
+            width: '100%', 
+            height: '100%', 
             margin: 'auto',
             cursor: "pointer",
-            display: "flex", // Use flexbox for internal layout
-            flexDirection: "column", // Stack content vertically
-            position: 'relative', // Needed for absolute positioning of ticks
-            overflow: 'hidden', // Prevent content spillover
+            display: "flex", 
+            flexDirection: "column", 
+            position: 'relative', 
+            overflow: 'hidden', 
             transition: theme.transitions.create(['opacity', 'transform', 'box-shadow', 'border-color'], { duration: theme.transitions.duration.short }),
             "&:hover": { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
         };
@@ -228,7 +226,7 @@ const WebsiteCard = React.memo(
         return { ...baseSx, ...dynamicStyles };
     }, [shouldHighlightThisCard, isPinned, theme]);
 
-    // --- Render Status Chips ---
+    
     const renderStatusChips = () => {
         if (cardStatus === 'pending') return <Chip size="small" icon={<PendingIcon fontSize="inherit"/>} label="Pending" variant="outlined" color="warning" sx={{ fontWeight: 500 }}/>;
 
@@ -254,16 +252,15 @@ const WebsiteCard = React.memo(
         );
     };
 
-    // --- Card Content Structure ---
+    
     const cardContent = (
         <Card sx={cardStyles} onClick={handleClick} aria-label={`View details for ${displayName}${isPinned ? ', Pinned' : ''}${cardStatus !== 'up' ? `, Status: ${cardStatus}` : ''}${shouldHighlightThisCard ? ', Highlighted as Last Incident Source' : ''}`}>
-            {/* CardContent grows to fill space, reserves padding for ticks */}
             <CardContent sx={{
-                flexGrow: 1, // Allow this content area to grow and fill the Card's vertical space
+                flexGrow: 1, 
                 display: "flex",
                 flexDirection: "column",
                 p: 2,
-                // Reserve space for the absolutely positioned ticks area
+                
                 pb: `calc(${theme.spacing(1)} + ${TICKS_AREA_HEIGHT}px + ${theme.spacing(TICKS_MARGIN_TOP)})`
              }}>
                {/* Header */}
@@ -276,22 +273,19 @@ const WebsiteCard = React.memo(
                  </Tooltip>
                </Box>
 
-               {/* URL (if different) */}
                <Box sx={{ minHeight: '20px', mb: 1.5 }}>
                    {name && displayUrl && name !== displayUrl && (
                        <Tooltip title={displayUrl} placement="bottom-start"><Typography variant="body2" color="textSecondary" noWrap sx={{ overflow: 'hidden' }}>{displayUrl}</Typography></Tooltip>
                    )}
                </Box>
 
-              {/* Status Chips Row - Add minHeight for stability */}
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5, minHeight: CHIPS_ROW_MIN_HEIGHT, alignItems: 'center' }}>
                 {renderStatusChips()}
               </Box>
 
-               {/* Chart / Status Area - Fixed height, pushed down by flexGrow */}
                <Box sx={{
                     height: `${CHART_AREA_HEIGHT}px`,
-                    mt: "auto", // Push towards bottom of CardContent
+                    mt: "auto", 
                     width: '100%',
                     display: 'flex',
                     justifyContent: 'center',
@@ -314,7 +308,7 @@ const WebsiteCard = React.memo(
                                      <SlowIcon sx={{ fontSize: '1.3rem' }} /><Typography variant="body2" sx={{ fontWeight: 500 }}>Responding Slowly</Typography>
                                      {incidentStartTimeFormatted && <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>{`Since ${incidentStartTimeFormatted}`}</Typography>}
                                  </Stack>
-                            ) : ( // Fallback for 'up' but no chart data yet
+                            ) : ( 
                                 <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center"><InfoIcon fontSize="small" /><Typography variant="caption">Gathering data for chart...</Typography></Stack>
                             )}
                         </Box>

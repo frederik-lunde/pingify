@@ -1,3 +1,4 @@
+/* eslint-disable no-console */ // Allow console logs for debugging
 // client/src/hooks/api/useIncidents.ts
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import { Incident, IncidentQueryOptions, IncidentCountResponse, ApiError } from "../../types";
@@ -43,18 +44,37 @@ export function useUserIncidentsQuery(
     const userId = user?.id;
     const queryKey = incidentQueryKeys.list(apiOptions, userId);
 
+    // Calculate enabled state explicitly
+    const isQueryEnabled = hookOptions?.enabled === undefined ? !!userId : hookOptions.enabled;
+
+    // Log userId and calculated enabled state
+    console.log(`[useUserIncidentsQuery] Hook called. userId: ${userId}, calculated enabled state: ${isQueryEnabled}`);
+
     return useQuery<Incident[], ApiError>({
         queryKey: queryKey,
         queryFn: () => {
-            if (!userId) return Promise.resolve([]); // Return empty if no user
+            // This check prevents the API call if userId isn't available yet,
+            // matching the 'enabled' logic behavior.
+            if (!userId) {
+                console.warn('[useUserIncidentsQuery] Query function called but userId is missing. Returning empty array.');
+                return Promise.resolve([]);
+            }
+
+            // Log just before making the API call
+            console.log(`[useUserIncidentsQuery] queryFn executing: Firing API call for user ${userId} with options:`, JSON.stringify(apiOptions));
+
             return fetchUserIncidents(apiOptions);
         },
-        enabled: hookOptions?.enabled === undefined ? !!userId : hookOptions.enabled,
+        // Use the calculated enabled state
+        enabled: isQueryEnabled,
+        // Keep other options
         refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME,
         gcTime: hookOptions?.gcTime ?? DEFAULT_LIST_GC_TIME,
-        initialData: [],
-        ...hookOptions,
+        // --- REMOVED initialData to ensure immediate fetch on enable ---
+        // initialData: [],
+        // ---
+        ...hookOptions, // Spread any other passed hook options
     });
 }
 
@@ -69,20 +89,32 @@ export function useWebsiteIncidentsQuery(
     const { user } = useAuth();
     const userId = user?.id; // Needed for query key uniqueness per user
     const queryKey = incidentQueryKeys.website(websiteId, apiOptions, userId);
+
+    // Calculate enabled state
     const isQueryEnabled = (hookOptions?.enabled === undefined ? true : hookOptions.enabled)
                            && !!userId && typeof websiteId === 'number' && websiteId > 0;
+
+    console.log(`[useWebsiteIncidentsQuery] Hook called. websiteId: ${websiteId}, userId: ${userId}, calculated enabled state: ${isQueryEnabled}`);
+
 
     return useQuery<Incident[], ApiError>({
         queryKey: queryKey,
         queryFn: () => {
-            if (!websiteId) return Promise.resolve([]); // Should not happen if enabled logic is correct
+            // Should not happen if enabled logic is correct, but good safeguard
+            if (!websiteId) {
+                 console.warn('[useWebsiteIncidentsQuery] Query function called but websiteId is missing. Returning empty array.');
+                 return Promise.resolve([]);
+            }
+             console.log(`[useWebsiteIncidentsQuery] queryFn executing: Firing API call for website ${websiteId}, user ${userId} with options:`, JSON.stringify(apiOptions));
             return fetchWebsiteIncidents(websiteId, apiOptions);
         },
         enabled: isQueryEnabled,
         refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME,
         gcTime: hookOptions?.gcTime ?? DEFAULT_LIST_GC_TIME,
-        initialData: [],
+        // --- REMOVED initialData to ensure immediate fetch on enable ---
+        // initialData: [],
+        // ---
         ...hookOptions,
     });
 }
@@ -97,21 +129,25 @@ export function useUserIncidentCountLast24hQuery(
     const userId = user?.id;
     const queryKey = incidentQueryKeys.countLast24h(userId);
 
+    const isQueryEnabled = hookOptions?.enabled === undefined ? !!userId : hookOptions.enabled;
+    console.log(`[useUserIncidentCountLast24hQuery] Hook called. userId: ${userId}, calculated enabled state: ${isQueryEnabled}`);
+
     return useQuery<IncidentCountResponse, ApiError>({
         queryKey: queryKey,
         queryFn: () => {
-            if (!userId) return Promise.resolve({ incidentCount: 0 }); // Default if no user
+            if (!userId) {
+                 console.warn('[useUserIncidentCountLast24hQuery] Query function called but userId is missing. Returning default count.');
+                 return Promise.resolve({ incidentCount: 0 });
+            }
+             console.log(`[useUserIncidentCountLast24hQuery] queryFn executing: Firing API call for user ${userId}`);
             return fetchUserIncidentCountLast24h();
         },
-        enabled: hookOptions?.enabled === undefined ? !!userId : hookOptions.enabled,
+        enabled: isQueryEnabled,
         refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_COUNT_STALE_TIME,
         gcTime: hookOptions?.gcTime ?? DEFAULT_COUNT_GC_TIME,
-        // Provide a default structure for initialData to avoid issues with destructuring
+        // Keep initialData for the count query, it's less problematic here
         initialData: () => ({ incidentCount: 0 }),
         ...hookOptions,
     });
 }
-
-// No mutation actions (like resolving incidents) are defined for the frontend yet.
-// If needed, a useIncidentActions hook could be created similar to useAlertActions.

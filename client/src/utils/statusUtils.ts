@@ -1,10 +1,11 @@
-// src/utils/statusUtils.ts
+/* src/utils/statusUtils.ts */
 import { AlertColor } from '@mui/material';
-import { formatDistanceToNowStrict, parseISO, differenceInSeconds } from 'date-fns'; // Added differenceInSeconds
+import { formatDistanceToNowStrict, parseISO, differenceInSeconds, formatDistanceStrict } from 'date-fns'; // Added differenceInSeconds, formatDistanceStrict
 import { AlertType, Incident } from "../types"; // Ensure this path is correct, Added Incident
 
 /**
  * Determines a status color based on uptime percentage.
+ * Includes 'success', 'warning', and 'error' states.
  * @param uptime Uptime percentage (0-100). Can be null or undefined.
  * @returns Material UI color key ('success', 'warning', 'error') or 'default'.
  */
@@ -14,13 +15,13 @@ export function getStatusColor(
   if (uptime === null || uptime === undefined || isNaN(uptime)) return 'default';
   const clampedUptime = Math.max(0, Math.min(100, uptime));
 
-  if (clampedUptime >= 99.9) return 'success';
-  if (clampedUptime >= 99) return 'warning';
-  // Keep error threshold as is, or adjust if needed
-  if (clampedUptime < 99) return 'error'; // Simplified: below 99 is error
-  // if (clampedUptime < 99 && clampedUptime >= 95) return 'error';
-  // if (clampedUptime < 95) return 'error';
-  return 'default';
+  // --- MODIFICATION: Define thresholds for success, warning, error ---
+  if (clampedUptime >= 99.9) return 'success'; // e.g., 99.9% and above is great
+  if (clampedUptime >= 99.0) return 'warning'; // e.g., 99.0% to 99.89% is okay/warning
+  if (clampedUptime < 99.0) return 'error';   // e.g., Below 99.0% is poor/error
+  // --- END MODIFICATION ---
+
+  return 'default'; // Should not be reached with the logic above
 }
 
 /**
@@ -51,9 +52,6 @@ export function getAlertTypeColor(
       return 'error';
     case 'slow':
       return 'warning';
-    // Removed 'recovered' as it's not an active alert type anymore
-    // case 'recovered':
-    //   return 'success';
     default:
       return 'info'; // Default for unknown types
   }
@@ -103,19 +101,19 @@ export const formatIncidentDuration = (incident: Incident | null | undefined): s
         if (incident.endTime) {
             // Incident has ended, format the fixed duration
             const endDate = parseISO(incident.endTime);
-            // Use differenceInSeconds and format manually for better control if needed,
-            // or formatDistanceStrict if the output is acceptable.
-            // Example using formatDistanceStrict:
-            // const duration = formatDistanceStrict(startDate, endDate);
-            // return `for ${duration}`;
 
-            // Example using seconds:
-            const durationSeconds = incident.durationSeconds;
-            if (durationSeconds === null || durationSeconds === undefined) {
-                 const calculatedSeconds = differenceInSeconds(endDate, startDate);
-                 return `for ${formatSeconds(calculatedSeconds)}`;
+            // Use provided durationSeconds if available and valid, otherwise calculate
+            let durationString: string;
+            if (incident.durationSeconds !== null && incident.durationSeconds !== undefined && incident.durationSeconds >= 0) {
+                 durationString = formatSeconds(incident.durationSeconds);
+            } else {
+                 // Calculate using date-fns as a fallback or primary method
+                 durationString = formatDistanceStrict(endDate, startDate);
+                 // Alternatively, use manual seconds calculation:
+                 // const calculatedSeconds = differenceInSeconds(endDate, startDate);
+                 // durationString = formatSeconds(calculatedSeconds);
             }
-            return `for ${formatSeconds(durationSeconds)}`;
+            return `for ${durationString}`;
 
         } else {
             // Incident is ongoing, format time since start
@@ -136,17 +134,23 @@ function formatSeconds(totalSeconds: number): string {
     if (totalSeconds < 0) totalSeconds = 0;
 
     const days = Math.floor(totalSeconds / (3600 * 24));
-    const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    totalSeconds %= (3600 * 24);
+    const hours = Math.floor(totalSeconds / 3600);
+    totalSeconds %= 3600;
+    const minutes = Math.floor(totalSeconds / 60);
     const seconds = Math.floor(totalSeconds % 60);
 
-    let result = "";
-    if (days > 0) result += `${days}d `;
-    if (hours > 0) result += `${hours}h `;
-    if (minutes > 0) result += `${minutes}m `;
-    if (seconds > 0 || result === "") result += `${seconds}s`; // Show seconds if it's the only unit or > 0
+    let parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    // Include seconds if it's the only unit, or if there are other units and seconds > 0,
+    // or if the total duration is less than a minute.
+    if (seconds > 0 || parts.length === 0 || (days === 0 && hours === 0 && minutes === 0)) {
+        parts.push(`${seconds}s`);
+    }
 
-    return result.trim();
+    return parts.join(' ') || '0s'; // Return '0s' if totalSeconds is 0
 }
 
 
@@ -181,7 +185,6 @@ export function getAlertTypeDescription(type: AlertType | string | undefined): s
       return "Website is offline or unreachable.";
     case 'slow':
       return "Website response time exceeded threshold.";
-    // Removed 'recovered' as it's not an active alert type
     default:
       return "An alert was triggered."; // Generic default
   }

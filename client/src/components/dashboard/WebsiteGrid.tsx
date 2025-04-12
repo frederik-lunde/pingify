@@ -13,11 +13,7 @@ interface WebsiteGridProps {
   isLoading?: boolean; // Loading state for skeleton display
 }
 
-/**
- * Grid component displaying website cards.
- * Assumes the incoming `websitesWithResults` prop is already sorted and filtered.
- * Handles highlighting based on props.
- */
+
 const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
   ({
       websitesWithResults,
@@ -72,14 +68,13 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
            const shouldHighlight = isHighlightActive && item.userWebsite.websiteId === lastIncidentWebsiteId;
 
            return (
-              // Grid item needs display="flex" so the Card inside can use height: 100%
               <Grid
                 key={`website-${item.userWebsite.websiteId}`}
                 id={`website-card-grid-${item.userWebsite.websiteId}`}
                 {...gridItemSize}
-                display="flex" // Make the grid item a flex container
+                display="flex" 
               >
-                <WebsiteCard // The Card should fill the height of this Grid item
+                <WebsiteCard 
                   userWebsite={item.userWebsite}
                   shouldHighlightThisCard={shouldHighlight}
                 />

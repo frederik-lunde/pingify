@@ -13,11 +13,12 @@ import WebsiteSettings from "./pages/WebsiteSettings";
 import AddWebsite from "./pages/AddWebsite";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+// --- Import the new IncidentsPage ---
+import IncidentsPage from "./pages/Incidents"; // Adjust path if needed
 
 // Context
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { useApplyUserThemePreference } from "./context/ThemeContext"; // Adjust path if needed
-// *** Correct Import Path & Import Hook ***
 import { FocusModeProvider, useFocusMode } from "./context/FocusModeContext"; // Adjust path if needed
 
 // --- Correctly Defined Wrapper Components ---
@@ -43,7 +44,6 @@ function WebsiteSettingsWrapper() {
 // Component containing Navbar and Routes
 function AppContent() {
   const { user } = useAuth();
-  // *** Use the imported useFocusMode hook ***
   const { isFocusMode } = useFocusMode();
   // Apply theme preference (assuming this hook exists and works)
   useApplyUserThemePreference();
@@ -64,6 +64,8 @@ function AppContent() {
         <Route path="/website/:websiteId" element={<WebsiteDetailsWrapper />} />
         <Route path="/website/:websiteId/settings" element={<WebsiteSettingsWrapper />} />
         <Route path="/add-website" element={ <ProtectedRoute><AddWebsite /></ProtectedRoute> } />
+        {/* --- Add the new Incidents Page Route --- */}
+        <Route path="/incidents" element={ <ProtectedRoute><IncidentsPage /></ProtectedRoute> } />
 
         {/* Fallback for unknown routes */}
         <Route path="*" element={
