@@ -7,12 +7,14 @@ import Grid from '@mui/material/Grid2'; // Use Grid v2
 import {
     InfoOutlined as InfoOutlinedIcon, ErrorOutline as ErrorIcon, Link as LinkIcon,
     CalendarToday as CalendarTodayIcon, Timer as TimerIcon, AccessTime as DurationIcon,
-    ArrowUpward as ArrowUpwardIcon, ArrowDownward as ArrowDownwardIcon, SwapVert as SwapVertIcon
+    ArrowUpward as ArrowUpwardIcon, ArrowDownward as ArrowDownwardIcon, SwapVert as SwapVertIcon,
+    CheckCircleOutline as ResolvedIcon // Keep ResolvedIcon for list items
 } from '@mui/icons-material';
 import { Incident } from '../../types'; // Adjust path
 import IncidentListItem from './IncidentListItem'; // Adjust path
 
-export type IncidentSortableColumn = 'startTime' | 'endTime' | 'durationSeconds' | 'websiteName' | 'type';
+// --- Add 'status' to the sortable columns ---
+export type IncidentSortableColumn = 'startTime' | 'endTime' | 'durationSeconds' | 'websiteName' | 'type' | 'status';
 export type SortDirection = 'asc' | 'desc';
 
 interface IncidentListProps {
@@ -23,7 +25,7 @@ interface IncidentListProps {
     onSort: (column: IncidentSortableColumn) => void;
 }
 
-// Helper to render sort icon
+// Helper to render sort icon (no changes needed here)
 const renderSortIcon = (column: IncidentSortableColumn, sortBy: IncidentSortableColumn, sortDir: SortDirection) => {
     const isActive = sortBy === column;
     const IconComponent = isActive ? (sortDir === 'asc' ? ArrowUpwardIcon : ArrowDownwardIcon) : SwapVertIcon;
@@ -49,7 +51,7 @@ const IncidentList = memo(({
         borderRadius: 1,
         p: 0.5,
         width: '100%',
-        justifyContent: 'flex-start',
+        justifyContent: 'flex-start', // Keep content aligned left
         '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08) }
     };
 
@@ -62,9 +64,22 @@ const IncidentList = memo(({
                     background: alpha(theme.palette.action.hover, 0.04),
                     borderRadius: 1, px: 1
                 }}>
-                {/* Icon Col */}
+                {/* Status Icon Col - NOW SORTABLE */}
                 <Grid size={1} display="flex" justifyContent="center" alignItems="center">
-                   <ErrorIcon fontSize="small" sx={{ color: 'text.secondary', opacity: 0.6 }} />
+                    <Tooltip title="Sort by Status">
+                        {/* --- Wrap icon in ButtonBase --- */}
+                        <ButtonBase onClick={() => onSort('status')} sx={headerCellStyle} aria-label="Sort by Status">
+                            {/* --- Use a generic icon for the header --- */}
+                            <InfoOutlinedIcon
+                                fontSize="inherit" // Inherit size from button
+                                sx={{
+                                    color: sortBy === 'status' ? 'text.primary' : 'text.secondary', // Highlight if active sort
+                                    opacity: sortBy === 'status' ? 1 : 0.6,
+                                    verticalAlign: 'middle'
+                                }} />
+                            {renderSortIcon('status', sortBy, sortDir)}
+                        </ButtonBase>
+                    </Tooltip>
                 </Grid>
                 {/* Type Col */}
                  <Grid size={2}>

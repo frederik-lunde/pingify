@@ -7,8 +7,8 @@ import {
     AlertType,
     VALID_ALERT_TYPES,
     Alert as SharedAlert,
-    AlertQueryOptions, // Import AlertQueryOptions
-    AlertStats, // Import AlertStats
+    AlertQueryOptions,
+    AlertStats,
 } from '../types';
 
 // --- Helper Type Guards & Validators ---
@@ -32,16 +32,29 @@ const mapPrismaAlertToShared = ( prismaAlert: any ): SharedAlert => {
         type: prismaAlert.type as AlertType,
         message: prismaAlert.message,
         createdAt: prismaAlert.createdAt.toISOString(),
+        // Include incidentId if it exists on the prismaAlert object
+        incidentId: prismaAlert.incidentId ?? undefined,
     };
+    // Map website details
     if (prismaAlert.website) {
         sharedAlert.website = {
             id: prismaAlert.website.id,
             url: prismaAlert.website.url,
+            // Get user-specific name if available
             name: prismaAlert.website.websiteUsers?.[0]?.name ?? undefined
         };
     }
+    // Map user details (if included by the service)
     if (prismaAlert.user) {
         sharedAlert.user = { id: prismaAlert.user.id, name: prismaAlert.user.name };
+    }
+    // Map incident details (if included by the service)
+    if (prismaAlert.incident) {
+         sharedAlert.incident = {
+             id: prismaAlert.incident.id,
+             startTime: prismaAlert.incident.startTime?.toISOString(),
+             endTime: prismaAlert.incident.endTime?.toISOString() ?? null,
+         };
     }
     return sharedAlert;
 };
@@ -62,7 +75,9 @@ export const getUserAlerts = async ( req: Request, res: Response, next: NextFunc
         const parsedWebsiteId = websiteId ? parseInt(websiteId as string, 10) : undefined;
         if (websiteId && (isNaN(parsedWebsiteId as number) || (parsedWebsiteId as number) <= 0)) { res.status(400).json({ message: 'Invalid websiteId format.' }); return; }
         const options: AlertQueryOptions = { limit: parsedLimit, type: validatedType, from: from ? new Date(from as string) : undefined, to: to ? new Date(to as string) : undefined, websiteId: parsedWebsiteId };
+        // Service now includes incident details potentially
         const alerts = await AlertService.getAlertsForUser(userId, options);
+        // Map Prisma results (including potential incidentId) to shared type
         const responseAlerts: SharedAlert[] = alerts.map(mapPrismaAlertToShared);
         res.json(responseAlerts);
     } catch (error) { console.error(`Error fetching alerts for user ${req.user?.id}:`, error); next(error); }
@@ -102,7 +117,9 @@ export const getAlertsByWebsite = async ( req: Request<{ websiteId: string }>, r
          if (isNaN(parsedLimit) || parsedLimit <= 0) { res.status(400).json({ message: 'Invalid limit format.' }); return; }
         const validatedType = isValidAlertType(typeQuery) ? typeQuery : undefined;
         const options: AlertQueryOptions = { limit: parsedLimit, type: validatedType, from: from ? new Date(from as string) : undefined, to: to ? new Date(to as string) : undefined };
+        // Service now includes incident details potentially
         const alerts = await AlertService.getAlertsByWebsite(websiteId, options);
+        // Map Prisma results (including potential incidentId) to shared type
         const responseAlerts: SharedAlert[] = alerts.map(mapPrismaAlertToShared);
         res.json(responseAlerts);
     } catch (error) { console.error(`Error fetching alerts for website ${req.params.websiteId}, user ${req.user?.id}:`, error); next(error); }

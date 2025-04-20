@@ -77,25 +77,31 @@ export type AlertType = "down" | "slow";
 export const VALID_ALERT_TYPES: AlertType[] = ["down", "slow"]; // For validation
 
 export interface Alert {
-    id: number;
-    websiteId: number;
-    userId: number;
-    type: AlertType;
-    message: string;
-    createdAt: string; // ISO 8601 date string
-    // Optional nested data for API responses
-    website?: {
-        id: number;
-        url: string;
-        // Get the specific user's name for this website for display
-        name?: string | null;
-    };
-    user?: { // Less common but possible
-        id: number;
-        name: string | null;
-    }
-     incidentId?: number | null; 
+  id: number;
+  websiteId: number;
+  userId: number; // Direct relation shown in response
+  type: AlertType;
+  message: string;
+  createdAt: string; // ISO 8601 date string
+  incidentId?: number; // <-- Add optional incidentId
+  // Optional nested data included by backend controllers
+  website?: {
+      id: number;
+      url: string;
+      name?: string | null; // User's custom name for this website
+  };
+  user?: { // Included by some backend endpoints (e.g., getAlertsByWebsite)
+      id: number;
+      name: string | null;
+  }
+  // Optional nested incident details if included by backend
+  incident?: {
+      id: number;
+      startTime?: string;
+      endTime?: string | null;
+  }
 }
+
 
 // --- NEW: Incident Type ---
 export type IncidentType = "down" | "slow"; // Same as AlertType for now

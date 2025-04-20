@@ -220,5 +220,3 @@ export function useUserMonitoringResultsQuery(limit: number = 500, options?: Cus
 }
 
 
-// --- REMOVED: useUserIncidentCountQuery ---
-// This is now handled by useUserIncidentCountLast24hQuery in useIncidents.ts
