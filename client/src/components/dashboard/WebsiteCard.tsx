@@ -17,7 +17,6 @@ import {
   PushPin as PinIcon,
   PushPinOutlined as PinOutlinedIcon,
   InfoOutlined as InfoIcon,
-  ReportProblemOutlined as IncidentIcon,
   SsidChart as SlowIcon,
 } from "@mui/icons-material";
 import { Line } from 'react-chartjs-2';
@@ -231,14 +230,12 @@ const WebsiteCard = React.memo(
         if (cardStatus === 'pending') return <Chip size="small" icon={<PendingIcon fontSize="inherit"/>} label="Pending" variant="outlined" color="warning" sx={{ fontWeight: 500 }}/>;
 
         let statusChip: React.ReactNode = null;
-        let incidentChip: React.ReactNode = null;
 
         if (cardStatus === 'up') statusChip = <Tooltip title="Website is online"><Chip size="small" icon={<CheckIcon fontSize="inherit"/>} label="Online" color="success" sx={{ fontWeight: 500 }}/></Tooltip>;
         else if (cardStatus === 'down') {
             statusChip = <Tooltip title={`Website is down ${incidentStartTimeFormatted ? `(since ${incidentStartTimeFormatted})` : ''}`}><Chip size="small" icon={<ErrorIcon fontSize="inherit"/>} label="Offline" color="error" sx={{ fontWeight: 500 }}/></Tooltip>;
         } else if (cardStatus === 'slow') {
             statusChip = <Tooltip title={`Website is responding slowly ${incidentStartTimeFormatted ? `(since ${incidentStartTimeFormatted})` : ''}`}><Chip size="small" icon={<SlowIcon fontSize="inherit"/>} label="Slow" color="warning" sx={{ fontWeight: 500 }}/></Tooltip>;
-            if (incidentStartTimeFormatted) incidentChip = <Tooltip title={`Slow response started ${incidentStartTimeFormatted}`}><Chip size="small" icon={<IncidentIcon fontSize="inherit" />} label={`Slow ${incidentStartTimeFormatted}`} variant="outlined" color="warning" /></Tooltip>;
         }
 
         return (
@@ -247,7 +244,6 @@ const WebsiteCard = React.memo(
                 {statusCode != null && cardStatus !== 'down' && <Tooltip title={`Last HTTP Status: ${statusCode}`}><Chip size="small" label={`${statusCode}`} variant="outlined" /></Tooltip>}
                 {responseTime !== null && cardStatus !== 'down' && <Tooltip title={`Last Response Time: ${formatResponseTime(responseTime)}`}><Chip size="small" label={formatResponseTime(responseTime)} color={getResponseTimeColor(responseTime)} variant="outlined" /></Tooltip>}
                 {cardStatus === 'up' && formattedUptime !== "N/A" && typeof uptimePercent === 'number' && <Tooltip title={`Uptime (${CARD_TIMEFRAME}): ${formattedUptime}%`}><Chip size="small" icon={<ChartIcon fontSize="inherit" />} label={`${formattedUptime}%`} color={getStatusColor(uptimePercent)} variant="outlined" /></Tooltip>}
-                {incidentChip}
             </>
         );
     };
