@@ -1,11 +1,11 @@
 // src/App.tsx
 import { Routes, Route } from "react-router";
-import { CssBaseline, Box, Alert } from "@mui/material";
+import { CssBaseline } from "@mui/material"; // Removed Alert
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 // Core Components & Pages
-import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
+import MainLayout from "./components/layout/MainLayout"; // Import MainLayout
 import Dashboard from "./pages/Dashboard";
 import WebsiteDetails from "./pages/WebsiteDetails";
 import WebsiteSettings from "./pages/WebsiteSettings";
@@ -14,60 +14,43 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import IncidentsPage from "./pages/Incidents";
 import ProfilePage from "./pages/Profile";
+import NotFoundPage from "./pages/NotFound"; // Import NotFoundPage
 
 // Context
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthContext"; // Removed useAuth here
 import { useApplyUserThemePreference } from "./context/ThemeContext";
-import { TvModeProvider, useTvMode } from "./context/TvModeContext";
+import { TvModeProvider } from "./context/TvModeContext"; // Removed useTvMode here
 
-// Wrapper Components for Protected Routes
-function WebsiteDetailsWrapper() {
-    return (
-        <ProtectedRoute>
-            <WebsiteDetails />
-        </ProtectedRoute>
-    );
-}
-
-function WebsiteSettingsWrapper() {
-    return (
-        <ProtectedRoute>
-            <WebsiteSettings />
-        </ProtectedRoute>
-    );
-}
-
-// Component containing Navbar and Routes
-function AppContent() {
-    const { user } = useAuth();
-    const { isTvMode } = useTvMode();
-    useApplyUserThemePreference();
+// Component containing Routes - Navbar is now in MainLayout
+function AppRoutes() {
+    useApplyUserThemePreference(); // Apply theme preference based on context
 
     return (
-        <>
-            {user && !isTvMode && <Navbar />}
-            <Routes>
-                {/* Public Routes */}
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+        <Routes>
+            {/* Public routes - No Navbar */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-                {/* Protected Routes */}
-                <Route path="/" element={ <ProtectedRoute><Dashboard /></ProtectedRoute> } />
-                <Route path="/website/:websiteId" element={<WebsiteDetailsWrapper />} />
-                <Route path="/website/:websiteId/settings" element={<WebsiteSettingsWrapper />} />
-                <Route path="/add-website" element={ <ProtectedRoute><AddWebsite /></ProtectedRoute> } />
-                <Route path="/incidents" element={ <ProtectedRoute><IncidentsPage /></ProtectedRoute> } />
-                {/* Add the Profile Page Route */}
-                <Route path="/profile" element={ <ProtectedRoute><ProfilePage /></ProtectedRoute> } />
+            {/* Routes requiring auth and using the MainLayout (with Navbar) */}
+            <Route
+                element={
+                    <ProtectedRoute>
+                        <MainLayout />
+                    </ProtectedRoute>
+                }
+            >
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/website/:websiteId" element={<WebsiteDetails />} />
+                <Route path="/website/:websiteId/settings" element={<WebsiteSettings />} />
+                <Route path="/add-website" element={<AddWebsite />} />
+                <Route path="/incidents" element={<IncidentsPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                {/* Add other protected routes needing the navbar here */}
+            </Route>
 
-                {/* Fallback for unknown routes */}
-                <Route path="*" element={
-                    <Box sx={{ p: 4, mt: user && !isTvMode ? 8 : 2, textAlign: 'center' }}>
-                        <Alert severity="warning">Page Not Found (404)</Alert>
-                    </Box>
-                } />
-            </Routes>
-        </>
+            {/* Fallback 404 route - No Navbar */}
+            <Route path="*" element={<NotFoundPage />} />
+        </Routes>
     );
 }
 
@@ -78,7 +61,8 @@ function App() {
             <CssBaseline />
             <AuthProvider>
                 <TvModeProvider>
-                    <AppContent />
+                    {/* AppRoutes now handles the routing logic */}
+                    <AppRoutes />
                 </TvModeProvider>
             </AuthProvider>
             {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}

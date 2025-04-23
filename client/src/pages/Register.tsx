@@ -48,7 +48,7 @@ const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const { mutateAsync: registerUser, isPending: isRegistering, error: registerError } = useRegisterMutation();
+  const { mutateAsync: registerUser, isPending: isRegistering } = useRegisterMutation();
   const navigate = useNavigate();
 
   const initialValues: RegisterFormValues = { email: "", name: "", password: "", confirmPassword: "" };

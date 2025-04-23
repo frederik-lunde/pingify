@@ -1,6 +1,4 @@
-/*
-src/components/dashboard/StatsHeader.tsx
-*/
+// src/components/dashboard/StatsHeader.tsx
 import React from 'react';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2'; // Use Grid2 for better spacing control
@@ -14,27 +12,23 @@ import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined
 import HistoryIcon from '@mui/icons-material/History';
 import { useTheme, Theme, alpha } from '@mui/material/styles';
 import CircularProgress from '@mui/material/CircularProgress';
-import Alert from '@mui/material/Alert';
-import { ApiError } from '../../types';
-import { getStatusColor, formatUptime } from '../../utils/statusUtils';
-import { useTimeSince } from '../../hooks';
+import { getStatusColor, formatUptime } from '../../utils/statusUtils'; // Adjust path if needed
+import { useTimeSince } from '../../hooks'; // Adjust path if needed
 import { useNavigate } from 'react-router';
 
 type StatusColorKey = 'success' | 'warning' | 'error' | 'default';
 
 interface StatsHeaderProps {
-    isLoading: boolean;
-    error: ApiError | null;
-    upCount: number; // Websites currently considered "up"
-    totalCount: number; // Total websites monitored by the user
-    uptime: number | null | undefined; // Overall uptime (e.g., last 7 days)
-    incidentsLast24h: number | null | undefined; // Count of incidents started in last 24h
-    lastIncidentTimestamp: string | null | undefined; // Timestamp of the most recent incident start
+    isLoading: boolean; // Still needed to show loading state for stats
+    upCount: number;
+    totalCount: number;
+    uptime: number | null | undefined;
+    incidentsLast24h: number | null | undefined;
+    lastIncidentTimestamp: string | null | undefined;
     center?: boolean; // Layout mode (true for navbar, false for dashboard header)
     lastIncidentWebsiteId?: number | null | undefined; // ID of website with the last incident
     onToggleHighlight?: () => void; // Callback to toggle highlight on the dashboard
     isHighlightActive?: boolean; // Whether the highlight is currently active
-    // REMOVED: onShowDownWebsites, showDownWebsites - Replaced by navigating to incidents page
 }
 
 // Helper to get text color based on theme, status, and layout
@@ -59,7 +53,6 @@ const getIcon = (IconComponent: React.ElementType, color: string, isNavbar: bool
 
 const StatsHeader: React.FC<StatsHeaderProps> = ({
     isLoading,
-    error,
     upCount,
     totalCount,
     uptime,
@@ -71,56 +64,51 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     isHighlightActive = false,
 }) => {
     const theme = useTheme();
-    const navigate = useNavigate(); // Hook for navigation
+    const navigate = useNavigate();
     const isNavbarLayout = center;
 
-    // Calculate time since last incident using the custom hook
     const timeSinceLastIncident = useTimeSince(lastIncidentTimestamp, {
         noIncidentText: isNavbarLayout ? 'None' : 'No recent incidents',
         errorText: 'Invalid Date',
-        updateIntervalMs: 30000 // Update every 30 seconds for more freshness
+        updateIntervalMs: 30000
     });
 
-    // Determine color and format for uptime display
     const uptimeColorKey = getStatusColor(uptime);
     const formattedUptimeValue = formatUptime(uptime);
 
-    // --- Memoized Props for Status Display ---
+    // Status Props - simplified loading check
     const statusProps = React.useMemo(() => {
         let iconType: React.ElementType | null = null;
         let valueColorKey: StatusColorKey = 'default';
         let text: string;
         let tooltip: string;
 
-        if (isLoading) { // Handle loading state explicitly
+        if (isLoading) {
              iconType = null; valueColorKey = 'default'; text = "- / -"; tooltip = 'Loading status...';
         } else if (totalCount === 0) {
             iconType = ErrorOutlineIcon; valueColorKey = 'default'; text = "0 / 0"; tooltip = 'No websites monitored';
         } else if (upCount === totalCount) {
-            // All websites are considered up (no 'down' incidents)
             iconType = CheckCircleOutlineIcon; valueColorKey = 'success'; text = `${upCount} / ${totalCount}`; tooltip = 'All monitored websites are currently up';
         } else {
-            // If upCount < totalCount, indicate issues (at least one website has a 'down' incident)
             iconType = WarningAmberIcon; valueColorKey = 'error'; text = `${upCount} / ${totalCount}`; tooltip = `${totalCount - upCount} website(s) currently experiencing issues`;
         }
         const valueColor = getTextColor(theme, valueColorKey, isNavbarLayout);
         return { iconType, valueColor, text, tooltip };
     }, [totalCount, upCount, isLoading, theme, isNavbarLayout]);
 
-    // --- Memoized Props for Incident Display ---
+    // Incident Props - simplified loading check
     const incidentProps = React.useMemo(() => {
         let iconType: React.ElementType | null = null;
         let valueColorKey: StatusColorKey = 'default';
         let text: string;
         let tooltip: string;
 
+        // Check isLoading OR if incidentsLast24h is null/undefined (initial state before load)
         if (isLoading || incidentsLast24h === null || incidentsLast24h === undefined) {
             iconType = null; valueColorKey = 'default'; text = '-'; tooltip = 'Loading incident count...';
         } else if (incidentsLast24h > 0) {
-            // Incidents occurred in the last 24h
             iconType = ReportProblemOutlinedIcon; valueColorKey = 'warning'; text = incidentsLast24h.toString(); tooltip = `${incidentsLast24h} incident(s) started in the last 24 hours. Click to view incidents.`;
         } else {
-            // No incidents in the last 24h
             iconType = CheckCircleOutlineIcon; valueColorKey = 'success'; text = '0'; tooltip = 'No new incidents started in the last 24 hours.';
         }
         const valueColor = getTextColor(theme, valueColorKey, isNavbarLayout);
@@ -140,6 +128,7 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     const valueLabelMargin = isNavbarLayout ? 0.2 : 0.5;
 
     // --- Loading State ---
+    // Show loading spinner if data is loading (specific to stats header context)
     if (isLoading && isNavbarLayout) { // Simpler loading for navbar
         return <Box sx={containerSx}><CircularProgress size={20} color="inherit" /></Box>;
     }
@@ -148,17 +137,6 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
             <Box sx={{ ...containerSx, justifyContent: 'center', alignItems: 'center' }}>
                 <CircularProgress size={24} color='primary' />
             </Box>
-        );
-    }
-
-    // --- Error State (only shown in dashboard header, not navbar) ---
-    if (error && !isNavbarLayout) {
-        return (
-             <Box sx={{ ...containerSx, alignItems: 'center', justifyContent: 'center', py: 1 }}>
-                 <Alert severity="error" icon={<ErrorOutlineIcon fontSize="inherit" />} sx={{ width: '100%', justifyContent: 'center' }}>
-                     Stats unavailable: {error.message || 'Loading error'}
-                 </Alert>
-             </Box>
         );
     }
 

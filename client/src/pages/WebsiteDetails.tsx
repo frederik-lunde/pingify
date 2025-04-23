@@ -1,33 +1,27 @@
-/* src/components/details/WebsiteDetails.tsx (Refactored) */
+/* src/pages/WebsiteDetails.tsx */
 import React, { useState, useMemo, useCallback, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
     Container, Box, Alert, Button, Skeleton, Paper, SelectChangeEvent, CircularProgress,
-    // Removed AlertTitle, Link, Stack, Typography, Tooltip, FormControl, InputLabel, Select, MenuItem - moved/simplified
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { keepPreviousData } from '@tanstack/react-query';
-// Removed incident/check icons - moved to subcomponents
 
-// Adjust paths as needed
-import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks'; // Keep hooks
-import { TimeframeKey, ApiError } from '../types'; // Keep types needed here
-import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader'; // Keep existing subcomponent
-import RecentChecksList from '../components/details/RecentCheckList'; // Keep existing subcomponent
-import RecentIncidentsList from '../components/details/RecentIncidentsList'; // Keep existing subcomponent
-// Removed statusUtils/useTimeSince imports - moved to WebsiteCurrentIncidentAlert
-import WebsiteCurrentIncidentAlert from '../components/details/CurrentIncidentAlert'; // Import new component
-import WebsiteDetailsControls from '../components/details/WebsiteDetailsControls'; // Import new component
+import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks'; // Corrected path if needed
+import { TimeframeKey, ApiError } from '../types';
+import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader';
+import RecentChecksList from '../components/details/RecentCheckList';
+import RecentIncidentsList from '../components/details/RecentIncidentsList';
+import WebsiteCurrentIncidentAlert from '../components/details/CurrentIncidentAlert';
+import WebsiteDetailsControls from '../components/details/WebsiteDetailsControls';
+import DataFetchError from '../components/common/DataFetchError'; // Import the common error component
 
-// Lazy load charts - keep this here
-const LazyWebsiteCharts = React.lazy(() => import('../components/details/WebsiteCharts')); // Adjusted path
+const LazyWebsiteCharts = React.lazy(() => import('../components/details/WebsiteCharts'));
 
-// Keep types for check list sorting state
 export type SortableColumn = 'isAvailable' | 'timestamp' | 'statusCode' | 'responseTime';
 export type SortDirection = 'asc' | 'desc';
 
-// --- Skeletons & Fallbacks (Keep PageSkeleton and LoadingFallback here) ---
-const PageSkeleton = () => (
+const PageSkeleton = () => ( /* Skeleton remains the same */
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Paper sx={{ p: 2, mb: 3 }}><Skeleton variant="rectangular" height={80} /></Paper>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 2 }}>
@@ -54,12 +48,11 @@ const PageSkeleton = () => (
     </Container>
 );
 
-const LoadingFallback = () => (
+const LoadingFallback = () => ( /* Fallback remains the same */
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
         <CircularProgress />
     </Box>
 );
-// --- Helper getIncidentAlertProps removed - moved to WebsiteCurrentIncidentAlert ---
 
 const WebsiteDetails: React.FC = () => {
     const { websiteId: websiteIdParam } = useParams<{ websiteId: string }>();
@@ -70,13 +63,11 @@ const WebsiteDetails: React.FC = () => {
         return isNaN(id) || id <= 0 ? undefined : id;
     }, [websiteIdParam]);
 
-    // --- Local UI State (Keep state needed for query or passed to multiple children) ---
     const [timeframeKey, setTimeframeKey] = useState<TimeframeKey>('day');
     const [checkLimit, setCheckLimit] = useState<number>(25);
     const [sortBy, setSortBy] = useState<SortableColumn>('timestamp');
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
-    // --- Data Fetching (Keep as is) ---
     const {
         data: websiteDetails,
         isPending: isInitialLoading,
@@ -97,10 +88,8 @@ const WebsiteDetails: React.FC = () => {
         placeholderData: keepPreviousData,
     });
 
-    // --- Mutation (Keep as is) ---
     const { mutate: checkWebsite, isPending: isChecking } = useWebsiteCheckMutation();
 
-    // --- Event Handlers (Keep handlers controlling state here) ---
     const handleTimeframeChange = useCallback((event: SelectChangeEvent<TimeframeKey>) => {
         setTimeframeKey(event.target.value as TimeframeKey);
     }, []);
@@ -125,42 +114,53 @@ const WebsiteDetails: React.FC = () => {
         if (numericWebsiteId) { navigate(`/website/${numericWebsiteId}/settings`); }
     }, [navigate, numericWebsiteId]);
 
-    // --- Derived Data & Loading States (Simplify - Extract data needed by children) ---
+    // Derived Data & Loading States
     const name = websiteDetails?.name ?? (isInitialLoading ? 'Loading...' : 'N/A');
     const url = websiteDetails?.url ?? '';
     const latestResult = websiteDetails?.latestResult ?? null;
     const chartData = websiteDetails?.chartData ?? [];
     const recentChecks = websiteDetails?.recentChecks ?? [];
     const uptimePercent = websiteDetails?.uptimePercent ?? null;
-    const currentIncident = websiteDetails?.currentIncident ?? null; // Pass this down
+    const currentIncident = websiteDetails?.currentIncident ?? null;
     const recentIncidents = websiteDetails?.recentIncidents ?? [];
 
-    const isProcessingData = isDetailsRefetching || isChecking; // Used by Controls and Lists
-    const isManualChecking = isChecking; // Used by Controls
-    const isBackgroundRefetching = isDetailsRefetching && !isChecking; // Used by Header
+    const isProcessingData = isDetailsRefetching || isChecking;
+    const isManualChecking = isChecking;
+    const isBackgroundRefetching = isDetailsRefetching && !isChecking;
 
-    // --- Derived data for alert moved to WebsiteCurrentIncidentAlert ---
-
-    // --- Render Logic (Keep top-level loading/error) ---
+    // --- Render Logic ---
     if (websiteIdParam !== undefined && numericWebsiteId === undefined) {
         return <Container sx={{ mt: 4 }}><Alert severity="error">Invalid Website ID provided in URL.</Alert></Container>;
     }
     if (isInitialLoading) {
         return <PageSkeleton />;
     }
-    if (detailsError && !websiteDetails) {
+
+    // Initial Load Error Check - Use DataFetchError
+    if (detailsError && !websiteDetails && !isInitialLoading) { // Check !isInitialLoading to ensure it's a true error after attempting load
         return (
             <Container sx={{ mt: 4 }}>
-                <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => refetchDetails()}>Retry</Button>}>
-                    Error loading website details: {(detailsError as ApiError).message || 'Unknown error'}
-                </Alert>
+                <DataFetchError
+                    error={detailsError as ApiError}
+                    onRetry={refetchDetails}
+                    context="Website Details"
+                />
             </Container>
         );
     }
-    if (!isInitialLoading && !websiteDetails) {
+
+    // Website Not Found (after load attempt, no error, but no data)
+    if (!isInitialLoading && !websiteDetails && !detailsError) {
        return <Container sx={{ mt: 4 }}><Alert severity="warning">Could not find data for this website.</Alert></Container>;
     }
 
+    // Check if data exists before proceeding (for TypeScript)
+    if (!websiteDetails) {
+        // This case should ideally be covered by the checks above, but acts as a fallback
+        return <Container sx={{ mt: 4 }}><Alert severity="info">Loading website data...</Alert></Container>;
+    }
+
+    // Check for partial errors (refresh failed, but showing stale data)
     const showInlineError = detailsError && !!websiteDetails;
 
     return (
@@ -199,14 +199,14 @@ const WebsiteDetails: React.FC = () => {
                     chartData={chartData}
                     uptimePercent={uptimePercent}
                     timeframeKey={timeframeKey}
-                    isLoading={isProcessingData}
+                    isLoading={isProcessingData} // Indicate loading on charts if refetching/checking
                 />
             </Suspense>
 
             {/* Recent Incidents List Component */}
              <RecentIncidentsList
                 incidents={recentIncidents}
-                isLoading={isProcessingData}
+                isLoading={isProcessingData} // Indicate loading if refetching/checking
              />
 
             {/* Recent Checks List Component */}
@@ -215,7 +215,7 @@ const WebsiteDetails: React.FC = () => {
                 checkLimit={checkLimit}
                 sortBy={sortBy}
                 sortDir={sortDir}
-                isLoading={isProcessingData}
+                isLoading={isProcessingData} // Indicate loading if refetching/checking
                 onCheckLimitChange={handleCheckLimitChange}
                 onSort={handleSort}
             />

@@ -1,36 +1,34 @@
-/*
-src/components/dashboard/DashboardTvModeView.tsx
-*/
+// src/components/dashboard/TvModeView.tsx
 import React from 'react';
+// Alert and Container imports removed
 import { Box, CircularProgress, Snackbar } from '@mui/material';
-import WebsiteGrid from './WebsiteGrid'; // Adjust path
-import { WebsiteWithResults } from '../../types'; // Adjust path
-import NoWebsitesAdded from './NoWebsitesAdded'; // Import the correct empty state component
-import EmptyFilterResults from './EmptyFilterResults'; // Import the correct empty state component
+import WebsiteGrid from './WebsiteGrid';
+import { WebsiteWithResults } from '../../types';
+import NoWebsitesAdded from './NoWebsitesAdded';
+import EmptyFilterResults from './EmptyFilterResults';
 
-
-interface DashboardTvModeViewProps {
+interface TvModeViewProps {
     websites: WebsiteWithResults[];
-    isLoading: boolean;
-    // --- FIX: Change type to match source and consumer ---
+    isLoading: boolean; // For skeleton/initial load display
     lastIncidentWebsiteId: number | null | undefined;
-    // --- END FIX ---
     isHighlightActive: boolean;
-    isFetching: boolean;
+    isFetching: boolean; // For background fetch indicator
     isEmptyDueToFilter: boolean;
     isEmptyBecauseNoWebsites: boolean;
     showTvExitMessage: boolean;
+    // errorMessage?: string; // REMOVED
 }
 
-const DashboardTvModeView: React.FC<DashboardTvModeViewProps> = ({
+const TvModeView: React.FC<TvModeViewProps> = ({
     websites,
     isLoading,
-    lastIncidentWebsiteId, // Type is now correct
+    lastIncidentWebsiteId,
     isHighlightActive,
     isFetching,
     isEmptyDueToFilter,
     isEmptyBecauseNoWebsites,
     showTvExitMessage,
+    // errorMessage prop removed
 }) => {
     return (
         <Box
@@ -42,16 +40,34 @@ const DashboardTvModeView: React.FC<DashboardTvModeViewProps> = ({
                 boxSizing: 'border-box',
                 bgcolor: 'background.default',
                 outline: 'none',
+                position: 'relative',
             }}
             tabIndex={-1}
         >
-            <WebsiteGrid
-                websitesWithResults={websites}
-                isLoading={isLoading}
-                lastIncidentWebsiteId={lastIncidentWebsiteId} // Now passes the correct type
-                isHighlightActive={isHighlightActive}
-                isTvMode={true}
-            />
+            {/* Error Alert REMOVED */}
+
+            {/* Conditionally render grid or empty states */}
+            {/* Show loading spinner ONLY during initial load (isLoading is true, but no websites yet) */}
+            {isLoading && websites.length === 0 && (
+                 <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+                    <CircularProgress />
+                </Box>
+            )}
+
+            {/* Show Grid only if not initial loading AND not empty */}
+            {!isLoading && !isEmptyBecauseNoWebsites && !isEmptyDueToFilter && (
+                 <WebsiteGrid
+                    websitesWithResults={websites}
+                    isLoading={false} // Pass false as main loading handled above
+                    lastIncidentWebsiteId={lastIncidentWebsiteId}
+                    isHighlightActive={isHighlightActive}
+                    isTvMode={true}
+                />
+            )}
+
+            {/* Show empty states centered if no grid is shown and not initial loading */}
+            {!isLoading && isEmptyDueToFilter && <EmptyFilterResults isTvMode={true}/>}
+            {!isLoading && isEmptyBecauseNoWebsites && <NoWebsitesAdded isTvMode={true} />}
 
             <Snackbar
                 open={showTvExitMessage}
@@ -60,18 +76,15 @@ const DashboardTvModeView: React.FC<DashboardTvModeViewProps> = ({
                 sx={{ bottom: { xs: 16, sm: 24 } }}
             />
 
-            {/* Use correct empty state components */}
-            {isEmptyDueToFilter && <EmptyFilterResults />}
-            {isEmptyBecauseNoWebsites && <NoWebsitesAdded isTvMode={true} />}
-
-
+            {/* Loading indicator for background fetching (show only when not initial loading) */}
             {isFetching && !isLoading && (
                 <Box sx={{ position: 'fixed', top: 16, right: 16, zIndex: 1300 }}>
                     <CircularProgress size={24} />
                 </Box>
             )}
+
         </Box>
     );
 };
 
-export default DashboardTvModeView;
+export default TvModeView;
