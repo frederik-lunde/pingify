@@ -4,9 +4,9 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken'; // Removed JwtPayload import unless needed elsewhere
 import { LoginCredentials, RegisterUserData } from '../types';
 import prisma from '../prisma/prismaClient'; // Adjust the path if needed
-import { config } from '../config/config'; // Import the validated config
+import { securityConfig } from '../config/config'; // Import the validated config
 
-const JWT_SECRET = config.jwtSecret;
+const JWT_SECRET = securityConfig.jwtSecret;
 const SALT_ROUNDS = 10;
 
 export async function registerUser(data: RegisterUserData): Promise<{ user: Omit<User, 'password'>, token: string }> {

@@ -1,18 +1,23 @@
-// server.ts (or index.ts, main.ts, etc.)
-import dotenv from 'dotenv';
-dotenv.config();
+
 
 import app from './app';
-// Import config AFTER dotenv.config() so process.env is populated
-import { config } from './config/config';
-import prisma from './prisma/prismaClient'; // Adjust path if needed
 
-// Use config.port which is already parsed and has a default
-const PORT = config.port;
+import { appConfig } from './config/config'; 
+import prisma from './prisma/prismaClient'; 
+
+
+
+
+const PORT = appConfig.port;
 
 async function startServer() {
-  // The config file will have already thrown an error if JWT_SECRET etc. were missing
-  console.log(`Starting server in ${config.nodeEnv} mode...`); // Use config value
+  
+  
+  
+  
+  
+  
+  console.log(`Starting server in ${appConfig.nodeEnv} mode...`);
 
   try {
     console.log('Connecting to database...');
@@ -23,27 +28,35 @@ async function startServer() {
       console.log(`Server is running on port ${PORT}`);
     });
 
-    process.on('SIGINT', gracefulShutdown); // Handle Ctrl+C
-    process.on('SIGTERM', gracefulShutdown); // Handle kill commands
+    
+    
+    
+    process.on('SIGINT', gracefulShutdown); 
+    process.on('SIGTERM', gracefulShutdown); 
 
   } catch (error) {
-    // This catch block now primarily handles database connection errors
+    
+    
+    
     console.error('Failed to start server:', error);
-    process.exit(1); // Exit if database connection fails
+    process.exit(1); 
   }
 }
 
-// --- Graceful Shutdown ---
+
 async function gracefulShutdown() {
   console.log('Received shutdown signal. Closing database connection...');
   try {
     await prisma.$disconnect();
     console.log('Database connection closed.');
-    process.exit(0);
+    process.exit(0); 
   } catch (error) {
     console.error('Error during database disconnection:', error);
-    process.exit(1);
+    process.exit(1); 
   }
 }
+
+
+
 
 startServer();
