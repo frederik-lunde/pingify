@@ -32,23 +32,18 @@ const mapPrismaAlertToShared = ( prismaAlert: any ): SharedAlert => {
         type: prismaAlert.type as AlertType,
         message: prismaAlert.message,
         createdAt: prismaAlert.createdAt.toISOString(),
-        // Include incidentId if it exists on the prismaAlert object
         incidentId: prismaAlert.incidentId ?? undefined,
     };
-    // Map website details
     if (prismaAlert.website) {
         sharedAlert.website = {
             id: prismaAlert.website.id,
             url: prismaAlert.website.url,
-            // Get user-specific name if available
             name: prismaAlert.website.websiteUsers?.[0]?.name ?? undefined
         };
     }
-    // Map user details (if included by the service)
     if (prismaAlert.user) {
         sharedAlert.user = { id: prismaAlert.user.id, name: prismaAlert.user.name };
     }
-    // Map incident details (if included by the service)
     if (prismaAlert.incident) {
          sharedAlert.incident = {
              id: prismaAlert.incident.id,
@@ -59,7 +54,6 @@ const mapPrismaAlertToShared = ( prismaAlert: any ): SharedAlert => {
     return sharedAlert;
 };
 
-
 // --- Controller Functions ---
 
 /**
@@ -67,20 +61,29 @@ const mapPrismaAlertToShared = ( prismaAlert: any ): SharedAlert => {
  */
 export const getUserAlerts = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+        // Pre-check authentication
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
+
+        // Input validation
         const { limit = '50', type: typeQuery, from, to, websiteId } = req.query;
         const parsedLimit = parseInt(limit as string, 10);
         if (isNaN(parsedLimit) || parsedLimit <= 0) { res.status(400).json({ message: 'Invalid limit format.' }); return; }
         const validatedType = isValidAlertType(typeQuery) ? typeQuery : undefined;
         const parsedWebsiteId = websiteId ? parseInt(websiteId as string, 10) : undefined;
         if (websiteId && (isNaN(parsedWebsiteId as number) || (parsedWebsiteId as number) <= 0)) { res.status(400).json({ message: 'Invalid websiteId format.' }); return; }
+
         const options: AlertQueryOptions = { limit: parsedLimit, type: validatedType, from: from ? new Date(from as string) : undefined, to: to ? new Date(to as string) : undefined, websiteId: parsedWebsiteId };
-        // Service now includes incident details potentially
         const alerts = await AlertService.getAlertsForUser(userId, options);
-        // Map Prisma results (including potential incidentId) to shared type
         const responseAlerts: SharedAlert[] = alerts.map(mapPrismaAlertToShared);
         res.json(responseAlerts);
-    } catch (error) { console.error(`Error fetching alerts for user ${req.user?.id}:`, error); next(error); }
+    } catch (error) {
+        // Pass all errors from service or unexpected issues to middleware
+        next(error);
+    }
 };
 
 /**
@@ -88,16 +91,29 @@ export const getUserAlerts = async ( req: Request, res: Response, next: NextFunc
  */
 export const dismissAlert = async ( req: Request<{ alertId: string }>, res: Response, next: NextFunction ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+        // Pre-check authentication
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
+
+        // Input validation
         const { alertId: alertIdParam } = req.params;
         if (!isValidId(alertIdParam)) { res.status(400).json({ message: 'Invalid Alert ID format.' }); return; }
         const alertId = parseInt(alertIdParam, 10);
+
         const deletedAlert = await AlertService.dismissAlert(userId, alertId);
-        if (deletedAlert === null) { res.status(404).json({ message: 'Alert not found or already dismissed.' }); }
-        else { res.status(204).send(); }
-    } catch (error: any) {
-        if (error.message?.includes('Forbidden')) { res.status(403).json({ message: 'You do not have permission to dismiss this alert.' }); }
-        else { console.error(`Error dismissing alert ${req.params.alertId} for user ${req.user?.id}:`, error); next(error); }
+
+        // Handle service returning null (not found), not an error
+        if (deletedAlert === null) {
+            res.status(404).json({ message: 'Alert not found or already dismissed.' });
+        } else {
+            res.status(204).send(); // Success, no content
+        }
+    } catch (error) {
+        // Pass errors like 'Forbidden' or unexpected ones to middleware
+        next(error);
     }
 };
 
@@ -106,23 +122,35 @@ export const dismissAlert = async ( req: Request<{ alertId: string }>, res: Resp
  */
 export const getAlertsByWebsite = async ( req: Request<{ websiteId: string }>, res: Response, next: NextFunction ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+        // Pre-check authentication
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
+
+        // Input validation
         const { websiteId: websiteIdParam } = req.params;
         const { limit = '50', type: typeQuery, from, to } = req.query;
         if (!isValidId(websiteIdParam)) { res.status(400).json({ message: 'Invalid Website ID format.' }); return; }
         const websiteId = parseInt(websiteIdParam, 10);
+
+        // Access check
         const hasAccess = await WebsiteService.hasUserWebsite(userId, websiteId);
         if (!hasAccess) { res.status(404).json({ message: 'Website not found or access denied.' }); return; }
+
         const parsedLimit = parseInt(limit as string, 10);
          if (isNaN(parsedLimit) || parsedLimit <= 0) { res.status(400).json({ message: 'Invalid limit format.' }); return; }
         const validatedType = isValidAlertType(typeQuery) ? typeQuery : undefined;
+
         const options: AlertQueryOptions = { limit: parsedLimit, type: validatedType, from: from ? new Date(from as string) : undefined, to: to ? new Date(to as string) : undefined };
-        // Service now includes incident details potentially
         const alerts = await AlertService.getAlertsByWebsite(websiteId, options);
-        // Map Prisma results (including potential incidentId) to shared type
         const responseAlerts: SharedAlert[] = alerts.map(mapPrismaAlertToShared);
         res.json(responseAlerts);
-    } catch (error) { console.error(`Error fetching alerts for website ${req.params.websiteId}, user ${req.user?.id}:`, error); next(error); }
+    } catch (error) {
+        // Pass all errors to middleware
+        next(error);
+    }
 };
 
 /**
@@ -130,11 +158,22 @@ export const getAlertsByWebsite = async ( req: Request<{ websiteId: string }>, r
  */
 export const getUserAlertStats = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
     try {
-        const userId = req.user!.id;
+        // Pre-check authentication
+        if (!req.user?.id) {
+             res.status(401).json({ message: 'Authentication required.' });
+             return;
+        }
+        const userId = req.user.id;
+
+        // Input validation
         const { days = '7' } = req.query;
         const parsedDays = parseInt(days as string, 10);
          if (isNaN(parsedDays) || parsedDays <= 0) { res.status(400).json({ message: 'Invalid days format.' }); return; }
+
         const stats: AlertStats = await AlertService.getUserAlertStats(userId, parsedDays);
         res.json(stats);
-    } catch (error) { console.error(`Error fetching stats for user ${req.user?.id}:`, error); next(error); }
+    } catch (error) {
+        // Pass all errors to middleware
+        next(error);
+    }
 };
