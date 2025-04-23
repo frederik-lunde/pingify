@@ -1,4 +1,6 @@
-// src/App.tsx
+/*
+src/App.tsx
+*/
 import { Routes, Route } from "react-router";
 import { CssBaseline, Box, Alert } from "@mui/material";
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -7,23 +9,21 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
-// *** Import Page Components ***
 import WebsiteDetails from "./pages/WebsiteDetails";
 import WebsiteSettings from "./pages/WebsiteSettings";
 import AddWebsite from "./pages/AddWebsite";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-// --- Import the new IncidentsPage ---
-import IncidentsPage from "./pages/Incidents"; // Adjust path if needed
+import IncidentsPage from "./pages/Incidents";
 
 // Context
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { useApplyUserThemePreference } from "./context/ThemeContext"; // Adjust path if needed
-import { FocusModeProvider, useFocusMode } from "./context/FocusModeContext"; // Adjust path if needed
+import { useApplyUserThemePreference } from "./context/ThemeContext";
+// Updated context import
+import { TvModeProvider, useTvMode } from "./context/TvModeContext";
 
-// --- Correctly Defined Wrapper Components ---
+// Wrapper Components for Protected Routes
 function WebsiteDetailsWrapper() {
-  // This component wraps WebsiteDetails in ProtectedRoute
   return (
     <ProtectedRoute>
       <WebsiteDetails />
@@ -32,26 +32,26 @@ function WebsiteDetailsWrapper() {
 }
 
 function WebsiteSettingsWrapper() {
-  // This component wraps WebsiteSettings in ProtectedRoute
   return (
     <ProtectedRoute>
       <WebsiteSettings />
     </ProtectedRoute>
   );
 }
-// --- End Wrapper Components ---
 
 // Component containing Navbar and Routes
 function AppContent() {
   const { user } = useAuth();
-  const { isFocusMode } = useFocusMode();
-  // Apply theme preference (assuming this hook exists and works)
+  // Use the updated hook and variable name
+  const { isTvMode } = useTvMode();
+  // Apply theme preference hook
   useApplyUserThemePreference();
 
   return (
     <>
-      {/* Conditionally render Navbar based on user AND focus mode */}
-      {user && !isFocusMode && <Navbar />}
+      {/* Conditionally render Navbar based on user AND TV mode */}
+      {/* Navbar is hidden if not logged in OR if in TV mode */}
+      {user && !isTvMode && <Navbar />}
       {/* Define application routes */}
       <Routes>
         {/* Public Routes */}
@@ -60,17 +60,15 @@ function AppContent() {
 
         {/* Protected Routes */}
         <Route path="/" element={ <ProtectedRoute><Dashboard /></ProtectedRoute> } />
-        {/* Use the correctly defined wrapper components */}
         <Route path="/website/:websiteId" element={<WebsiteDetailsWrapper />} />
         <Route path="/website/:websiteId/settings" element={<WebsiteSettingsWrapper />} />
         <Route path="/add-website" element={ <ProtectedRoute><AddWebsite /></ProtectedRoute> } />
-        {/* --- Add the new Incidents Page Route --- */}
         <Route path="/incidents" element={ <ProtectedRoute><IncidentsPage /></ProtectedRoute> } />
 
         {/* Fallback for unknown routes */}
         <Route path="*" element={
-            // Adjust top margin based on whether Navbar is rendered
-            <Box sx={{ p: 4, mt: user && !isFocusMode ? 8 : 2, textAlign: 'center' }}>
+            // Adjust top margin based on whether Navbar is rendered (user logged in and not in TV mode)
+            <Box sx={{ p: 4, mt: user && !isTvMode ? 8 : 2, textAlign: 'center' }}>
                 <Alert severity="warning">Page Not Found (404)</Alert>
             </Box>
         } />
@@ -87,11 +85,11 @@ function App() {
       <CssBaseline />
       {/* Provide Authentication context */}
       <AuthProvider>
-        {/* Provide Focus Mode context */}
-        <FocusModeProvider>
+        {/* Provide the renamed TV Mode context */}
+        <TvModeProvider>
           {/* Render main application content */}
           <AppContent />
-        </FocusModeProvider>
+        </TvModeProvider>
       </AuthProvider>
       {/* Optionally include React Query DevTools in development */}
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}

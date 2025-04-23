@@ -1,6 +1,8 @@
-
+/*
+src/components/dashboard/WebsiteCard.tsx
+*/
 import React, { useCallback, useMemo } from "react";
-import { useNavigate } from "react-router"; 
+import { useNavigate } from "react-router";
 import {
   Card, CardContent, Typography, Box, Chip, IconButton,
   Tooltip,
@@ -63,13 +65,15 @@ ChartJS.register(
 interface WebsiteCardProps {
   userWebsite: WebsiteUser;
   shouldHighlightThisCard?: boolean;
+  // Add isTvMode prop
+  isTvMode?: boolean;
 }
 
 const CARD_TIMEFRAME: TimeframeKey = 'day';
-const CHART_AREA_HEIGHT = 80; 
-const TICKS_AREA_HEIGHT = 8; 
-const TICKS_MARGIN_TOP = 1; 
-const CHIPS_ROW_MIN_HEIGHT = '32px'; 
+const CHART_AREA_HEIGHT = 80;
+const TICKS_AREA_HEIGHT = 8;
+const TICKS_MARGIN_TOP = 1;
+const CHIPS_ROW_MIN_HEIGHT = '32px';
 
 
 const ResponseTimeChart = React.memo(
@@ -145,12 +149,14 @@ const WebsiteCard = React.memo(
   ({
     userWebsite,
     shouldHighlightThisCard = false,
+    // Receive isTvMode prop (default to false if not provided, though it should be)
+    isTvMode = false,
   }: WebsiteCardProps) => {
     const navigate = useNavigate();
     const theme = useTheme();
     const { setPinStatus, isSettingPin, errorSettingPin } = useWebsiteMutations();
 
-    
+
     const name = userWebsite.name ?? userWebsite.website?.url ?? 'Website';
     const url = userWebsite.website?.url;
     const latestResult = userWebsite.latestResult;
@@ -159,38 +165,48 @@ const WebsiteCard = React.memo(
     const isPinned = userWebsite.isPinned;
     const currentIncident = userWebsite.currentIncident;
 
-    
+
     const limitedChartDataPoints = aggregatedChartDataProp?.length ? aggregatedChartDataProp : undefined;
     const validAggregatedPointsCount = useMemo(() => limitedChartDataPoints?.filter(p => p.avgResponseTime !== null && !isNaN(p.avgResponseTime)).length ?? 0, [limitedChartDataPoints]);
     const canShowAggregatedChart = validAggregatedPointsCount >= 2;
     const aggregatedChartConfig = useCardChartConfig(canShowAggregatedChart ? limitedChartDataPoints : undefined);
 
-    
+
     const cardStatus = useMemo(() => {
         if (currentIncident) return currentIncident.type;
         if (latestResult === undefined || latestResult === null) return 'pending';
         return latestResult.isAvailable ? 'up' : 'down';
     }, [currentIncident, latestResult]);
 
-    
+
     const responseTime = latestResult?.responseTime ?? null;
     const statusCode = latestResult?.statusCode;
     const formattedUptime = formatUptime(uptimePercent);
     const incidentStartTimeFormatted = formatIncidentStartTime(currentIncident?.startTime);
 
-    
+
     const canShowTicks = canShowAggregatedChart && limitedChartDataPoints?.every(p => typeof p.uptimeRatio === 'number');
     const canShowSingleTick = !canShowTicks && latestResult !== null && latestResult !== undefined;
 
-    
-    const handleClick = useCallback(() => navigate(`/website/${userWebsite.websiteId}`), [navigate, userWebsite.websiteId]);
+
+    // Modify handleClick to check isTvMode
+    const handleClick = useCallback(() => {
+        // If TV mode is active, do nothing. The click will be handled by the parent Box to exit TV mode.
+        if (isTvMode) {
+            return;
+        }
+        // Otherwise, navigate as usual.
+        navigate(`/website/${userWebsite.websiteId}`);
+    // Add isTvMode to the dependency array
+    }, [navigate, userWebsite.websiteId, isTvMode]);
+
     const handlePinClick = useCallback(async (e: React.MouseEvent) => {
         e.stopPropagation();
         try { await setPinStatus({ websiteId: userWebsite.websiteId, isPinned: !isPinned }); }
         catch (err) { console.error("Failed to set pin status from card:", err); }
     }, [setPinStatus, userWebsite.websiteId, isPinned]);
 
-    
+
     const displayName = name || url || 'Website';
     const displayUrl = url;
     const hasPinError = !!errorSettingPin;
@@ -200,20 +216,22 @@ const WebsiteCard = React.memo(
         return isPinned ? "Unpin Website" : "Pin Website";
     }, [isSettingPin, hasPinError, isPinned, errorSettingPin?.message]);
 
-    
+
     const cardStyles = useMemo(() => {
         let dynamicStyles = {};
         const baseSx = {
-            width: '100%', 
-            height: '100%', 
+            width: '100%',
+            height: '100%',
             margin: 'auto',
-            cursor: "pointer",
-            display: "flex", 
-            flexDirection: "column", 
-            position: 'relative', 
-            overflow: 'hidden', 
+            // Only show pointer cursor if NOT in TV mode
+            cursor: isTvMode ? "default" : "pointer",
+            display: "flex",
+            flexDirection: "column",
+            position: 'relative',
+            overflow: 'hidden',
             transition: theme.transitions.create(['opacity', 'transform', 'box-shadow', 'border-color'], { duration: theme.transitions.duration.short }),
-            "&:hover": { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
+            // Only apply hover effect if NOT in TV mode
+            "&:hover": isTvMode ? {} : { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
         };
         if (shouldHighlightThisCard) {
             dynamicStyles = { borderWidth: '2px', borderStyle: 'solid', borderColor: theme.palette.warning.main, boxShadow: `0 0 10px -1px ${alpha(theme.palette.warning.main, 0.6)}` };
@@ -223,9 +241,10 @@ const WebsiteCard = React.memo(
              dynamicStyles = { borderWidth: '1px', borderStyle: 'solid', borderColor: theme.palette.divider };
         }
         return { ...baseSx, ...dynamicStyles };
-    }, [shouldHighlightThisCard, isPinned, theme]);
+    // Add isTvMode to dependency array for cursor/hover styles
+    }, [shouldHighlightThisCard, isPinned, theme, isTvMode]);
 
-    
+
     const renderStatusChips = () => {
         if (cardStatus === 'pending') return <Chip size="small" icon={<PendingIcon fontSize="inherit"/>} label="Pending" variant="outlined" color="warning" sx={{ fontWeight: 500 }}/>;
 
@@ -248,21 +267,22 @@ const WebsiteCard = React.memo(
         );
     };
 
-    
+
     const cardContent = (
+        // Use the modified handleClick here
         <Card sx={cardStyles} onClick={handleClick} aria-label={`View details for ${displayName}${isPinned ? ', Pinned' : ''}${cardStatus !== 'up' ? `, Status: ${cardStatus}` : ''}${shouldHighlightThisCard ? ', Highlighted as Last Incident Source' : ''}`}>
             <CardContent sx={{
-                flexGrow: 1, 
+                flexGrow: 1,
                 display: "flex",
                 flexDirection: "column",
                 p: 2,
-                
                 pb: `calc(${theme.spacing(1)} + ${TICKS_AREA_HEIGHT}px + ${theme.spacing(TICKS_MARGIN_TOP)})`
              }}>
                {/* Header */}
                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
                  <Tooltip title={displayName} placement="top-start"><Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)', mr: 1, overflow: 'hidden' }}>{displayName}</Typography></Tooltip>
                  <Tooltip title={pinTooltipText} placement="top">
+                    {/* Stop propagation on pin click as well, just in case, though unlikely to conflict */}
                     <span><IconButton size="small" onClick={handlePinClick} disabled={isSettingPin} aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`} sx={{ color: hasPinError && !isSettingPin ? theme.palette.error.main : isPinned ? theme.palette.primary.main : 'inherit' }}>
                         {isSettingPin ? <CircularProgress size={20} color="inherit" /> : isPinned ? <PinIcon fontSize="small" /> : <PinOutlinedIcon fontSize="small" />}
                     </IconButton></span>
@@ -281,13 +301,12 @@ const WebsiteCard = React.memo(
 
                <Box sx={{
                     height: `${CHART_AREA_HEIGHT}px`,
-                    mt: "auto", 
+                    mt: "auto",
                     width: '100%',
                     display: 'flex',
                     justifyContent: 'center',
                     alignItems: 'center'
                 }}>
-                    {/* Chart/Status rendering logic */}
                     {canShowAggregatedChart && cardStatus !== 'down' ? (
                         <ResponseTimeChart data={aggregatedChartConfig.chartData} options={aggregatedChartConfig.chartOptions} />
                     ) : (
@@ -304,7 +323,7 @@ const WebsiteCard = React.memo(
                                      <SlowIcon sx={{ fontSize: '1.3rem' }} /><Typography variant="body2" sx={{ fontWeight: 500 }}>Responding Slowly</Typography>
                                      {incidentStartTimeFormatted && <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>{`Since ${incidentStartTimeFormatted}`}</Typography>}
                                  </Stack>
-                            ) : ( 
+                            ) : (
                                 <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center"><InfoIcon fontSize="small" /><Typography variant="caption">Gathering data for chart...</Typography></Stack>
                             )}
                         </Box>
@@ -312,7 +331,6 @@ const WebsiteCard = React.memo(
                </Box>
             </CardContent>
 
-            {/* Ticks Area - Absolutely positioned relative to Card */}
             <Box sx={{
                 position: 'absolute',
                 bottom: theme.spacing(1),
@@ -320,7 +338,6 @@ const WebsiteCard = React.memo(
                 right: '5%',
                 height: `${TICKS_AREA_HEIGHT}px`,
             }}>
-                {/* Ticks rendering logic */}
                 {canShowTicks && limitedChartDataPoints && (
                     <Stack direction="row" spacing={0.5} justifyContent="center" alignItems="center" sx={{ width: '100%', height: '100%'}}>
                         {limitedChartDataPoints.map((point, index) => {

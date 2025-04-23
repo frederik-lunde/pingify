@@ -7,9 +7,8 @@ import {
     Prisma
   } from '@prisma/client';
 import prisma from '../prisma/prismaClient';
-// --- UPDATED: Import IncidentService ---
 import { StatsCalculator } from './monitoringService';
-import * as IncidentService from './incidentService'; // Import IncidentService
+import * as IncidentService from './incidentService';
 import { subDays } from 'date-fns';
 
 // --- Import SHARED Types ---
@@ -19,16 +18,17 @@ import {
     WebsiteUser,
     UpdateWebsiteUserDTO,
     SetPinStatusDTO,
-    // DowntimeInfo, // Removed
     MonitoringResult as SharedMonitoringResult,
     ChartDataPoint,
     TimeframeKey,
-    Incident, // Import Incident type
+    Incident,
 } from '../types';
 
+// --- Constants ---
+const DEFAULT_GLOBAL_INTERVAL = 300;
 
 // --- Mapping Helper Functions ---
-
+// (Keep mapPrismaWebsiteToShared, mapPrismaResultToSharedBasic, mapPrismaWebsiteUserToSharedBase as they are)
 const mapPrismaWebsiteToShared = (website: PrismaWebsite | null): Website | null => {
     if (!website) return null;
     return { id: website.id, url: website.url, isActive: website.isActive, lastChecked: website.lastChecked?.toISOString() ?? null, globalInterval: website.globalInterval, createdAt: website.createdAt?.toISOString() ?? undefined, updatedAt: website.updatedAt?.toISOString() ?? undefined };
@@ -43,23 +43,17 @@ const mapPrismaResultToSharedBasic = ( prismaResult: PrismaMonitoringResult | nu
 const mapPrismaWebsiteUserToSharedBase = ( websiteUser: any ): WebsiteUser | null => {
     if (!websiteUser) return null;
     const sharedWebsiteNested = websiteUser.website ? mapPrismaWebsiteToShared(websiteUser.website) : undefined;
-    // Base mapping without dynamic fields initially
     return { id: websiteUser.id, userId: websiteUser.userId, websiteId: websiteUser.websiteId, name: websiteUser.name, interval: websiteUser.interval, alertEnabled: websiteUser.alertEnabled, alertThreshold: websiteUser.alertThreshold, notifyEmail: websiteUser.notifyEmail, createdAt: websiteUser.createdAt.toISOString(), isPinned: websiteUser.isPinned, website: sharedWebsiteNested ?? undefined };
 };
 
 
 // --- Service Functions ---
-
+// (Keep getAllWebsites, getWebsitesForUser, getWebsiteById, getWebsiteByUrl, getUserWebsiteById, createWebsite as they are)
 export async function getAllWebsites(): Promise<Website[]> {
     const websitesPrisma = await prisma.website.findMany({ orderBy: { createdAt: 'desc' } });
     return websitesPrisma.map(w => mapPrismaWebsiteToShared(w)!);
 }
 
-/**
- * Get websites for a specific user, including nested Website data
- * AND latest result, daily chart data, daily uptime, and current open incident info.
- * Pinned websites are returned first, then sorted by URL.
- */
 export async function getWebsitesForUser(userId: number): Promise<WebsiteUser[]> {
     const CARD_TIMEFRAME: TimeframeKey = 'day';
     const MAX_CARD_DATA_POINTS = 24;
@@ -86,16 +80,15 @@ export async function getWebsitesForUser(userId: number): Promise<WebsiteUser[]>
         latestResultMap.set(result.websiteId, mapPrismaResultToSharedBasic(result));
     });
 
-    // --- NEW: Fetch Current Open Incidents ---
+    // 3. Fetch Current Open Incidents
     const openIncidentsPromises = websiteIds.map(id =>
-        IncidentService.getCurrentOpenIncidentForWebsite(id) // Use the new service function
+        IncidentService.getCurrentOpenIncidentForWebsite(id)
     );
     const openIncidents = (await Promise.all(openIncidentsPromises)).filter(inc => inc !== null) as Incident[];
     const openIncidentMap = new Map<number, Incident>();
     openIncidents.forEach(incident => {
         openIncidentMap.set(incident.websiteId, incident);
     });
-    // --- END NEW ---
 
     // 4. Fetch Chart Data (Daily, last 24 points)
     const chartDataPromises = websiteIds.map(id =>
@@ -125,11 +118,7 @@ export async function getWebsitesForUser(userId: number): Promise<WebsiteUser[]>
         sharedWu.latestResult = latestResultMap.get(sharedWu.websiteId) ?? null;
         sharedWu.chartData = chartDataMap.get(sharedWu.websiteId) ?? [];
         sharedWu.uptimePercent = uptimeMap.get(sharedWu.websiteId) ?? 100;
-        // --- NEW: Add current open incident ---
         sharedWu.currentIncident = openIncidentMap.get(sharedWu.websiteId) ?? null;
-        // --- REMOVED: Downtime info now comes from currentIncident ---
-        // sharedWu.consecutiveFailures = undefined;
-        // sharedWu.downtimeStartedAt = null;
 
         return sharedWu;
     }).filter(wu => wu !== null) as WebsiteUser[];
@@ -158,73 +147,153 @@ export async function getUserWebsiteById(userId: number, websiteId: number): Pro
 export async function createWebsite(data: { url: string; interval?: number }): Promise<Website> {
     if (!data.url || !/^https?:\/\/.+/.test(data.url)) throw new Error('Invalid URL format provided for website creation.');
     try {
-        const websitePrisma = await prisma.website.create({ data: { url: data.url, globalInterval: data.interval ?? 300, isActive: true } });
+        const websitePrisma = await prisma.website.create({
+             data: {
+                 url: data.url,
+                 globalInterval: DEFAULT_GLOBAL_INTERVAL, // Use default
+                 isActive: true
+             }
+         });
         return mapPrismaWebsiteToShared(websitePrisma)!;
     } catch (error) {
-         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') { console.error(`Website creation failed: URL '${data.url}' already exists.`); throw new Error(`Website with URL '${data.url}' already exists.`); }
-         console.error("Error creating website:", error); throw error;
+         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            console.error(`Website creation failed: URL '${data.url}' already exists.`);
+            throw new Error(`Website with URL '${data.url}' already exists.`);
+         }
+         console.error("Error creating website:", error);
+         throw error;
     }
 }
 
+// (Keep updateGlobalInterval as it is)
 export async function updateGlobalInterval(websiteId: number): Promise<void> {
-    const websiteUsers = await prisma.websiteUser.findMany({ where: { websiteId }, select: { interval: true } });
-    const intervals = websiteUsers.map(wu => wu.interval).filter((i): i is number => i !== null && i > 0);
-    const newGlobalInterval = intervals.length > 0 ? Math.min(...intervals) : 300;
-    const currentWebsite = await prisma.website.findUnique({ where: { id: websiteId }, select: { globalInterval: true } });
+    const websiteUsers = await prisma.websiteUser.findMany({
+        where: {
+            websiteId: websiteId,
+            interval: {
+                not: null,
+                gt: 0
+            }
+        },
+        select: { interval: true }
+    });
+
+    const intervals = websiteUsers.map(wu => wu.interval!).filter((i): i is number => i !== null);
+
+    let newGlobalInterval: number;
+    if (intervals.length > 0) {
+        newGlobalInterval = Math.min(...intervals);
+    } else {
+        newGlobalInterval = DEFAULT_GLOBAL_INTERVAL;
+    }
+
+    const currentWebsite = await prisma.website.findUnique({
+        where: { id: websiteId },
+        select: { globalInterval: true }
+    });
+
     if (currentWebsite && currentWebsite.globalInterval !== newGlobalInterval) {
         try {
-            await prisma.website.update({ where: { id: websiteId }, data: { globalInterval: newGlobalInterval } });
+            await prisma.website.update({
+                where: { id: websiteId },
+                data: { globalInterval: newGlobalInterval }
+            });
             console.log(`[Interval Update] Updated global interval for website ${websiteId} to ${newGlobalInterval} seconds.`);
-        } catch (error) { console.error(`[Interval Update] Failed to update global interval for website ${websiteId}:`, error); }
+        } catch (error) {
+            console.error(`[Interval Update] Failed to update global interval for website ${websiteId}:`, error);
+        }
+    } else if (!currentWebsite) {
+         console.warn(`[Interval Update] Website with ID ${websiteId} not found during interval update check.`);
     }
 }
 
+// (Keep updateWebsiteCore as it is)
 export async function updateWebsiteCore(id: number, data: Partial<{ url: string; isActive?: boolean }>): Promise<Website | null> {
     try {
-        if (data.url !== undefined && (data.url === null || !/^https?:\/\/.+/.test(data.url))) throw new Error('Invalid URL format provided for website update.');
-        const websitePrisma = await prisma.website.update({ where: { id }, data });
+        if (data.url !== undefined && (data.url === null || !/^https?:\/\/.+/.test(data.url))) {
+            throw new Error('Invalid URL format provided for website update.');
+        }
+        const updatePayload: Prisma.WebsiteUpdateInput = {};
+        if (data.url !== undefined) updatePayload.url = data.url;
+        if (data.isActive !== undefined) updatePayload.isActive = data.isActive;
+
+        if (Object.keys(updatePayload).length === 0) {
+            console.warn(`No core website data provided for update on ID ${id}.`);
+             const currentWebsite = await prisma.website.findUnique({ where: { id } });
+             return mapPrismaWebsiteToShared(currentWebsite);
+        }
+
+        const websitePrisma = await prisma.website.update({ where: { id }, data: updatePayload });
         return mapPrismaWebsiteToShared(websitePrisma);
     } catch (error) {
          if (error instanceof Prisma.PrismaClientKnownRequestError) {
-             if (error.code === 'P2025') { console.warn(`Website with ID ${id} not found for update.`); return null; }
-             if (error.code === 'P2002') { console.error(`Website update failed: URL '${data.url}' already exists.`); throw new Error(`Another website with URL '${data.url}' already exists.`); }
+             if (error.code === 'P2025') {
+                 console.warn(`Website with ID ${id} not found for update.`);
+                 return null;
+             }
+             if (error.code === 'P2002') {
+                 console.error(`Website update failed: URL '${data.url}' already exists.`);
+                 throw new Error(`Another website with URL '${data.url}' already exists.`);
+             }
          }
-        console.error(`Error updating core website ${id}:`, error); throw error;
+        console.error(`Error updating core website ${id}:`, error);
+        throw error;
     }
 }
 
+// (Keep updateUserWebsite as it is)
 export async function updateUserWebsite( userId: number, websiteId: number, data: UpdateWebsiteUserDTO ): Promise<WebsiteUser | null> {
     const prismaUpdateData: Prisma.WebsiteUserUpdateWithoutUserInput = {};
     if (data.name !== undefined) prismaUpdateData.name = data.name;
     if (data.interval !== undefined) prismaUpdateData.interval = data.interval;
     if (data.alertThreshold !== undefined) prismaUpdateData.alertThreshold = data.alertThreshold;
-    if (data.notifyEmail !== undefined) prismaUpdateData.notifyEmail = data.notifyEmail; // Updated type
+    if (data.notifyEmail !== undefined) prismaUpdateData.notifyEmail = data.notifyEmail;
     if (typeof data.alertEnabled === 'boolean') prismaUpdateData.alertEnabled = data.alertEnabled;
     if (typeof data.isPinned === 'boolean') prismaUpdateData.isPinned = data.isPinned;
 
-    if (Object.keys(prismaUpdateData).length === 0) { console.warn(`No update data provided for user ${userId}, website ${websiteId}. Skipping update.`); return getUserWebsiteById(userId, websiteId); }
+    if (Object.keys(prismaUpdateData).length === 0) {
+        console.warn(`No update data provided for user ${userId}, website ${websiteId}. Skipping update.`);
+        return getUserWebsiteById(userId, websiteId);
+    }
 
     try {
         const updatedWebsiteUserPrisma = await prisma.websiteUser.update({
-            where: { userId_websiteId: { userId, websiteId } }, data: prismaUpdateData, include: { website: true }
+            where: { userId_websiteId: { userId, websiteId } },
+            data: prismaUpdateData,
+            include: { website: true }
         });
-        if (data.interval !== undefined) { updateGlobalInterval(websiteId).catch(err => console.error("Error updating global interval post-update:", err)); }
+
+        if (data.interval !== undefined) {
+            updateGlobalInterval(websiteId).catch(err => console.error("Error updating global interval post-update:", err));
+        }
+
         return mapPrismaWebsiteUserToSharedBase(updatedWebsiteUserPrisma);
     } catch (error) {
-         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') { console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for update.`); return null; }
-        console.error(`Error updating user website settings for user ${userId}, website ${websiteId}:`, error); throw error;
+         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+            console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for update.`);
+            return null;
+         }
+        console.error(`Error updating user website settings for user ${userId}, website ${websiteId}:`, error);
+        throw error;
     }
 }
 
+// (Keep setPinStatusForUser, deleteWebsite, toggleWebsiteStatus, addWebsiteToUser as they are)
 export async function setPinStatusForUser( userId: number, websiteId: number, isPinned: boolean ): Promise<WebsiteUser | null> {
     try {
       const updatedWebsiteUserPrisma = await prisma.websiteUser.update({
-        where: { userId_websiteId: { userId, websiteId } }, data: { isPinned: isPinned }, include: { website: true },
+        where: { userId_websiteId: { userId, websiteId } },
+        data: { isPinned: isPinned },
+        include: { website: true },
       });
       return mapPrismaWebsiteUserToSharedBase(updatedWebsiteUserPrisma);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') { console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for pin update.`); return null; }
-      console.error(`Error setting pin status for user ${userId}, website ${websiteId}:`, error); throw error;
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+          console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for pin update.`);
+          return null;
+      }
+      console.error(`Error setting pin status for user ${userId}, website ${websiteId}:`, error);
+      throw error;
     }
 }
 
@@ -233,8 +302,12 @@ export async function deleteWebsite(id: number): Promise<Website | null> {
         const websitePrisma = await prisma.website.delete({ where: { id } });
         return mapPrismaWebsiteToShared(websitePrisma);
     } catch (error) {
-         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') { console.warn(`Website with ID ${id} not found for deletion.`); return null; }
-         console.error(`Error deleting website ${id}:`, error); throw error;
+         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+             console.warn(`Website with ID ${id} not found for deletion.`);
+             return null;
+         }
+         console.error(`Error deleting website ${id}:`, error);
+         throw error;
     }
 }
 
@@ -247,8 +320,12 @@ export async function toggleWebsiteStatus(id: number): Promise<Website | null> {
         });
         return mapPrismaWebsiteToShared(updatedWebsitePrisma);
     } catch (error: any) {
-         if (error.message?.includes('not found')) { console.warn(`Website with ID ${id} not found for toggle.`); return null; }
-         console.error(`Error toggling status for website ${id}:`, error); throw error;
+         if (error.message?.includes('not found')) {
+             console.warn(`Website with ID ${id} not found for toggle.`);
+             return null;
+         }
+         console.error(`Error toggling status for website ${id}:`, error);
+         throw error;
     }
 }
 
@@ -258,16 +335,41 @@ export async function addWebsiteToUser(userId: number, websiteData: AddWebsiteUs
         const websiteUserPrisma = await prisma.$transaction(async (tx) => {
             let website = await tx.website.upsert({
                 where: { url: websiteData.url },
-                update: { isActive: true },
-                create: { url: websiteData.url, globalInterval: websiteData.interval ?? 300, isActive: true },
+                update: {
+                    isActive: true
+                },
+                create: {
+                    url: websiteData.url,
+                    globalInterval: DEFAULT_GLOBAL_INTERVAL,
+                    isActive: true
+                },
             });
+
             const websiteUser = await tx.websiteUser.upsert({
                 where: { userId_websiteId: { userId, websiteId: website.id } },
-                update: { name: websiteData.name, interval: websiteData.interval, alertThreshold: websiteData.alertThreshold, alertEnabled: websiteData.alertEnabled ?? false, notifyEmail: websiteData.notifyEmail, isPinned: websiteData.isPinned ?? false },
-                create: { userId, websiteId: website.id, name: websiteData.name, interval: websiteData.interval, alertThreshold: websiteData.alertThreshold, alertEnabled: websiteData.alertEnabled ?? false, notifyEmail: websiteData.notifyEmail, isPinned: websiteData.isPinned ?? false },
+                update: {
+                    name: websiteData.name,
+                    interval: websiteData.interval,
+                    alertThreshold: websiteData.alertThreshold,
+                    alertEnabled: websiteData.alertEnabled ?? false,
+                    notifyEmail: websiteData.notifyEmail,
+                    isPinned: websiteData.isPinned ?? false
+                },
+                create: {
+                    userId,
+                    websiteId: website.id,
+                    name: websiteData.name,
+                    interval: websiteData.interval,
+                    alertThreshold: websiteData.alertThreshold,
+                    alertEnabled: websiteData.alertEnabled ?? false,
+                    notifyEmail: websiteData.notifyEmail,
+                    isPinned: websiteData.isPinned ?? false
+                },
                 include: { website: true }
             });
-            if (websiteData.interval !== undefined) { updateGlobalInterval(website.id).catch(err => console.error("Error updating global interval post-add:", err)); }
+
+            updateGlobalInterval(website.id).catch(err => console.error("Error updating global interval post-add:", err));
+
             return websiteUser;
         });
         return mapPrismaWebsiteUserToSharedBase(websiteUserPrisma)!;
@@ -277,19 +379,76 @@ export async function addWebsiteToUser(userId: number, websiteData: AddWebsiteUs
     }
 }
 
+/**
+ * Removes a website from a user's dashboard.
+ * After removing the user link, it checks if any other users are monitoring the site.
+ * If not, it deactivates the website.
+ * It also triggers an update to the global interval regardless.
+ */
 export async function removeWebsiteFromUser(userId: number, websiteId: number): Promise<void> {
     try {
+        // Use a transaction to ensure atomicity of delete and potential deactivate
         await prisma.$transaction(async (tx) => {
-            await tx.websiteUser.delete({ where: { userId_websiteId: { userId, websiteId } } });
+            // 1. Delete the user's association
+            await tx.websiteUser.delete({
+                where: { userId_websiteId: { userId, websiteId } }
+            });
             console.log(`[User Website] Removed website ${websiteId} from user ${userId}`);
-            updateGlobalInterval(websiteId).catch(err => console.error("Error updating global interval post-remove:", err));
+
+            // 2. Check if any users remain for this website
+            const remainingUsersCount = await tx.websiteUser.count({
+                where: { websiteId: websiteId }
+            });
+
+            // 3. If no users remain, deactivate the website
+            if (remainingUsersCount === 0) {
+                await tx.website.update({
+                    where: { id: websiteId },
+                    data: { isActive: false }
+                });
+                console.log(`[User Website] Deactivated website ${websiteId} as it has no more users.`);
+            }
         });
+
+        // 4. Update the global interval (outside transaction, runs async)
+        // This will reset it to default if the website was deactivated or if remaining users have no preference.
+        updateGlobalInterval(websiteId).catch(err => console.error("Error updating global interval post-remove:", err));
+
     } catch (error: any) {
-         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') { console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for deletion (already removed?).`); }
-         else { console.error(`Error removing website ${websiteId} from user ${userId}:`, error); throw error; }
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+            // Record already deleted - this is okay for removal.
+            // Still check if the website needs deactivation and update interval,
+            // as the cleanup job might not have run yet.
+            console.warn(`WebsiteUser relation for userId ${userId} and websiteId ${websiteId} not found for deletion (already removed?). Checking for deactivation and interval update.`);
+
+            // Perform the check and potential deactivation outside the failed transaction
+            const remainingUsersCount = await prisma.websiteUser.count({
+                where: { websiteId: websiteId }
+            });
+            if (remainingUsersCount === 0) {
+                try {
+                    await prisma.website.update({
+                        where: { id: websiteId },
+                        data: { isActive: false }
+                    });
+                    console.log(`[User Website] Deactivated website ${websiteId} after finding P2025 on user removal (no remaining users).`);
+                } catch (updateError) {
+                     // Log error if deactivation fails (e.g., website deleted concurrently)
+                     console.error(`[User Website] Failed to deactivate website ${websiteId} after P2025:`, updateError);
+                }
+            }
+            // Always trigger interval update
+            updateGlobalInterval(websiteId).catch(err => console.error("Error updating global interval post-remove (after P2025):", err));
+
+        } else {
+            // Re-throw other errors
+            console.error(`Error removing website ${websiteId} from user ${userId}:`, error);
+            throw error;
+        }
     }
 }
 
+// (Keep hasUserWebsite, searchWebsites as they are)
 export async function hasUserWebsite(userId: number, websiteId: number): Promise<boolean> {
     const count = await prisma.websiteUser.count({ where: { userId: userId, websiteId: websiteId } });
     return count > 0;

@@ -1,4 +1,4 @@
-// schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -16,43 +16,42 @@ model User {
   name         String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  websiteUsers WebsiteUser[] // Relation to the join table
+  websiteUsers WebsiteUser[]
   Alert        Alert[]
 }
 
 model Website {
   id          Int       @id @default(autoincrement())
-  url         String    @unique // Unique URL to avoid duplicates
+  url         String    @unique
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   lastChecked DateTime?
 
-  isActive          Boolean            @default(false) // Master switch for monitoring
-  globalInterval    Int                @default(300) // Global check interval in seconds
+  isActive          Boolean            @default(false)
+  globalInterval    Int                @default(300)
   alerts            Alert[]
   monitoringResults MonitoringResult[]
-  websiteUsers      WebsiteUser[] // Relation to the join table
-  incidents         Incident[] // Relation to incidents
+  websiteUsers      WebsiteUser[]
+  incidents         Incident[]
 
   @@index([isActive])
 }
 
-// Join table for many-to-many relationship with user-specific settings
 model WebsiteUser {
   id             Int      @id @default(autoincrement())
   userId         Int
   websiteId      Int
-  name           String? // User's custom name for this website
-  interval       Int? // User's preferred checking interval
-  alertThreshold Int? // User's threshold for slow response alerts
+  name           String?
+  interval       Int?
+  alertThreshold Int? 
   alertEnabled   Boolean  @default(false)
-  notifyEmail    String? // User's email for notifications
+  notifyEmail    String? 
   createdAt      DateTime @default(now())
-  isPinned       Boolean  @default(false) // For pinning websites in the UI
+  isPinned       Boolean  @default(false)
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   website        Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, websiteId]) // Ensures a user can only be associated with a website once
+  @@unique([userId, websiteId])
   @@index([userId])
   @@index([websiteId])
 }
@@ -67,7 +66,6 @@ model MonitoringResult {
   checkedAt    DateTime @default(now())
   website      Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 
-  // Optional relations to incidents this result triggered, confirmed, or resolved
   triggeredIncidents Incident[] @relation("TriggeringResult")
   confirmedIncidents Incident[] @relation("ConfirmingResult")
   resolvedIncidents  Incident[] @relation("ResolvingResult")
@@ -82,7 +80,7 @@ model Alert {
   websiteId  Int
   userId     Int
   message    String
-  type       String // 'down' or 'slow' - Corresponds to Incident type
+  type       String
   createdAt  DateTime  @default(now())
   website    Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -93,20 +91,19 @@ model Alert {
   @@index([userId])
   @@index([createdAt])
   @@index([type])
-  @@index([incidentId]) // Add if incidentId is added
+  @@index([incidentId]) 
 }
 
-// NEW: Incident Model
 model Incident {
   id                 Int       @id @default(autoincrement())
   websiteId          Int
-  type               String // 'down' or 'slow'
-  startTime          DateTime // When the incident was confirmed
-  endTime            DateTime? // When the incident was resolved
-  durationSeconds    Int? // Calculated duration in seconds when resolved
-  initialResultId    Int? // The monitoring result that *first* indicated the issue
-  confirmingResultId Int? // The monitoring result from the recheck that *confirmed* the incident
-  resolvingResultId  Int? // The monitoring result that confirmed recovery
+  type               String
+  startTime          DateTime
+  endTime            DateTime? 
+  durationSeconds    Int? 
+  initialResultId    Int? 
+  confirmingResultId Int? 
+  resolvingResultId  Int? 
 
   website          Website           @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   initialResult    MonitoringResult? @relation("TriggeringResult", fields: [initialResultId], references: [id], onDelete: SetNull)

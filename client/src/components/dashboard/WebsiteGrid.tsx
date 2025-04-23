@@ -11,19 +11,18 @@ interface WebsiteGridProps {
   lastIncidentWebsiteId?: number | null | undefined;
   isHighlightActive?: boolean;
   isLoading?: boolean;
+  // Add isTvMode prop
+  isTvMode: boolean;
 }
 
-/**
- * Grid component displaying website cards.
- * Assumes the incoming `websitesWithResults` prop is already sorted and filtered.
- * Handles highlighting based on props.
- */
 const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
   ({
       websitesWithResults,
       lastIncidentWebsiteId,
       isHighlightActive = false,
       isLoading = false,
+      // Receive isTvMode prop
+      isTvMode,
   }) => {
 
     const gridItemSize = { xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 };
@@ -44,6 +43,8 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
           <WebsiteCard
               userWebsite={dummyWebsiteUser}
               shouldHighlightThisCard={false}
+              // Pass default false for skeletons
+              isTvMode={false}
           />
         </Grid>
       ));
@@ -77,6 +78,8 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
                 <WebsiteCard
                   userWebsite={item.userWebsite}
                   shouldHighlightThisCard={shouldHighlight}
+                  // Pass isTvMode down to each card
+                  isTvMode={isTvMode}
                 />
               </Grid>
            );

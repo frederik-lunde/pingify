@@ -1,4 +1,6 @@
 // server/src/services/monitoringService.ts
+// No changes needed in this file.
+
 import axios, { AxiosError } from 'axios';
 import { performance } from 'perf_hooks';
 import {
@@ -6,12 +8,10 @@ import {
     MonitoringResult as PrismaMonitoringResult,
     PrismaClient,
     Prisma,
-    Incident as PrismaIncident, // Import Incident
+    Incident as PrismaIncident,
 } from '@prisma/client';
 import { TIMEOUT_MS } from '../config/config';
-// --- UPDATED: Import handleResultProcessing from AlertService ---
 import { handleResultProcessing } from './alertService';
-// --- NEW: Import IncidentService ---
 import * as IncidentService from './incidentService';
 import prisma from '../prisma/prismaClient';
 import {
@@ -29,17 +29,14 @@ import {
     OverallStats,
     TimeframeKey,
     ChartDataPoint,
-    // DownWebsite, // Removed
-    // DowntimeInfo, // Removed
-    Incident, // Import Incident type
-    IncidentType, // Import IncidentType
+    Incident,
+    IncidentType,
 } from '../types';
 
 // ============================================================================
 // WebsiteMonitor Class
 // ============================================================================
 export class WebsiteMonitor {
-    // performWebsiteCheck and parseAxiosErrorMessage remain unchanged
 
     static async performWebsiteCheck(url: string): Promise<MonitoringResponse> {
         const start = performance.now();
@@ -147,7 +144,7 @@ export class WebsiteMonitor {
     }
 }
 // ============================================================================
-// ResultsManager Class (No changes needed)
+// ResultsManager Class
 // ============================================================================
 export class ResultsManager {
     static async saveResult( websiteId: number, result: MonitoringResponse ): Promise<PrismaMonitoringResult> {
@@ -216,10 +213,10 @@ export class ResultsManager {
     }
 }
 // ============================================================================
-// StatsCalculator Class (MODIFIED)
+// StatsCalculator Class
 // ============================================================================
 export class StatsCalculator {
-    // calculateUptimeBetweenDates remains the same
+
     static async calculateUptimeBetweenDates(websiteId: number, startDate: Date, endDate: Date = new Date()): Promise<number> {
         const results = await prisma.monitoringResult.findMany({
             where: { websiteId, checkedAt: { gte: startDate, lte: endDate } },
@@ -232,7 +229,7 @@ export class StatsCalculator {
         return parseFloat(uptimePercentage.toFixed(2));
     }
 
-    // getAverageResponseTimeBetweenDates remains the same
+
     static async getAverageResponseTimeBetweenDates(websiteId: number, startDate: Date, endDate: Date = new Date()): Promise<number | null> {
         const result = await prisma.monitoringResult.aggregate({
             _avg: { responseTime: true },
@@ -243,11 +240,7 @@ export class StatsCalculator {
         return result._avg.responseTime !== null ? Math.round(result._avg.responseTime) : null;
     }
 
-    // --- REMOVED: getConsecutiveFailures (Incident model tracks duration) ---
-    // --- REMOVED: getDownWebsitesLast24h (Query Incident table instead) ---
-    // --- REMOVED: getCurrentDowntimeInfo (Incident model tracks start/end) ---
 
-    // periodToDays remains the same
     private static periodToDays(period: TimeframeKey | string): number {
         switch (period) {
             case 'hour': return 1 / 24; case 'day': return 1; case 'week': return 7; case 'month': return 30; case 'year': return 365;
@@ -373,8 +366,6 @@ export class StatsCalculator {
                 from: twentyFourHoursAgo,
                 // Filter by user's websites if userId is provided
                 ...(userId && { userId: userId }),
-                // Only count incidents for currently active websites if needed (optional refinement)
-                // websiteId: { in: activeWebsiteIds }
             });
 
             // Find the most recent incident overall (or for the user)
@@ -394,12 +385,12 @@ export class StatsCalculator {
         };
     }
 
-    // getUserDashboardStats remains the same (delegates to getOverallStats)
+
     static async getUserDashboardStats( userId: number, period: TimeframeKey | string = 'week' ): Promise<OverallStats> {
         return this.getOverallStats(userId, period);
     }
 
-    // getChartDataForWebsite remains the same
+
     static async getChartDataForWebsite( websiteId: number, timeframe: TimeframeKey ): Promise<ChartDataPoint[]> {
         const endDate = new Date();
         let chartData: ChartDataPoint[] = [];
@@ -452,7 +443,4 @@ export class StatsCalculator {
         chartData.sort((a, b) => a.timestamp - b.timestamp);
         return chartData;
     }
-
-    // --- REMOVED: countUserDistinctWebsiteIncidentsLast24h (Replaced by IncidentService.countIncidents) ---
-
 } // End StatsCalculator Class
