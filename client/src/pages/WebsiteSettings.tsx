@@ -1,24 +1,21 @@
-/*
-src/pages/WebsiteSettings.tsx
-*/
+// src/pages/WebsiteSettings.tsx
 import React, { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router";
 import { Formik, Form, Field, FormikHelpers, FieldProps } from "formik";
 import * as Yup from "yup";
 import {
     Container, Paper, Typography, Box, TextField, Switch, FormControlLabel,
-    Button, Divider, CircularProgress, Alert, IconButton, Tooltip,
-    Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Stack
+    Button, Divider, CircularProgress, Alert, IconButton, Tooltip, Stack
 } from "@mui/material";
-import Grid from "@mui/material/Grid2"; // <-- Use Grid v2
+import Grid from "@mui/material/Grid2";
 import {
     ArrowBack as ArrowBackIcon, Save as SaveIcon, Delete as DeleteIcon,
 } from "@mui/icons-material";
 
-// Adjust paths as needed
 import { useUserWebsiteQuery, useWebsiteMutations } from "../hooks";
 import FormNotification, { initialNotificationState, FormNotificationState } from "../components/common/FormNotification";
-import { UpdateWebsiteUserDTO, ApiError, WebsiteUser } from "../types";
+import ConfirmationDialog from "../components/common/ConfirmationDialog"; // Import the common dialog
+import { UpdateWebsiteUserDTO, ApiError } from "../types";
 
 interface WebsiteSettingsFormValues {
     name: string;
@@ -28,7 +25,6 @@ interface WebsiteSettingsFormValues {
     notifyEmail: string;
 }
 
-// Validation schema using Yup
 const WebsiteSettingsSchema = Yup.object().shape({
     name: Yup.string().trim().required("Website name is required"),
     interval: Yup.number()
@@ -71,8 +67,8 @@ const WebsiteSettings: React.FC = () => {
 
     const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null); // State to hold deletion error message for the dialog
 
-    // --- Data Fetching ---
     const {
         data: userWebsite,
         isLoading: isWebsiteLoading,
@@ -84,22 +80,17 @@ const WebsiteSettings: React.FC = () => {
         gcTime: 1000 * 60 * 5,
     });
 
-    // --- Mutations ---
     const {
         updateSettings,
         removeWebsite,
         isUpdating,
         isRemoving,
         errorUpdating,
-        errorRemoving,
     } = useWebsiteMutations();
 
-    // Combined state for disabling form fields during any mutation
     const isMutating = isUpdating || isRemoving;
-    // Combined state for disabling core actions (Save/Delete buttons) or showing page-level loading
     const isActionLoading = isWebsiteLoading || isUpdating || isRemoving;
 
-    // --- Form Initial Values ---
     const initialValues = useMemo((): WebsiteSettingsFormValues => ({
         name: userWebsite?.name || "",
         interval: userWebsite?.interval ?? 300,
@@ -108,13 +99,12 @@ const WebsiteSettings: React.FC = () => {
         notifyEmail: userWebsite?.notifyEmail || "",
     }), [userWebsite]);
 
-    // --- Handlers ---
     const handleSubmit = async (
         values: WebsiteSettingsFormValues,
         formikHelpers: FormikHelpers<WebsiteSettingsFormValues>
     ) => {
-        const { setStatus, resetForm } = formikHelpers;
-        setStatus(null); // Clear previous form status
+        const { setStatus } = formikHelpers;
+        setStatus(null);
         setNotification(initialNotificationState);
 
         if (!numericWebsiteId) {
@@ -123,62 +113,64 @@ const WebsiteSettings: React.FC = () => {
             return;
         }
 
-        // Prepare DTO, relying on Yup for validation before this point
         const updateData: UpdateWebsiteUserDTO = {
             name: values.name.trim() || null,
-            interval: Number(values.interval), // Yup ensures this is a valid number
+            interval: Number(values.interval),
             alertEnabled: values.alertEnabled,
-            // Convert threshold/email based on alertEnabled status
-            alertThreshold: values.alertEnabled ? Number(values.alertThreshold) : null, // Yup ensures number if enabled
+            alertThreshold: values.alertEnabled ? Number(values.alertThreshold) : null,
             notifyEmail: values.alertEnabled && values.notifyEmail.trim() ? values.notifyEmail.trim() : null,
         };
 
         try {
-            const updatedWebsite = await updateSettings({ websiteId: numericWebsiteId, websiteData: updateData });
+            await updateSettings({ websiteId: numericWebsiteId, websiteData: updateData });
             setNotification({ open: true, message: "Settings saved successfully!", severity: "success" });
-
-            // Navigate back only after successful save
             navigate(`/website/${numericWebsiteId}`);
-
-            // Optionally reset form to reflect saved state if staying on page
-            // resetForm({ values: { /* map updatedWebsite back to form values */ } });
-
         } catch (err) {
             const apiError = err as ApiError;
             console.error("Failed to update settings:", apiError);
             const message = (errorUpdating as ApiError)?.message || apiError?.message || "Failed to save settings.";
-            setStatus({ error: message }); // Set form-level error
+            setStatus({ error: message });
             setNotification({ open: true, message: `Error: ${message}`, severity: "error" });
         }
-        // Formik handles isSubmitting state automatically with async onSubmit
     };
 
-    const openDeleteDialog = useCallback(() => setDeleteConfirmOpen(true), []);
-    const closeDeleteDialog = useCallback(() => { if (!isRemoving) setDeleteConfirmOpen(false); }, [isRemoving]);
+    const openDeleteDialog = useCallback(() => {
+        setDeleteError(null); // Clear previous error when opening
+        setDeleteConfirmOpen(true);
+    }, []);
+
+    const closeDeleteDialog = useCallback(() => {
+        if (!isRemoving) {
+            setDeleteConfirmOpen(false);
+            // Optionally clear error when closing via cancel
+            // setDeleteError(null);
+        }
+    }, [isRemoving]);
 
     const handleDeleteConfirm = useCallback(async () => {
         if (!numericWebsiteId) return;
-        setNotification(initialNotificationState);
+        setDeleteError(null); // Clear previous error on new attempt
+        setNotification(initialNotificationState); // Clear general notifications
         try {
             await removeWebsite(numericWebsiteId);
             setNotification({ open: true, message: `Website removed successfully.`, severity: "success" });
-            closeDeleteDialog();
-            navigate("/");
+            closeDeleteDialog(); // Close dialog on success
+            navigate("/"); // Navigate away on success
         } catch (err) {
             const apiError = err as ApiError;
             console.error("Failed to delete website:", apiError);
-            const message = (errorRemoving as ApiError)?.message || apiError.message || 'Unknown error removing website';
-            setNotification({ open: true, message: `Error removing website: ${message}`, severity: "error" });
+            const message = apiError.message || 'Unknown error removing website';
+            setDeleteError(`Removal failed: ${message}`); // Set error state for the dialog
             // Keep dialog open on error
         }
-    }, [numericWebsiteId, removeWebsite, navigate, closeDeleteDialog, errorRemoving, setNotification]);
+    }, [numericWebsiteId, removeWebsite, navigate, closeDeleteDialog, setNotification]);
 
     const handleBackClick = useCallback(() => {
         navigate(numericWebsiteId ? `/website/${numericWebsiteId}` : '/');
     }, [navigate, numericWebsiteId]);
 
-    const handleNotificationClose = useCallback((event?: React.SyntheticEvent | Event, reason?: string) => {
-         if (reason === 'clickaway') return;
+    const handleNotificationClose = useCallback((reason?: string) => {
+        if (reason === 'clickaway') return;
         setNotification((prev) => ({ ...prev, open: false }));
     }, []);
 
@@ -208,9 +200,16 @@ const WebsiteSettings: React.FC = () => {
         );
     }
 
+    // Prepare description for the confirmation dialog, potentially showing an error
+    const deleteDialogDescription = (
+        <>
+            Are you sure you want to remove "{userWebsite.name || userWebsite.website?.url}"? This action cannot be undone.
+            {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
+        </>
+    );
+
     return (
         <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-            {/* Header */}
             <Box sx={{ mb: 3, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: 'wrap', gap: 1 }}>
                 <Stack direction="row" alignItems="center" spacing={1}>
                     <Tooltip title="Back to Website Details">
@@ -231,18 +230,16 @@ const WebsiteSettings: React.FC = () => {
                         {status?.error && <Alert severity="error" sx={{ mb: 3 }}>{status.error}</Alert>}
                         {errorUpdating && !status?.error && <Alert severity="error" sx={{ mb: 3 }}>Update failed: {(errorUpdating as ApiError).message || 'Unknown error'}</Alert>}
 
-                        {/* General Settings */}
                         <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}>
                             <Typography variant="h6" gutterBottom>General Settings</Typography>
                             <Divider sx={{ mb: 3 }} />
-                            {/* Use Grid v2 */}
                             <Grid container spacing={3}>
-                                <Grid size={{ xs: 12, md: 6 }}> {/* Use size prop */}
+                                <Grid size={{ xs: 12, md: 6 }}>
                                     <Field as={TextField} fullWidth label="Website Name" name="name"
                                         error={touched.name && Boolean(errors.name)} helperText={touched.name && errors.name}
                                         required disabled={isMutating} />
                                 </Grid>
-                                <Grid size={{ xs: 12, md: 6 }}> {/* Use size prop */}
+                                <Grid size={{ xs: 12, md: 6 }}>
                                     <Field as={TextField} fullWidth label="Check Interval (seconds)" name="interval" type="number"
                                         error={touched.interval && Boolean(errors.interval)} helperText={(touched.interval && errors.interval) || "Minimum 30 seconds"}
                                         required InputProps={{ inputProps: { min: 30, max: 86400, step: 30 } }} disabled={isMutating} />
@@ -250,7 +247,6 @@ const WebsiteSettings: React.FC = () => {
                             </Grid>
                         </Paper>
 
-                        {/* Alert Settings */}
                         <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}>
                             <Typography variant="h6" gutterBottom>Alert Settings</Typography>
                             <Divider sx={{ mb: 3 }} />
@@ -261,14 +257,13 @@ const WebsiteSettings: React.FC = () => {
                                 )}
                             </Field>
                             {values.alertEnabled && (
-                                // Use Grid v2
                                 <Grid container spacing={3} sx={{ mt: 0 }}>
-                                    <Grid size={{ xs: 12, md: 6 }}> {/* Use size prop */}
+                                    <Grid size={{ xs: 12, md: 6 }}>
                                         <Field as={TextField} fullWidth label="Response Time Threshold (ms)" name="alertThreshold" type="number"
                                             error={touched.alertThreshold && Boolean(errors.alertThreshold)} helperText={(touched.alertThreshold && errors.alertThreshold) || "Alert if response > value (1-60000ms)"}
                                             InputProps={{ inputProps: { min: 1, max: 60000 } }} disabled={isMutating} required={values.alertEnabled} />
                                     </Grid>
-                                    <Grid size={{ xs: 12, md: 6 }}> {/* Use size prop */}
+                                    <Grid size={{ xs: 12, md: 6 }}>
                                         <Field as={TextField} fullWidth label="Notification Email" name="notifyEmail" type="email"
                                             error={touched.notifyEmail && Boolean(errors.notifyEmail)} helperText={(touched.notifyEmail && errors.notifyEmail) || "Email address for alerts"}
                                             disabled={isMutating} required={values.alertEnabled} />
@@ -277,14 +272,12 @@ const WebsiteSettings: React.FC = () => {
                             )}
                         </Paper>
 
-                        {/* Action Buttons */}
                         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: 'center', mt: 4, gap: 2, flexWrap: 'wrap' }}>
                             <Button variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={openDeleteDialog}
                                 disabled={isActionLoading} data-testid="delete-button">
                                 Remove Website
                             </Button>
                             <Button type="submit" variant="contained" startIcon={isUpdating ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-                                // Simplified disabled logic
                                 disabled={isActionLoading || !dirty || !isValid}
                                 data-testid="save-button">
                                 {isUpdating ? "Saving..." : "Save Changes"}
@@ -294,25 +287,19 @@ const WebsiteSettings: React.FC = () => {
                 )}
             </Formik>
 
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={deleteConfirmOpen} onClose={closeDeleteDialog} aria-labelledby="delete-confirm-title" aria-describedby="delete-confirm-description">
-                <DialogTitle id="delete-confirm-title">Confirm Removal</DialogTitle>
-                <DialogContent>
-                    <DialogContentText id="delete-confirm-description">
-                        Are you sure you want to remove "{userWebsite.name || userWebsite.website?.url}"? This action cannot be undone.
-                    </DialogContentText>
-                    {errorRemoving && <Alert severity="error" sx={{ mt: 2 }}>Removal failed: {(errorRemoving as ApiError).message || 'Unknown error'}</Alert>}
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={closeDeleteDialog} disabled={isRemoving}>Cancel</Button>
-                    <Button onClick={handleDeleteConfirm} color="error" variant="contained" disabled={isRemoving}
-                        startIcon={isRemoving ? <CircularProgress size={16} color="inherit" /> : null} data-testid="confirm-delete-button">
-                        {isRemoving ? "Removing..." : "Remove"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            {/* Use the reusable ConfirmationDialog */}
+            <ConfirmationDialog
+                open={deleteConfirmOpen}
+                onClose={closeDeleteDialog}
+                onConfirm={handleDeleteConfirm}
+                title="Confirm Removal"
+                description={deleteDialogDescription} // Pass the potentially complex description
+                confirmText="Remove"
+                cancelText="Cancel"
+                isLoading={isRemoving}
+                confirmButtonColor="error"
+            />
 
-            {/* Snackbar Notification */}
             <FormNotification notification={notification} onClose={handleNotificationClose} />
         </Container>
     );
