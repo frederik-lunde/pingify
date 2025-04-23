@@ -7,7 +7,6 @@ import React, { createContext, useState, useContext, useMemo, ReactNode, useCall
 interface TvModeContextType {
     isTvMode: boolean;
     toggleTvMode: () => void;
- 
 }
 
 // Create the context with an initial undefined value
@@ -29,17 +28,11 @@ export const TvModeProvider: React.FC<TvModeProviderProps> = ({ children }) => {
         setIsTvMode(prev => !prev);
     }, []);
 
-    // Callbacks to explicitly enable/disable (optional, keep commented if toggle is sufficient)
-    // const enableTvMode = useCallback(() => setIsTvMode(true), []);
-    // const disableTvMode = useCallback(() => setIsTvMode(false), []);
-
     // Memoize the context value to prevent unnecessary re-renders
     const value = useMemo(() => ({
         isTvMode,
         toggleTvMode,
-        // enableTvMode,
-        // disableTvMode,
-    }), [isTvMode, toggleTvMode /*, enableTvMode, disableTvMode */]);
+    }), [isTvMode, toggleTvMode]);
 
     // Provide the context value to children components
     return (

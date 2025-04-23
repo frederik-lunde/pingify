@@ -1,6 +1,6 @@
 /* src/utils/statusUtils.ts */
 import { AlertColor } from '@mui/material';
-import { formatDistanceToNowStrict, parseISO, differenceInSeconds, formatDistanceStrict } from 'date-fns'; // Added differenceInSeconds, formatDistanceStrict
+import { formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns'; // Added differenceInSeconds, formatDistanceStrict
 import { AlertType, Incident } from "../types"; // Ensure this path is correct, Added Incident
 
 /**
