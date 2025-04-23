@@ -7,6 +7,7 @@
 * - Removed DownWebsite type.
 * - Updated OverallStats to reflect backend changes (incidentsLast24h source).
 * - Added IncidentQueryOptions.
+* - CORRECTED: Added 'status' to AlertQueryOptions.
 */
 // --- SECTION 1: Keep Basic Prisma Type Names if helpful for context, but don't rely on backend structure ---
 // These are just illustrative names now for the concepts
@@ -36,8 +37,6 @@ export interface MonitoringResult {
   };
 }
 
-// --- REMOVED: DownWebsite type is replaced by Incident ---
-// export interface DownWebsite { ... }
 
 export interface Website {
   id: number;
@@ -47,7 +46,6 @@ export interface Website {
   globalInterval: number;
   createdAt?: string; // ISO 8601 date string
   updatedAt?: string; // ISO 8601 date string
-  // --- NEW: Optional name field if needed directly on Website ---
   name?: string | null; // User's custom name might be included here too
 }
 
@@ -98,7 +96,6 @@ export interface WebsiteUser {
   latestResult?: MonitoringResult | null; // Last monitoring result
   chartData?: ChartDataPoint[]; // Pre-calculated chart data for the card (daily, last 24 points)
   uptimePercent?: number; // Uptime percentage for the card timeframe (e.g., 'day')
-  // --- UPDATED: Replaced downtime fields with currentIncident ---
   currentIncident?: Incident | null; // Current open incident for this website
 }
 // --- UPDATED ALERT TYPES ---
@@ -107,12 +104,18 @@ export interface WebsiteUser {
 export type AlertType = "down" | "slow";
 export const VALID_ALERT_TYPES: AlertType[] = ["down", "slow"]; // For validation if needed
 
+// Define possible Alert statuses (adjust based on your actual API)
+export type AlertStatus = 'active' | 'acknowledged' | 'resolved' | 'dismissed';
+export const VALID_ALERT_STATUSES: AlertStatus[] = ['active', 'acknowledged', 'resolved', 'dismissed'];
+
+
 // Simplified Alert interface (matching backend API response)
 export interface Alert {
     id: number;
     websiteId: number;
     userId: number; // Direct relation shown in response
     type: AlertType;
+    status: AlertStatus; // Add status to the Alert type itself if returned by API
     message: string;
     createdAt: string; // ISO 8601 date string
     // Optional nested data included by backend controllers
@@ -158,7 +161,6 @@ export interface AddWebsiteUserDTO {
   interval?: number | null;
   alertThreshold?: number | null;
   alertEnabled?: boolean;
-  // Keep as string | null for sending to API
   notifyEmail?: string | null;
   isPinned?: boolean;
 }
@@ -169,7 +171,6 @@ export interface UpdateWebsiteUserDTO {
   interval?: number | null;
   alertThreshold?: number | null;
   alertEnabled?: boolean | null;
-  // Keep as string | null for sending to API
   notifyEmail?: string | null;
   isPinned?: boolean;
 }
@@ -206,16 +207,20 @@ export interface ResultsQueryOptions {
 // Simplified Alert Query Options (matching backend API)
 export interface AlertQueryOptions {
   limit?: number;
+  offset?: number; // Add offset if your API supports pagination
   type?: AlertType; // Only 'down' or 'slow'
   from?: Date;      // Use Date objects in frontend state/UI
   to?: Date;
   userId?: number;  // Optional: Filter user's alerts further (usually not needed)
   websiteId?: number;// Optional: Filter user's alerts for a specific website
+  // --- FIX: Add the missing status property ---
+  status?: AlertStatus | string; // Allow defined statuses or any string if API is flexible
 }
 
 // --- NEW: Incident Query Options ---
 export interface IncidentQueryOptions {
     limit?: number;
+    offset?: number; // Add offset if your API supports pagination
     type?: IncidentType;
     from?: Date; // Use Date objects in frontend state/UI
     to?: Date;
@@ -244,24 +249,21 @@ export interface WebsiteStatsData {
   averageResponseTime: number | null;
   totalChecks: number;
   lastCheck: string | null; // ISO string
-  // --- NEW: Incident counts for the period ---
   incidentCount: number;
   downIncidentCount: number;
   slowIncidentCount: number;
-  // --- REMOVED: consecutiveFailures ---
 }
 
 // Overall dashboard stats (Reflects backend changes)
 export interface OverallStats {
   totalWebsites: number;
   activeWebsites: number;
-  websiteStats: WebsiteStatsData[]; // Individual stats now include incident counts
+  websiteStats: WebsiteStatsData[];
   overallUptime: number;
   overallResponseTime: number | null;
-  // --- UPDATED: Source is now Incident table count ---
-  incidentsLast24h: number | null; // Count of incidents started in last 24h
-  lastIncidentTimestamp: string | null; // ISO 8601 date string of the most recent incident start
-  lastIncidentWebsiteId?: number | null; // ID of website with the most recent incident
+  incidentsLast24h: number | null;
+  lastIncidentTimestamp: string | null;
+  lastIncidentWebsiteId?: number | null;
 }
 
 // Data point for charts
@@ -274,24 +276,22 @@ export interface ChartDataPoint {
 }
 
 // Detailed view for a single website page
-// --- UPDATED: Reflects backend changes ---
 export interface WebsiteDetailsData {
   websiteId: number;
   name: string;
   url: string;
-  latestResult: MonitoringResult | null; // Uses shared MonitoringResult
+  latestResult: MonitoringResult | null;
   chartData: ChartDataPoint[];
-  recentChecks: MonitoringResult[]; // Uses shared MonitoringResult
+  recentChecks: MonitoringResult[];
   uptimePercent: number;
-  // --- NEW: Incident Info ---
-  currentIncident: Incident | null; // Current open incident
-  recentIncidents: Incident[]; // List of recent incidents (closed or open)
+  currentIncident: Incident | null;
+  recentIncidents: Incident[];
 }
 
 // Auth API response
 export interface AuthResponse {
     token: string;
-    user: User; // Uses shared User type
+    user: User;
 }
 
 // UPDATED Alert Statistics Summary (Match backend)
@@ -323,24 +323,20 @@ export interface AuthContextType {
 }
 
 // Example combined type for dashboard cards/hooks
-// This type is returned by the useWebsiteData hook structure
-// --- UPDATED: Uses updated WebsiteUser ---
 export interface WebsiteWithResults {
-    userWebsite: WebsiteUser; // User's settings + nested Website core data + LATEST RESULT + CHART DATA + CURRENT INCIDENT etc.
+    userWebsite: WebsiteUser;
 }
 
 // Example structure returned by a high-level dashboard data hook
-// --- UPDATED: Reflects changes in useWebsiteData ---
 export interface WebsiteDataSummary {
-    websitesWithResults: WebsiteWithResults[]; // Uses updated WebsiteWithResults
-    overallStats: OverallStats | null; // Uses updated OverallStats
+    websitesWithResults: WebsiteWithResults[];
+    overallStats: OverallStats | null;
     isLoading: boolean;
     isFetching: boolean;
     error: ApiError | null;
-    refetch: () => Promise<any>; // Function to refetch dashboard data
-    totalWebsitesCount: number; // Calculated from websitesWithResults length
-    upWebsitesCount: number; // Calculated based on currentIncident or latestResult
-    // These now come directly from overallStats
+    refetch: () => Promise<any>;
+    totalWebsitesCount: number;
+    upWebsitesCount: number;
     incidentsLast24h: number | null;
     lastIncidentTimestamp: string | null | undefined;
     lastIncidentWebsiteId: number | null | undefined;

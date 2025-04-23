@@ -1,6 +1,4 @@
-/*
-src/components/Navbar.tsx
-*/
+// client/src/components/Navbar.tsx
 import * as React from "react";
 import { useCallback, useState, useMemo } from "react";
 import { useLocation, useNavigate } from 'react-router';
@@ -19,18 +17,17 @@ import AdbIcon from "@mui/icons-material/Adb";
 import AddIcon from "@mui/icons-material/Add";
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
-// Consider adding incident icon if linking to incidents page
 // import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined';
 import { useAuth } from "../context/AuthContext";
 import { useThemeMode } from "../context/ThemeContext";
-import { useWebsiteData } from "../hooks"; // Provides updated data structure
+import { useWebsiteData } from "../hooks";
+// Ensure AlertQueryOptions is imported if needed, or rely on AlertsDropdown's internal type
 import AlertsDropdown from "./navbar/AlertDropdown";
-import StatsHeader from "../components/dashboard/StatsHeader"; // Component uses updated props
+import StatsHeader from "../components/dashboard/StatsHeader";
 
 
 const pages = [
   { name: "Add Website", path: "/add-website", icon: <AddIcon fontSize="small" />, ariaLabel: "Add new website to monitor" },
-  // Example: Add link to incidents page
   // { name: "Incidents", path: "/incidents", icon: <ReportProblemOutlinedIcon fontSize="small" />, ariaLabel: "View incidents" },
 ];
 
@@ -45,12 +42,11 @@ function Navbar() {
   const location = useLocation();
   const { mode, toggleThemeMode } = useThemeMode();
 
-  // useWebsiteData hook provides the necessary stats including incident info
   const {
       overallStats,
       incidentsLast24h,
       lastIncidentTimestamp,
-      // lastIncidentWebsiteId, // Not needed for navbar header display
+      // lastIncidentWebsiteId,
       isLoading: isLoadingData,
       error: dataError,
       totalWebsitesCount,
@@ -60,7 +56,6 @@ function Navbar() {
       60000   // Poll every minute
   );
 
-  // Extract overall uptime for the header
   const headerUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
 
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorElNav(event.currentTarget);
@@ -71,7 +66,7 @@ function Navbar() {
   const handlePageClick = useCallback((path: string) => {
     handleCloseNavMenu();
     if (path !== "#") navigate(path);
-  }, [navigate]);
+  }, [navigate, handleCloseNavMenu]); // Added handleCloseNavMenu dependency
 
   const handleSettingClick = useCallback(async (setting: string) => {
     handleCloseUserMenu();
@@ -102,7 +97,6 @@ function Navbar() {
 
   return (
     <AppBar position="static">
-      {/* Use full width container */}
       <Container maxWidth={false} sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
         <Toolbar disableGutters>
 
@@ -136,7 +130,6 @@ function Navbar() {
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1, ml: 2 }}>
               {pages.map((page) => (
                 <Tooltip key={page.name} title={page.ariaLabel || page.name} arrow>
-                  {/* Wrap IconButton in span for Tooltip when disabled might be needed */}
                   <span>
                     <IconButton
                       aria-label={page.ariaLabel || page.name}
@@ -152,32 +145,27 @@ function Navbar() {
             </Box>
           </Box>
 
-          {/* Center Section: Stats Header (only shown when NOT on dashboard) */}
-          {/* Conditionally render StatsHeader based on route */}
+          {/* Center Section: Stats Header */}
           {!isDashboard && (
             <StatsHeader
-              // Pass relevant data from useWebsiteData
-              isLoading={isLoadingData && !overallStats} // Show loading if stats are pending
-              error={dataError} // Pass potential error (though header might hide it)
+              isLoading={isLoadingData && !overallStats}
+              error={dataError}
               upCount={upWebsitesCount}
               totalCount={totalWebsitesCount}
               uptime={headerUptime}
               incidentsLast24h={incidentsLast24h}
               lastIncidentTimestamp={lastIncidentTimestamp}
-              // lastIncidentWebsiteId={lastIncidentWebsiteId} // Not needed for navbar display
-              center={true} // Use compact navbar layout
-              // Remove props not applicable to navbar header
-              // onShowDownWebsites={() => {}} // Removed
-              // showDownWebsites={false} // Removed
-              // onToggleHighlight={undefined} // Removed
-              // isHighlightActive={false} // Removed
+              center={true}
             />
           )}
 
           {/* Right Section: Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: 0, gap: { xs: 0.5, sm: 1 } }}>
-             {/* Alert Dropdown */}
-             <AlertsDropdown options={{ limit: 10 }} pollingInterval={60000} />
+             {/* Alert Dropdown - FIX HERE */}
+             <AlertsDropdown
+                apiFilters={{ limit: 10, status: 'active' }} // Use apiFilters prop name
+                pollingInterval={60000}
+              />
 
              {/* Theme Toggle */}
              <Tooltip title={`Toggle ${mode === 'dark' ? 'light' : 'dark'} mode`}>

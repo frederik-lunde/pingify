@@ -1,12 +1,12 @@
 /* src/components/details/RecentIncidentsList.tsx */
 import { memo } from 'react';
 import {
-    Paper, Box, Typography, Stack, List, Tooltip, ButtonBase, alpha, useTheme, ListItem
+    Paper, Box, Typography, Stack, List, alpha, useTheme, ListItem
 } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Use Grid v2
 import {
     History as HistoryIcon, InfoOutlined as InfoOutlinedIcon,
-    ErrorOutline as ErrorIcon, WarningAmber as SlowIcon, CalendarToday as CalendarTodayIcon, Timer as TimerIcon, AccessTime as DurationIcon
+    ErrorOutline as ErrorIcon, CalendarToday as CalendarTodayIcon, AccessTime as DurationIcon
 } from '@mui/icons-material';
 import { Incident } from '../../types'; // Adjust path
 import IncidentListItem from './IncidentListItem'; // Adjust path
