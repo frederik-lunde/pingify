@@ -43,14 +43,14 @@ export interface Website {
 }
 
 export interface User {
-  id: number;
+  id: string;
   email: string;
   name?: string | null;
 }
 
 export interface WebsiteUser {
   id: number;
-  userId: number;
+  userId: string;
   websiteId: number;
   name: string | null; // User-defined alias
   interval: number | null; // User-specific interval override (seconds)
@@ -79,7 +79,7 @@ export const VALID_ALERT_TYPES: AlertType[] = ["down", "slow"]; // For validatio
 export interface Alert {
   id: number;
   websiteId: number;
-  userId: number; // Direct relation shown in response
+  userId: string; // Direct relation shown in response
   type: AlertType;
   message: string;
   createdAt: string; // ISO 8601 date string
@@ -197,7 +197,7 @@ export interface ResultsQueryOptions {
   from?: Date;
   to?: Date;
   websiteId?: number;
-  userId?: number; // Still useful if filtering results viewable by user
+  userId?: string; // Still useful if filtering results viewable by user
 }
 
 // Simplified Alert Query Options
@@ -206,7 +206,7 @@ export interface AlertQueryOptions {
   type?: AlertType; // Only 'down' or 'slow'
   from?: Date;
   to?: Date;
-  userId?: number;   // Filter by user
+  userId?: string;   // Filter by user
   websiteId?: number;// Filter by website
 }
 
@@ -216,7 +216,7 @@ export interface IncidentQueryOptions {
     type?: IncidentType;
     from?: Date; // Filter by startTime >= from
     to?: Date; // Filter by startTime <= to
-    userId?: number; // Filter by user who monitors the website
+    userId?: string; // Filter by user who monitors the website
     websiteId?: number; // Filter by specific website
     status?: 'open' | 'closed'; // Filter by incident status
 }

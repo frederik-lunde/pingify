@@ -1,13 +1,7 @@
 /*
 * client/src/types.ts
 *
-* - Added Incident and related types.
-* - Updated WebsiteUser to include currentIncident.
-* - Updated WebsiteDetailsData to include currentIncident and recentIncidents.
-* - Removed DownWebsite type.
-* - Updated OverallStats to reflect backend changes (incidentsLast24h source).
-* - Added IncidentQueryOptions.
-* - CORRECTED: Added 'status' to AlertQueryOptions.
+
 */
 // --- SECTION 1: Keep Basic Prisma Type Names if helpful for context, but don't rely on backend structure ---
 // These are just illustrative names now for the concepts
@@ -24,7 +18,7 @@ export type IncidentPrismaConcept = {};
 
 export interface MonitoringResult {
   id: number;
-  websiteId: number;
+  websiteId: number;  
   checkedAt: string; // ISO 8601 date string (from JSON)
   responseTime: number | null; // Milliseconds
   isAvailable: boolean;
@@ -81,7 +75,7 @@ export interface Incident {
 // Represents the user's specific settings for a website
 export interface WebsiteUser {
   id: number;
-  userId: number;
+  userId: string;
   websiteId: number;
   name: string | null; // User-defined alias
   interval: number | null; // User-specific interval override (seconds)
@@ -113,7 +107,7 @@ export const VALID_ALERT_STATUSES: AlertStatus[] = ['active', 'acknowledged', 'r
 export interface Alert {
     id: number;
     websiteId: number;
-    userId: number; // Direct relation shown in response
+    userId: string; // Direct relation shown in response
     type: AlertType;
     status: AlertStatus; // Add status to the Alert type itself if returned by API
     message: string;
@@ -201,7 +195,7 @@ export interface ResultsQueryOptions {
   from?: Date; // Frontend might use Date objects for selection
   to?: Date;
   websiteId?: number;
-  userId?: number; // May not be needed if API infers from auth
+  userId?: string; // May not be needed if API infers from auth
 }
 
 // Simplified Alert Query Options (matching backend API)
@@ -211,7 +205,7 @@ export interface AlertQueryOptions {
   type?: AlertType; // Only 'down' or 'slow'
   from?: Date;      // Use Date objects in frontend state/UI
   to?: Date;
-  userId?: number;  // Optional: Filter user's alerts further (usually not needed)
+  userId?: string;  // Optional: Filter user's alerts further (usually not needed)
   websiteId?: number;// Optional: Filter user's alerts for a specific website
   // --- FIX: Add the missing status property ---
   status?: AlertStatus | string; // Allow defined statuses or any string if API is flexible
@@ -224,7 +218,7 @@ export interface IncidentQueryOptions {
     type?: IncidentType;
     from?: Date; // Use Date objects in frontend state/UI
     to?: Date;
-    userId?: number; // Filter by user (usually implicit from auth)
+    userId?: string; // Filter by user (usually implicit from auth)
     websiteId?: number; // Filter by specific website
     status?: 'open' | 'closed'; // Filter by incident status
 }
