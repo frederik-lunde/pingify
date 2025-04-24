@@ -1,11 +1,13 @@
 /*
-src/hooks/useWebsiteListProcessor.ts (NEW FILE)
+src/hooks/useWebsiteListProcessor.ts
 */
 import { useState, useMemo, useCallback } from 'react';
-import { WebsiteWithResults, SortOption, WebsiteUser } from '../../types'; // Adjust path as needed
+// --- MODIFIED: Remove WebsiteWithResults, use WebsiteUser directly ---
+import { SortOption, WebsiteUser } from '../../types'; // Adjust path as needed
 
 export interface UseWebsiteListProcessorReturn {
-    processedWebsites: WebsiteWithResults[];
+    // --- MODIFIED: Use WebsiteUser[] ---
+    processedWebsites: WebsiteUser[];
     filterTerm: string;
     setFilterTerm: (term: string) => void;
     sortOption: SortOption;
@@ -13,7 +15,8 @@ export interface UseWebsiteListProcessorReturn {
 }
 
 export const useWebsiteListProcessor = (
-    allWebsites: WebsiteWithResults[] = [] // Default to empty array
+    // --- MODIFIED: Use WebsiteUser[] ---
+    allWebsites: WebsiteUser[] = [] // Default to empty array
 ): UseWebsiteListProcessorReturn => {
     const [filterTerm, setFilterTerm] = useState<string>('');
     const [sortOption, setSortOption] = useState<SortOption>('name-asc');
@@ -28,9 +31,10 @@ export const useWebsiteListProcessor = (
 
     const filteredWebsites = useMemo(() => {
         if (!filterTerm) return allWebsites;
+        // --- MODIFIED: Access properties directly from item (which is WebsiteUser) ---
         return allWebsites.filter(item => {
-            const name = item.userWebsite?.name?.toLowerCase() || '';
-            const url = item.userWebsite?.website?.url?.toLowerCase() || '';
+            const name = item.name?.toLowerCase() || ''; // Access name directly
+            const url = item.website?.url?.toLowerCase() || ''; // Access website.url directly
             return name.includes(filterTerm) || url.includes(filterTerm);
         });
     }, [allWebsites, filterTerm]);
@@ -38,6 +42,7 @@ export const useWebsiteListProcessor = (
     const processedWebsites = useMemo(() => {
         const listToSort = [...filteredWebsites];
 
+        // --- MODIFIED: getPrimarySortOrder receives WebsiteUser directly ---
         const getPrimarySortOrder = (wu: WebsiteUser): number => {
             const isPinned = wu.isPinned;
             const incidentType = wu.currentIncident?.type;
@@ -54,9 +59,10 @@ export const useWebsiteListProcessor = (
         };
 
         return listToSort.sort((a, b) => {
-             if (!a?.userWebsite || !b?.userWebsite) return 0; // Should not happen with valid data
-             const wuA = a.userWebsite;
-             const wuB = b.userWebsite;
+             // --- MODIFIED: a and b are WebsiteUser directly ---
+             if (!a || !b) return 0;
+             const wuA = a;
+             const wuB = b;
 
              // Primary Sort: Pinned/Down > Pinned/Slow > Pinned/Up > Down > Slow > Up
              const primaryOrderA = getPrimarySortOrder(wuA);
@@ -66,7 +72,7 @@ export const useWebsiteListProcessor = (
                  return primaryOrderA - primaryOrderB;
              }
 
-             // Secondary Sort (based on user selection)
+             // Secondary Sort (based on user selection) - Logic remains the same
              switch (sortOption) {
                  case 'name-asc': {
                      const nameA = wuA.name ?? wuA.website?.url ?? '';
@@ -79,10 +85,8 @@ export const useWebsiteListProcessor = (
                      return nameB.localeCompare(nameA);
                  }
                  case 'response-asc': {
-                     // Treat unavailable/down as Infinity
                      const respA = wuA.latestResult?.isAvailable ? (wuA.latestResult?.responseTime ?? Infinity) : Infinity;
                      const respB = wuB.latestResult?.isAvailable ? (wuB.latestResult?.responseTime ?? Infinity) : Infinity;
-                     // If both are Infinity, sort by name asc
                      if (respA === Infinity && respB === Infinity) {
                          const nameA = wuA.name ?? wuA.website?.url ?? '';
                          const nameB = wuB.name ?? wuB.website?.url ?? '';
@@ -91,16 +95,14 @@ export const useWebsiteListProcessor = (
                      return respA - respB;
                  }
                  case 'response-desc': {
-                     // Treat unavailable/down as -1 (or lower than any valid time)
                      const respA = wuA.latestResult?.isAvailable ? (wuA.latestResult?.responseTime ?? -1) : -1;
                      const respB = wuB.latestResult?.isAvailable ? (wuB.latestResult?.responseTime ?? -1) : -1;
-                      // If both are -1, sort by name asc
                      if (respA === -1 && respB === -1) {
                          const nameA = wuA.name ?? wuA.website?.url ?? '';
                          const nameB = wuB.name ?? wuB.website?.url ?? '';
                          return nameA.localeCompare(nameB);
                      }
-                     return respB - respA; // Higher response time first
+                     return respB - respA;
                  }
                  default: return 0;
              }
@@ -108,7 +110,7 @@ export const useWebsiteListProcessor = (
     }, [filteredWebsites, sortOption]);
 
     return {
-        processedWebsites,
+        processedWebsites, // This is now WebsiteUser[]
         filterTerm,
         setFilterTerm: handleSetFilterTerm,
         sortOption,

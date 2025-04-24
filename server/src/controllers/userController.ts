@@ -3,80 +3,95 @@ import { Request, Response, NextFunction } from 'express';
 import * as userService from '../services/userService';
 import { UpdateUserData, UpdatePasswordData } from '../services/userService'; // Import interfaces
 
-// Controller to get the current user's profile
+/**
+ * GET /api/users/me - Get the current user's profile.
+ * No input validation needed beyond authentication.
+ */
 export const getMyProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        // Pre-check authentication
         if (!req.user?.id) {
             res.status(401).json({ message: 'Not authenticated' });
             return;
         }
         const user = await userService.findUserById(req.user.id);
-        // Handle service returning null (not found)
         if (!user) {
-            res.status(404).json({ message: 'User not found' });
+            // Should not happen if token is valid, but good practice
+            res.status(404).json({ message: 'User associated with token not found' });
             return;
         }
         res.json({ user });
     } catch (error) {
-        // Pass all errors to middleware
         next(error);
     }
 };
 
-// Controller to update the current user's profile (name, email)
+/**
+ * PATCH /api/users/me - Update the current user's profile (name, email).
+ * Validation handled by middleware.
+ */
 export const updateMyProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        // Pre-check authentication
         if (!req.user?.id) {
             res.status(401).json({ message: 'Not authenticated' });
             return;
         }
         const userId = req.user.id;
 
-        // Input validation
-        const { name, email } = req.body as UpdateUserData;
-        if (!name && !email) { res.status(400).json({ message: 'Name or email must be provided for update.' }); return; }
-        if (email && typeof email !== 'string') { res.status(400).json({ message: 'Invalid email format.' }); return; }
-        if (name && typeof name !== 'string') { res.status(400).json({ message: 'Invalid name format.' }); return; }
+        // Access validated and potentially sanitized body data
+        const updateData = req.body as UpdateUserData;
 
-        const updatedUser = await userService.updateUserProfile(userId, { name, email });
-        // Assuming service throws on conflict or other errors
+        const updatedUser = await userService.updateUserProfile(userId, updateData);
         res.json({ user: updatedUser, message: 'Profile updated successfully.' });
     } catch (error) {
-        // Pass errors like 'Email already in use' or others to middleware
-        next(error);
+        // Handle specific service errors (like email conflict)
+        if (error instanceof Error && error.message.includes('Email already in use')) {
+             res.status(409).json({ message: error.message });
+        } else if (error instanceof Error && error.message.includes('No update data provided')) {
+             res.status(400).json({ message: error.message }); // Should be caught by validator, but good fallback
+        } else {
+             next(error);
+        }
     }
 };
 
-// Controller to update the current user's password
+/**
+ * PATCH /api/users/me/password - Update the current user's password.
+ * Validation handled by middleware.
+ */
 export const updateMyPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        // Pre-check authentication
         if (!req.user?.id) {
             res.status(401).json({ message: 'Not authenticated' });
             return;
         }
         const userId = req.user.id;
 
-        // Input validation
-        const { currentPassword, newPassword } = req.body as UpdatePasswordData;
-        if (!currentPassword || !newPassword) { res.status(400).json({ message: 'Current password and new password are required.' }); return; }
-        if (typeof newPassword !== 'string' || newPassword.length < 6) { res.status(400).json({ message: 'New password must be at least 6 characters long.' }); return; }
+        // Access validated body data
+        const passwordData = req.body as UpdatePasswordData;
 
-        await userService.updateUserPassword(userId, { currentPassword, newPassword });
-        // Assuming service throws on invalid current password or other errors
+        await userService.updateUserPassword(userId, passwordData);
         res.json({ message: 'Password updated successfully.' });
     } catch (error) {
-        // Pass errors like 'Invalid current password' or others to middleware
-        next(error);
+         // Handle specific service errors
+         if (error instanceof Error && error.message.includes('Invalid current password')) {
+             res.status(400).json({ message: error.message });
+         } else if (error instanceof Error && error.message.includes('required')) {
+             res.status(400).json({ message: error.message }); // Should be caught by validator
+         } else if (error instanceof Error && error.message.includes('User not found')) {
+             res.status(404).json({ message: error.message });
+         }
+         else {
+             next(error);
+         }
     }
 };
 
-// Controller to delete the current user's account
+/**
+ * DELETE /api/users/me - Delete the current user's account.
+ * No input validation needed beyond authentication.
+ */
 export const deleteMyAccount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        // Pre-check authentication
         if (!req.user?.id) {
             res.status(401).json({ message: 'Not authenticated' });
             return;
@@ -84,10 +99,16 @@ export const deleteMyAccount = async (req: Request, res: Response, next: NextFun
         const userId = req.user.id;
 
         await userService.deleteUserAccount(userId);
-        // Assuming service throws if user not found
         res.status(204).send(); // Success, no content
     } catch (error) {
-        // Pass errors like 'User not found' or others to middleware
-        next(error);
+         // Handle specific service errors
+         if (error instanceof Error && error.message.includes('not found during deletion')) {
+             // Log the error server-side, but maybe return 404 or 204 to client?
+             // Let's return 404 as the primary resource (user) wasn't found for the action.
+             console.warn(`Attempted to delete non-existent user or related record: ${req.user?.id}`);
+             res.status(404).json({ message: 'User not found or already deleted.' });
+         } else {
+            next(error);
+         }
     }
 };

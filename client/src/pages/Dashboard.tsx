@@ -1,7 +1,7 @@
 // src/pages/Dashboard.tsx
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
-    Container, Box, CircularProgress, Paper, IconButton, Tooltip, Stack, // Removed Button, Alert, Typography imports used only for old error display
+    Container, Box, CircularProgress, Paper, IconButton, Tooltip, Stack,
 } from "@mui/material";
 import TvIcon from '@mui/icons-material/Tv';
 import WebsiteGrid from "../components/dashboard/WebsiteGrid";
@@ -11,7 +11,7 @@ import DashboardSortControl from "../components/dashboard/SortControl";
 import TvModeView from "../components/dashboard/TvModeView";
 import EmptyFilterResults from "../components/dashboard/EmptyFilterResults";
 import NoWebsitesAdded from "../components/dashboard/NoWebsitesAdded";
-import DataFetchError from "../components/common/DataFetchError"; // Import the new error component
+import DataFetchError from "../components/common/DataFetchError";
 import { useWebsiteData } from "../hooks";
 import { useTvMode } from "../context/TvModeContext";
 import { useWebsiteListProcessor } from "../hooks/";
@@ -23,39 +23,42 @@ const Dashboard: React.FC = () => {
     const [showTvExitMessage, setShowTvExitMessage] = useState(false);
 
     const {
-        websitesWithResults: allWebsites,
+        // --- MODIFIED: Destructure using the correct property name ---
+        websiteCards: allWebsites,
         overallStats,
         incidentsLast24h,
         lastIncidentTimestamp,
         lastIncidentWebsiteId,
         isLoading: isLoadingData,
         isFetching,
-        error: dataError, // The error object from the hook
+        error: dataError,
         refetch,
         totalWebsitesCount,
         upWebsitesCount,
     } = useWebsiteData(
-        'week',
-        60000
+        'week', // Default stats period
+        60000 // Refetch interval (e.g., 1 minute)
     );
 
+    // useWebsiteListProcessor expects WebsiteUser[] which `allWebsites` now correctly is
     const {
         processedWebsites,
         filterTerm,
         setFilterTerm,
         sortOption,
         setSortOption,
-    } = useWebsiteListProcessor(allWebsites);
+    } = useWebsiteListProcessor(allWebsites); // Pass the correctly named variable
 
     const handleFilterChangeInternal = useCallback((term: string) => {
         setFilterTerm(term);
-        if (term) setIsHighlightActive(false);
+        if (term) setIsHighlightActive(false); // Disable highlight when filtering
     }, [setFilterTerm]);
 
     const handleToggleHighlight = useCallback(() => {
         const shouldActivate = !isHighlightActive;
         setIsHighlightActive(shouldActivate);
         if (shouldActivate && lastIncidentWebsiteId) {
+            // Scroll to highlighted card after a short delay
             setTimeout(() => {
                 const element = document.getElementById(`website-card-grid-${lastIncidentWebsiteId}`);
                 element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -63,47 +66,47 @@ const Dashboard: React.FC = () => {
         }
     }, [isHighlightActive, lastIncidentWebsiteId]);
 
+    // Effect to disable highlight when incident changes or filter is applied
     useEffect(() => {
         setIsHighlightActive(false);
     }, [lastIncidentWebsiteId, filterTerm]);
 
+    // Effect for TV Mode exit handling
     useEffect(() => {
         const handleExitTvMode = () => {
             if (isTvMode) toggleTvMode();
         };
-        // ... (rest of the effect remains the same) ...
         if (isTvMode) {
             setShowTvExitMessage(true);
             const timer = setTimeout(() => setShowTvExitMessage(false), 5000);
+            // Add event listeners
             document.addEventListener('keydown', handleExitTvMode);
             document.addEventListener('mousedown', handleExitTvMode);
+            // Cleanup function
             return () => {
                 clearTimeout(timer);
                 document.removeEventListener('keydown', handleExitTvMode);
                 document.removeEventListener('mousedown', handleExitTvMode);
-                setShowTvExitMessage(false);
+                setShowTvExitMessage(false); // Hide message on exit
             };
         } else {
-            setShowTvExitMessage(false);
+            setShowTvExitMessage(false); // Ensure message is hidden if not in TV mode
         }
     }, [isTvMode, toggleTvMode]);
 
     const headerUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
 
-    const showLoadingSkeleton = isLoadingData && processedWebsites.length === 0 && !dataError; // Don't show skeleton if error
+    const showLoadingSkeleton = isLoadingData && processedWebsites.length === 0 && !dataError;
     const isListEmpty = !isLoadingData && processedWebsites.length === 0;
     const isEmptyDueToFilter = isListEmpty && !!filterTerm && allWebsites.length > 0;
-    const isEmptyBecauseNoWebsites = isListEmpty && !filterTerm && !dataError; // Ensure no error
+    const isEmptyBecauseNoWebsites = isListEmpty && !filterTerm && !dataError;
 
     // --- Initial Loading State ---
-    // Display loading spinner ONLY if loading and there's NO error yet.
     if (isLoadingData && !dataError && !overallStats && allWebsites.length === 0) {
         return <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress data-testid="dashboard-initial-loading" /></Box>;
     }
 
     // --- CRITICAL ERROR STATE ---
-    // If there's an error, display the DataFetchError component immediately.
-    // This handles both initial load errors and errors during refetching.
     if (dataError) {
         return (
             <DataFetchError
@@ -115,31 +118,28 @@ const Dashboard: React.FC = () => {
     }
 
     // --- TV Mode Render ---
-    // No error handling needed here anymore, as it's caught above.
     if (isTvMode) {
         return (
             <TvModeView
-                websites={processedWebsites}
-                isLoading={showLoadingSkeleton} // Pass skeleton loading state
+                // --- MODIFIED: Pass correct prop name ---
+                websiteCards={processedWebsites}
+                isLoading={showLoadingSkeleton}
                 lastIncidentWebsiteId={lastIncidentWebsiteId}
                 isHighlightActive={isHighlightActive}
                 isFetching={isFetching}
                 isEmptyDueToFilter={isEmptyDueToFilter}
                 isEmptyBecauseNoWebsites={isEmptyBecauseNoWebsites}
                 showTvExitMessage={showTvExitMessage}
-                // errorMessage prop is removed as errors are handled globally now
             />
         );
     }
 
-    // --- Standard Dashboard Render (only if no error and not initial loading) ---
+    // --- Standard Dashboard Render ---
     return (
         <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 3 }, mt: 2, mb: 4 }}>
-            {/* Stats Header - Removed error prop */}
             <Paper elevation={1} sx={{ mb: 2 }}>
                 <StatsHeader
-                    isLoading={isLoadingData && !overallStats} // Show loading if stats specifically are loading
-                    // error prop removed
+                    isLoading={isLoadingData && !overallStats}
                     upCount={upWebsitesCount}
                     totalCount={totalWebsitesCount}
                     uptime={headerUptime}
@@ -152,7 +152,6 @@ const Dashboard: React.FC = () => {
                 />
             </Paper>
 
-            {/* Control Bar - Remains the same */}
             <Stack
                 direction={{ xs: 'column', sm: 'row' }}
                 spacing={1}
@@ -176,12 +175,10 @@ const Dashboard: React.FC = () => {
                 />
             </Stack>
 
-            {/* Partial Data Error Alert REMOVED */}
-
-            {/* Website Grid */}
             <WebsiteGrid
-                websitesWithResults={processedWebsites}
-                isLoading={showLoadingSkeleton} // Pass skeleton loading state
+                // --- MODIFIED: Pass correct prop name ---
+                websiteCards={processedWebsites}
+                isLoading={showLoadingSkeleton}
                 lastIncidentWebsiteId={lastIncidentWebsiteId}
                 isHighlightActive={isHighlightActive}
                 isTvMode={false}

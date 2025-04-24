@@ -3,75 +3,62 @@ import { useMemo, useCallback } from "react";
 
 import {
     ApiError,
-    WebsiteWithResults, // Keep this type
-    WebsiteDataSummary // Keep this type
+    WebsiteDataSummary, // Import the newly defined type
+    WebsiteUser // Import WebsiteUser if not already implicitly available
 } from "../../types"; // Adjust path if needed
 import { useUserWebsitesQuery } from "../api/useWebsites"; // Assuming correct path
 import { useUserStatsQuery } from "../api/useMonitoring"; // Assuming correct path
-// No need to import incident count hook here, it's part of OverallStats now
 
 /**
- * Custom hook to fetch and combine website list (now including results/chart data/incident) and overall stats.
- * UPDATED: Simplifies calculations, relies more on backend data.
+ * Custom hook to fetch and combine website list and overall stats.
  */
 export function useWebsiteData(
-    statsPeriod: string = 'week', // Period for overall stats (e.g., 'day', 'week', 'month')
-    refetchInterval?: number | false // Optional auto-refetch interval in ms
-): WebsiteDataSummary {
+    statsPeriod: string = 'week',
+    refetchInterval?: number | false
+): WebsiteDataSummary { // Use the defined return type
 
     const queryOptions = useMemo(() => ({
         refetchInterval,
-        staleTime: refetchInterval ? refetchInterval / 2 : 5 * 60 * 1000, // 5 minutes default stale time
-        gcTime: 1000 * 60 * 15, // 15 minutes GC time
+        staleTime: refetchInterval ? refetchInterval / 2 : 5 * 60 * 1000,
+        gcTime: 1000 * 60 * 15,
     }), [refetchInterval]);
 
-    // --- TanStack Queries ---
-    // Fetches WebsiteUser[] which now includes latestResult, chartData, currentIncident, etc.
     const websitesQuery = useUserWebsitesQuery(queryOptions);
-    // Fetches OverallStats which now includes incident counts/timestamps from backend
     const statsQuery = useUserStatsQuery(statsPeriod, queryOptions);
 
-    // --- Loading and Error States ---
     const isLoading = websitesQuery.isPending || (statsQuery.isPending && !statsQuery.data);
     const isFetching = websitesQuery.isFetching || statsQuery.isFetching;
     const errors: (ApiError | null)[] = [websitesQuery.error, statsQuery.error];
     const combinedError = errors.find(e => e !== null) ?? null;
 
     // --- Process and Combine Data ---
-    // The backend service `getWebsitesForUser` now includes all necessary data within each WebsiteUser object.
-    const processedWebsitesWithResults = useMemo((): WebsiteWithResults[] => {
+    // --- MODIFIED: Rename and simplify ---
+    const websiteCards = useMemo((): WebsiteUser[] => { // Type is now WebsiteUser[]
         if (!websitesQuery.isSuccess || !websitesQuery.data) {
             return [];
         }
-        // Map directly, as the backend provides the enriched WebsiteUser object
-        return websitesQuery.data.map(userWebsite => ({
-             userWebsite
-        }));
+        // The data from useUserWebsitesQuery is already WebsiteUser[]
+        return websitesQuery.data;
     }, [websitesQuery.isSuccess, websitesQuery.data]);
 
 
-    // --- Calculate Aggregate Counts (Based on current state from website list) ---
+    // --- Calculate Aggregate Counts ---
     const { totalWebsitesCount, upWebsitesCount } = useMemo(() => {
-        const total = processedWebsitesWithResults.length;
-        // Determine "up" status: No current incident OR latest result is available (if no incident info)
-        const up = processedWebsitesWithResults.reduce((count, item) => {
-            const isDownIncident = item.userWebsite.currentIncident?.type === 'down';
-            // If there's a down incident, it's down. Otherwise, rely on latestResult.
+        // --- MODIFIED: Use websiteCards ---
+        const total = websiteCards.length;
+        const up = websiteCards.reduce((count, item) => {
+            // Logic remains the same, operates directly on WebsiteUser item
+            const isDownIncident = item.currentIncident?.type === 'down';
             if (!isDownIncident) {
                 return count + 1;
             }
-            // Consider explicitly checking latestResult as a fallback if needed:
-            // const isAvailable = item.userWebsite.latestResult?.isAvailable ?? false;
-            // if (!isDownIncident && isAvailable) { return count + 1; }
-
             return count;
         }, 0);
         return { totalWebsitesCount: total, upWebsitesCount: up };
-    }, [processedWebsitesWithResults]);
+    }, [websiteCards]); // Depend on websiteCards
 
 
     // --- Extract Specific Data from Overall Stats Query ---
-    // These values now come directly from the backend's calculation via OverallStats
     const { incidentsLast24h, lastIncidentTimestamp, lastIncidentWebsiteId } = useMemo(() => {
         const stats = statsQuery.data;
         return {
@@ -84,7 +71,6 @@ export function useWebsiteData(
     // --- Refetch Function ---
     const refetch = useCallback(async () => {
         console.log('[useWebsiteData] Triggering refetch for dashboard queries...');
-        // Refetch both queries concurrently
         const results = await Promise.allSettled([
             websitesQuery.refetch(),
             statsQuery.refetch(),
@@ -99,9 +85,10 @@ export function useWebsiteData(
 
 
     // --- Return Value ---
-    // Return type matches WebsiteDataSummary
+    // Structure matches WebsiteDataSummary
     return {
-        websitesWithResults: processedWebsitesWithResults,
+        // --- MODIFIED: Use websiteCards ---
+        websiteCards: websiteCards,
         overallStats: statsQuery.data ?? null,
         isLoading,
         isFetching,
@@ -109,7 +96,6 @@ export function useWebsiteData(
         refetch,
         totalWebsitesCount,
         upWebsitesCount,
-        // Pass through the values derived from overallStats
         incidentsLast24h,
         lastIncidentTimestamp,
         lastIncidentWebsiteId,

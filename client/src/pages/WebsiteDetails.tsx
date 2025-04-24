@@ -8,7 +8,8 @@ import Grid from '@mui/material/Grid2';
 import { keepPreviousData } from '@tanstack/react-query';
 
 import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks'; // Corrected path if needed
-import { TimeframeKey, ApiError } from '../types';
+// --- MODIFIED: Import MonitoringResultSortBy ---
+import { TimeframeKey, ApiError, MonitoringResultSortBy } from '../types';
 import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader';
 import RecentChecksList from '../components/details/RecentCheckList';
 import RecentIncidentsList from '../components/details/RecentIncidentsList';
@@ -18,7 +19,9 @@ import DataFetchError from '../components/common/DataFetchError'; // Import the 
 
 const LazyWebsiteCharts = React.lazy(() => import('../components/details/WebsiteCharts'));
 
-export type SortableColumn = 'isAvailable' | 'timestamp' | 'statusCode' | 'responseTime';
+// --- MODIFIED: Use MonitoringResultSortBy for API compatibility ---
+// Note: 'id' is valid for sorting but might not be useful in the UI here. Add if needed.
+export type SortableColumn = Extract<MonitoringResultSortBy, 'checkedAt' | 'isAvailable' | 'statusCode' | 'responseTime'>;
 export type SortDirection = 'asc' | 'desc';
 
 const PageSkeleton = () => ( /* Skeleton remains the same */
@@ -65,7 +68,8 @@ const WebsiteDetails: React.FC = () => {
 
     const [timeframeKey, setTimeframeKey] = useState<TimeframeKey>('day');
     const [checkLimit, setCheckLimit] = useState<number>(25);
-    const [sortBy, setSortBy] = useState<SortableColumn>('timestamp');
+    // --- MODIFIED: Initialize sortBy with 'checkedAt' ---
+    const [sortBy, setSortBy] = useState<SortableColumn>('checkedAt');
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
     const {
@@ -78,14 +82,14 @@ const WebsiteDetails: React.FC = () => {
         websiteId: numericWebsiteId!,
         timeframe: timeframeKey,
         limit: checkLimit,
-        sortBy: sortBy,
+        sortBy: sortBy, // Now sends 'checkedAt' (or other valid values)
         sortDir: sortDir,
-        incidentLimit: 15,
+        incidentLimit: 15, // How many recent incidents to fetch
     }, {
         enabled: !!numericWebsiteId,
-        staleTime: 60 * 1000,
-        refetchOnWindowFocus: true,
-        placeholderData: keepPreviousData,
+        staleTime: 60 * 1000, // Don't refetch automatically for 1 minute unless invalidated
+        refetchOnWindowFocus: true, // Refetch when window regains focus
+        placeholderData: keepPreviousData, // Keep showing old data while fetching new
     });
 
     const { mutate: checkWebsite, isPending: isChecking } = useWebsiteCheckMutation();
@@ -99,6 +103,7 @@ const WebsiteDetails: React.FC = () => {
         if (!isNaN(newLimit) && newLimit > 0) { setCheckLimit(newLimit); }
     }, []);
 
+    // This function should receive the correct SortableColumn type ('checkedAt', etc.)
     const handleSort = useCallback((column: SortableColumn) => {
         setSortDir(currentDir => (column === sortBy && currentDir === 'desc' ? 'asc' : 'desc'));
         setSortBy(column);
@@ -213,11 +218,11 @@ const WebsiteDetails: React.FC = () => {
             <RecentChecksList
                 recentChecks={recentChecks}
                 checkLimit={checkLimit}
-                sortBy={sortBy}
+                sortBy={sortBy} // Pass the correct state value ('checkedAt', etc.)
                 sortDir={sortDir}
                 isLoading={isProcessingData} // Indicate loading if refetching/checking
                 onCheckLimitChange={handleCheckLimitChange}
-                onSort={handleSort}
+                onSort={handleSort} // Ensure this receives the correct SortableColumn type
             />
         </Container>
     );

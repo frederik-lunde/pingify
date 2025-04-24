@@ -13,11 +13,14 @@ import { useAuth } from '../../context/AuthContext'; // Adjust path if needed
 export const incidentQueryKeys = {
     all: ['incidents'] as const,
     lists: () => [...incidentQueryKeys.all, 'list'] as const,
-    list: (options: IncidentQueryOptions = {}, userId: number | undefined) =>
+    // --- MODIFIED: userId type changed to string | undefined ---
+    list: (options: IncidentQueryOptions = {}, userId: string | undefined) =>
         [...incidentQueryKeys.lists(), 'user', userId, options] as const,
-    website: (websiteId: number | undefined, options: IncidentQueryOptions = {}, userId: number | undefined) =>
+    // --- MODIFIED: userId type changed to string | undefined ---
+    website: (websiteId: number | undefined, options: IncidentQueryOptions = {}, userId: string | undefined) =>
         [...incidentQueryKeys.all, 'website', websiteId, userId, options] as const,
-    countLast24h: (userId: number | undefined) =>
+    // --- MODIFIED: userId type changed to string | undefined ---
+    countLast24h: (userId: string | undefined) =>
         [...incidentQueryKeys.all, 'count', 'last24h', userId] as const,
 };
 
@@ -41,40 +44,28 @@ export function useUserIncidentsQuery(
     hookOptions?: CustomQueryOptions<Incident[]>
 ) {
     const { user } = useAuth();
-    const userId = user?.id;
+    const userId = user?.id; // This is string | undefined
+    // --- Now correctly passes string | undefined ---
     const queryKey = incidentQueryKeys.list(apiOptions, userId);
 
-    // Calculate enabled state explicitly
     const isQueryEnabled = hookOptions?.enabled === undefined ? !!userId : hookOptions.enabled;
-
-    // Log userId and calculated enabled state
     console.log(`[useUserIncidentsQuery] Hook called. userId: ${userId}, calculated enabled state: ${isQueryEnabled}`);
 
     return useQuery<Incident[], ApiError>({
         queryKey: queryKey,
         queryFn: () => {
-            // This check prevents the API call if userId isn't available yet,
-            // matching the 'enabled' logic behavior.
             if (!userId) {
                 console.warn('[useUserIncidentsQuery] Query function called but userId is missing. Returning empty array.');
                 return Promise.resolve([]);
             }
-
-            // Log just before making the API call
             console.log(`[useUserIncidentsQuery] queryFn executing: Firing API call for user ${userId} with options:`, JSON.stringify(apiOptions));
-
             return fetchUserIncidents(apiOptions);
         },
-        // Use the calculated enabled state
         enabled: isQueryEnabled,
-        // Keep other options
         refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME,
         gcTime: hookOptions?.gcTime ?? DEFAULT_LIST_GC_TIME,
-        // --- REMOVED initialData to ensure immediate fetch on enable ---
-        // initialData: [],
-        // ---
-        ...hookOptions, // Spread any other passed hook options
+        ...hookOptions,
     });
 }
 
@@ -87,20 +78,17 @@ export function useWebsiteIncidentsQuery(
     hookOptions?: CustomQueryOptions<Incident[]>
 ) {
     const { user } = useAuth();
-    const userId = user?.id; // Needed for query key uniqueness per user
+    const userId = user?.id; // This is string | undefined
+    // --- Now correctly passes string | undefined ---
     const queryKey = incidentQueryKeys.website(websiteId, apiOptions, userId);
 
-    // Calculate enabled state
     const isQueryEnabled = (hookOptions?.enabled === undefined ? true : hookOptions.enabled)
                            && !!userId && typeof websiteId === 'number' && websiteId > 0;
-
     console.log(`[useWebsiteIncidentsQuery] Hook called. websiteId: ${websiteId}, userId: ${userId}, calculated enabled state: ${isQueryEnabled}`);
-
 
     return useQuery<Incident[], ApiError>({
         queryKey: queryKey,
         queryFn: () => {
-            // Should not happen if enabled logic is correct, but good safeguard
             if (!websiteId) {
                  console.warn('[useWebsiteIncidentsQuery] Query function called but websiteId is missing. Returning empty array.');
                  return Promise.resolve([]);
@@ -112,9 +100,6 @@ export function useWebsiteIncidentsQuery(
         refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME,
         gcTime: hookOptions?.gcTime ?? DEFAULT_LIST_GC_TIME,
-        // --- REMOVED initialData to ensure immediate fetch on enable ---
-        // initialData: [],
-        // ---
         ...hookOptions,
     });
 }
@@ -126,7 +111,8 @@ export function useUserIncidentCountLast24hQuery(
     hookOptions?: CustomQueryOptions<IncidentCountResponse>
 ) {
     const { user } = useAuth();
-    const userId = user?.id;
+    const userId = user?.id; // This is string | undefined
+    // --- Now correctly passes string | undefined ---
     const queryKey = incidentQueryKeys.countLast24h(userId);
 
     const isQueryEnabled = hookOptions?.enabled === undefined ? !!userId : hookOptions.enabled;
@@ -146,7 +132,6 @@ export function useUserIncidentCountLast24hQuery(
         refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_COUNT_STALE_TIME,
         gcTime: hookOptions?.gcTime ?? DEFAULT_COUNT_GC_TIME,
-        // Keep initialData for the count query, it's less problematic here
         initialData: () => ({ incidentCount: 0 }),
         ...hookOptions,
     });

@@ -4,35 +4,37 @@ src/components/dashboard/WebsiteGrid.tsx
 import React from "react";
 import Grid from "@mui/material/Grid2";
 import WebsiteCard from "./WebsiteCard";
-import { WebsiteUser, WebsiteWithResults } from "../../types";
+// --- MODIFIED: Remove WebsiteWithResults ---
+import { WebsiteUser } from "../../types";
 
 interface WebsiteGridProps {
-  websitesWithResults: WebsiteWithResults[];
+  // --- MODIFIED: Changed prop name and type ---
+  websiteCards: WebsiteUser[];
   lastIncidentWebsiteId?: number | null | undefined;
   isHighlightActive?: boolean;
   isLoading?: boolean;
-  // Add isTvMode prop
   isTvMode: boolean;
 }
 
 const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
   ({
-      websitesWithResults,
+      // --- MODIFIED: Use websiteCards ---
+      websiteCards,
       lastIncidentWebsiteId,
       isHighlightActive = false,
       isLoading = false,
-      // Receive isTvMode prop
       isTvMode,
   }) => {
 
     const gridItemSize = { xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 };
 
     const renderSkeletonCards = (count = 10) => {
+       // Skeleton generation logic remains the same
        const dummyWebsiteUser: WebsiteUser = {
-          id: -1, userId: -1, websiteId: -1, name: 'Loading website...',
+          id: -1, userId: "-1", websiteId: -1, name: 'Loading website...', // userId as string
           interval: 300, alertEnabled: false, alertThreshold: null,
           notifyEmail: null, createdAt: new Date().toISOString(), isPinned: false,
-          latestResult: null, chartData: [], uptimePercent: 100,
+          latestResult: null, chartData: [], uptimePercent: 100, currentIncident: null, // Added currentIncident
           website: {
             id: -1, url: 'http://loading.com', isActive: true, lastChecked: null,
             globalInterval: 300, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -43,7 +45,6 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
           <WebsiteCard
               userWebsite={dummyWebsiteUser}
               shouldHighlightThisCard={false}
-              // Pass default false for skeletons
               isTvMode={false}
           />
         </Grid>
@@ -52,33 +53,39 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
 
 
     // --- Render Logic ---
-    if (isLoading && websitesWithResults.length === 0) {
+    // --- MODIFIED: Check websiteCards.length ---
+    if (isLoading && websiteCards.length === 0) {
       return <Grid container spacing={2} sx={{ pt: 2 }}>{renderSkeletonCards()}</Grid>;
     }
 
-    if (!isLoading && websitesWithResults.length === 0) {
-        return null;
+    // --- MODIFIED: Check websiteCards.length ---
+    if (!isLoading && websiteCards.length === 0) {
+        return null; // Or render an empty state component if preferred
     }
 
     return (
       <Grid container spacing={2} sx={{ pt: 2 }}>
-        {websitesWithResults.map((item) => {
-           if (!item?.userWebsite) {
-               console.warn("[WebsiteGrid] Skipping item due to missing userWebsite:", item);
+        {/* --- MODIFIED: Map over websiteCards --- */}
+        {websiteCards.map((item) => {
+           // --- MODIFIED: Item is WebsiteUser directly ---
+           if (!item) { // Simpler check if item exists
+               console.warn("[WebsiteGrid] Skipping potentially invalid item:", item);
                return null;
            }
-           const shouldHighlight = isHighlightActive && item.userWebsite.websiteId === lastIncidentWebsiteId;
+           // Access websiteId directly from item
+           const shouldHighlight = isHighlightActive && item.websiteId === lastIncidentWebsiteId;
 
            return (
               <Grid
-                key={`website-${item.userWebsite.websiteId}`}
-                id={`website-card-grid-${item.userWebsite.websiteId}`}
+                // Use item.websiteId for key and id
+                key={`website-${item.websiteId}`}
+                id={`website-card-grid-${item.websiteId}`}
                 size={gridItemSize}
               >
                 <WebsiteCard
-                  userWebsite={item.userWebsite}
+                  // Pass item directly as userWebsite prop
+                  userWebsite={item}
                   shouldHighlightThisCard={shouldHighlight}
-                  // Pass isTvMode down to each card
                   isTvMode={isTvMode}
                 />
               </Grid>
