@@ -16,9 +16,8 @@ const MainLayout: React.FC = () => {
     return (
         <>
             {showNavbar && <Navbar />}
-            {/* Add padding top to main content if navbar is shown to prevent overlap */}
             <Box component="main" sx={{ pt: showNavbar ? { xs: 3, sm: 2 } : 0, flexGrow: 1 }}>
-                <Outlet /> {/* Nested routes will render here */}
+                <Outlet />
             </Box>
         </>
     );

@@ -87,7 +87,6 @@ const WebsiteSettings: React.FC = () => {
         isUpdating,
         isRemoving,
         errorUpdating,
-        // errorRemoving is handled via deleteError state in the dialog
     } = useWebsiteMutations();
 
     const isMutating = isUpdating || isRemoving;
@@ -171,7 +170,7 @@ const WebsiteSettings: React.FC = () => {
         navigate(numericWebsiteId ? `/website/${numericWebsiteId}` : '/');
     }, [navigate, numericWebsiteId]);
 
-    const handleNotificationClose = useCallback((reason?: string) => { // Added event param
+    const handleNotificationClose = useCallback((reason?: string) => {
         if (reason === 'clickaway') return;
         setNotification((prev) => ({ ...prev, open: false }));
     }, []);
@@ -251,11 +250,9 @@ const WebsiteSettings: React.FC = () => {
             <Formik initialValues={initialValues} validationSchema={WebsiteSettingsSchema} onSubmit={handleSubmit} enableReinitialize>
                 {({ errors, touched, values, status, dirty, isValid }) => (
                     <Form noValidate>
-                        {/* Form-level errors (e.g., from failed update) */}
                         {status?.error && <Alert severity="error" sx={{ mb: 3 }}>{status.error}</Alert>}
                         {errorUpdating && !status?.error && <Alert severity="error" sx={{ mb: 3 }}>Update failed: {(errorUpdating as ApiError).message || 'Unknown error'}</Alert>}
 
-                        {/* General Settings Paper */}
                         <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}>
                             <Typography variant="h6" gutterBottom>General Settings</Typography>
                             <Divider sx={{ mb: 3 }} />

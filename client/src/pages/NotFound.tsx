@@ -1,8 +1,8 @@
 // src/pages/NotFoundPage.tsx
 import React from 'react';
 import { Container, Typography, Button, Box } from '@mui/material';
-import { Link as RouterLink } from 'react-router';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'; // Or another suitable icon
+import { Link } from 'react-router';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 
 const NotFoundPage: React.FC = () => {
     return (
@@ -18,8 +18,8 @@ const NotFoundPage: React.FC = () => {
             </Typography>
             <Button
                 variant="contained"
-                component={RouterLink}
-                to="/" // Link to the dashboard or home page
+                component={Link}
+                to="/" 
             >
                 Go to Dashboard
             </Button>

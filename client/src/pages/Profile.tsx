@@ -9,13 +9,12 @@ import {
     TextField,
     Button, // Use standard Button
     Paper,
-    Grid,
     Divider,
     CircularProgress,
     Alert,
     Snackbar,
 } from '@mui/material';
-// Removed: import { LoadingButton } from '@mui/lab';
+import Grid from '@mui/material/Grid2'; // Import Grid2
 import { useAuth } from '../context/AuthContext';
 import {
     useUpdateUserProfileMutation,
@@ -83,7 +82,7 @@ const ProfilePage: React.FC = () => {
         initialValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
         validationSchema: passwordSchema,
         onSubmit: (values, { setSubmitting, resetForm }) => {
-            const { confirmPassword, ...payload } = values;
+            const { confirmPassword, ...payload } = values; // eslint-disable-line @typescript-eslint/no-unused-vars
             updateUserPassword.mutate(payload, {
                 onSuccess: (res) => {
                     showSnackbar(res.message || 'Password updated successfully!', 'success');
@@ -121,6 +120,9 @@ const ProfilePage: React.FC = () => {
                 showSnackbar(error.message || 'Failed to delete account.', 'error');
                 setDeleteConfirmOpen(false);
             },
+            // Note: onSuccess will likely log the user out via AuthContext changes,
+            // so redirection might happen implicitly or need handling there.
+            // onSettled might still be useful if you need cleanup regardless of outcome.
         });
     };
 
@@ -153,13 +155,16 @@ const ProfilePage: React.FC = () => {
             <Paper sx={{ p: 3, mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Account Information</Typography>
                 <Box component="form" onSubmit={profileFormik.handleSubmit} noValidate sx={{ mt: 1 }}>
+                    {/* Grid container with spacing */}
                     <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6}>
+                        {/* Grid item - Name field */}
+                        {/* Removed 'item' prop, using 'size' prop for responsiveness */}
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField
                                 fullWidth
                                 id="name"
                                 name="name"
-                                label="Full Name"
+                                label="Display Name"
                                 value={profileFormik.values.name}
                                 onChange={profileFormik.handleChange}
                                 onBlur={profileFormik.handleBlur}
@@ -169,7 +174,9 @@ const ProfilePage: React.FC = () => {
                                 required
                             />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        {/* Grid item - Email field */}
+                        {/* Removed 'item' prop, using 'size' prop for responsiveness */}
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField
                                 fullWidth
                                 id="email"
@@ -185,19 +192,19 @@ const ProfilePage: React.FC = () => {
                                 required
                             />
                         </Grid>
-                        <Grid item xs={12}>
+                        {/* Grid item - Submit button area */}
+                         {/* Removed 'item' prop, using 'size' prop for full width */}
+                        <Grid size={12}>
                             {updateUserProfile.error && (
                                 <Alert severity="error" sx={{ mb: 2 }}>{updateUserProfile.error.message}</Alert>
                             )}
-                            {/* Use standard Button */}
                             <Button
                                 type="submit"
                                 variant="contained"
-                                // Disable based on form state
                                 disabled={!profileFormik.dirty || profileFormik.isSubmitting}
                                 sx={{ mt: 2 }}
                             >
-                                {profileFormik.isSubmitting ? 'Saving...' : 'Save Changes'} {/* Optional: Change text */}
+                                {profileFormik.isSubmitting ? <CircularProgress size={24} /> : 'Save Changes'}
                             </Button>
                         </Grid>
                     </Grid>
@@ -210,8 +217,11 @@ const ProfilePage: React.FC = () => {
             <Paper sx={{ p: 3, mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Change Password</Typography>
                 <Box component="form" onSubmit={passwordFormik.handleSubmit} noValidate sx={{ mt: 1 }}>
+                     {/* Grid container with spacing */}
                     <Grid container spacing={2}>
-                         <Grid item xs={12}>
+                         {/* Grid item - Current Password field */}
+                         {/* Removed 'item' prop, using 'size' prop for full width */}
+                         <Grid size={12}>
                               <TextField
                                 fullWidth
                                 id="currentPassword"
@@ -227,7 +237,9 @@ const ProfilePage: React.FC = () => {
                                 required
                             />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                         {/* Grid item - New Password field */}
+                         {/* Removed 'item' prop, using 'size' prop for responsiveness */}
+                        <Grid size={{ xs: 12, sm: 6 }}>
                              <TextField
                                 fullWidth
                                 id="newPassword"
@@ -243,7 +255,9 @@ const ProfilePage: React.FC = () => {
                                 required
                             />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                         {/* Grid item - Confirm Password field */}
+                         {/* Removed 'item' prop, using 'size' prop for responsiveness */}
+                        <Grid size={{ xs: 12, sm: 6 }}>
                              <TextField
                                 fullWidth
                                 id="confirmPassword"
@@ -259,19 +273,19 @@ const ProfilePage: React.FC = () => {
                                 required
                             />
                         </Grid>
-                        <Grid item xs={12}>
+                         {/* Grid item - Submit button area */}
+                         {/* Removed 'item' prop, using 'size' prop for full width */}
+                        <Grid size={12}>
                              {updateUserPassword.error && (
                                 <Alert severity="error" sx={{ mb: 2 }}>{updateUserPassword.error.message}</Alert>
                             )}
-                             {/* Use standard Button */}
                             <Button
                                 type="submit"
                                 variant="contained"
-                                // Disable based on form state
                                 disabled={!passwordFormik.dirty || passwordFormik.isSubmitting}
                                 sx={{ mt: 2 }}
                             >
-                                {passwordFormik.isSubmitting ? 'Updating...' : 'Update Password'} {/* Optional: Change text */}
+                                {passwordFormik.isSubmitting ? <CircularProgress size={24} /> : 'Update Password'}
                             </Button>
                         </Grid>
                     </Grid>
@@ -281,7 +295,7 @@ const ProfilePage: React.FC = () => {
             <Divider sx={{ my: 4 }} />
 
              {/* Delete Account Section */}
-             <Paper sx={{ p: 3, backgroundColor: (theme) => theme.palette.error.light + '33' }}>
+             <Paper sx={{ p: 3, backgroundColor: (theme) => theme.palette.error.light + '33' /* Example lighter red */ }}>
                 <Typography variant="h6" gutterBottom color="error">Danger Zone</Typography>
                 <Typography variant="body2" sx={{ mb: 2 }}>
                     Deleting your account is permanent and cannot be undone. All your associated data (websites, incidents, etc.) will be removed.
@@ -289,15 +303,17 @@ const ProfilePage: React.FC = () => {
                  {deleteUserAccount.error && (
                     <Alert severity="error" sx={{ mb: 2 }}>{deleteUserAccount.error.message}</Alert>
                 )}
-                {/* Standard button for delete action */}
                 <Button
                     variant="contained"
                     color="error"
                     onClick={handleDeleteAccount}
-                    // Disable button if delete mutation is pending (dialog is open and confirming)
                     disabled={deleteUserAccount.isPending}
+                    sx={{ '&.Mui-disabled': { // Optional: style disabled state if needed
+                        backgroundColor: 'error.light',
+                        cursor: 'not-allowed',
+                     } }}
                 >
-                    Delete My Account
+                     {deleteUserAccount.isPending ? <CircularProgress size={24} color="inherit" /> : 'Delete My Account'}
                 </Button>
             </Paper>
 
@@ -310,8 +326,7 @@ const ProfilePage: React.FC = () => {
                 description={<>Are you absolutely sure you want to delete your account? This action is <strong style={{ color: 'red' }}>irreversible</strong>.</>}
                 confirmText="Delete Account"
                 cancelText="Cancel"
-                // Pass loading state to the dialog's confirm button
-                isLoading={deleteUserAccount.isPending}
+                isLoading={deleteUserAccount.isPending} // Pass loading state
             />
 
             {/* Snackbar for Feedback */}
@@ -321,7 +336,7 @@ const ProfilePage: React.FC = () => {
                 onClose={handleSnackbarClose}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
-                <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+                <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }} variant="filled">
                     {snackbarMessage}
                 </Alert>
             </Snackbar>

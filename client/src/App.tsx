@@ -31,7 +31,6 @@ function AppRoutes() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
-            {/* Routes requiring auth and using the MainLayout (with Navbar) */}
             <Route
                 element={
                     <ProtectedRoute>
@@ -45,10 +44,8 @@ function AppRoutes() {
                 <Route path="/add-website" element={<AddWebsite />} />
                 <Route path="/incidents" element={<IncidentsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
-                {/* Add other protected routes needing the navbar here */}
             </Route>
 
-            {/* Fallback 404 route - No Navbar */}
             <Route path="*" element={<NotFoundPage />} />
         </Routes>
     );
@@ -61,11 +58,10 @@ function App() {
             <CssBaseline />
             <AuthProvider>
                 <TvModeProvider>
-                    {/* AppRoutes now handles the routing logic */}
                     <AppRoutes />
                 </TvModeProvider>
             </AuthProvider>
-            {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+            {import.meta.env.DEV && <ReactQueryDevtools/>}
         </>
     );
 }
