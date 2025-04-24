@@ -5,7 +5,7 @@ import { Formik, Form, Field, FormikHelpers } from "formik";
 import * as Yup from "yup";
 import {
   Container, Paper, Typography, TextField, Button, Box, Switch,
-  FormControlLabel, Alert, Tooltip, IconButton, CircularProgress,
+  FormControlLabel, Tooltip, IconButton, CircularProgress,
 } from "@mui/material";
 // --- Use Grid v2 ---
 import Grid from "@mui/material/Grid2";
@@ -18,16 +18,16 @@ import {
     Website,
     WebsiteUser,
     ApiError
-} from "../types"; // Adjust path
+} from "../types";
 
 // --- Import Components ---
-import WebsiteUrlSearch from "../components/WebsiteUrlSearch"; // Adjust path
+import WebsiteUrlSearch from "../components/WebsiteUrlSearch";
 import FormNotification, {
   initialNotificationState, FormNotificationState
-} from "../components/common/FormNotification"; // Adjust path
+} from "../components/common/FormNotification";
 
 // --- Import Hooks ---
-import { useWebsiteMutations } from "../hooks/api/useWebsites"; // Adjust path
+import { useWebsiteMutations } from "../hooks/api/useWebsites";
 
 
 // Helper to ensure URL has a protocol
@@ -90,7 +90,7 @@ const AddWebsite: React.FC = () => {
   const {
       addWebsite,
       isAdding,
-      errorAdding,
+    //   errorAdding, // Use setNotification instead of displaying this directly
       isTriggeringCheck
     } = useWebsiteMutations();
   const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
@@ -112,8 +112,8 @@ const AddWebsite: React.FC = () => {
     formikHelpers: FormikHelpers<AddWebsiteFormValues>
   ) => {
     const { setSubmitting, setStatus } = formikHelpers;
-    setStatus(null);
-    setNotification(initialNotificationState);
+    setStatus(null); // Clear previous status
+    setNotification(initialNotificationState); // Clear previous notification
 
     const websiteData: AddWebsiteUserDTO = {
       name: values.name.trim() || null,
@@ -128,15 +128,15 @@ const AddWebsite: React.FC = () => {
           : null,
     };
 
-     // Pre-submit validation (redundant with Yup but provides immediate feedback)
+     // Pre-submit validation (redundant with Yup but provides immediate feedback via Snackbar)
      if (isNaN(websiteData.interval!) || websiteData.interval! < 30) {
-         setStatus({ error: "Invalid interval value." });
+         //setStatus({ error: "Invalid interval value." }); // Not needed if using Snackbar
          setNotification({ open: true, message: "Error: Invalid check interval.", severity: "error" });
          setSubmitting(false);
          return;
      }
      if (websiteData.alertEnabled && (websiteData.alertThreshold === null || isNaN(websiteData.alertThreshold!) || websiteData.alertThreshold! < 1 )) {
-         setStatus({ error: "Invalid alert threshold value." });
+         //setStatus({ error: "Invalid alert threshold value." }); // Not needed if using Snackbar
          setNotification({ open: true, message: "Error: Invalid alert threshold (must be >= 1ms).", severity: "error" });
          setSubmitting(false);
          return;
@@ -152,14 +152,18 @@ const AddWebsite: React.FC = () => {
       const apiError = err as ApiError;
       console.error("Failed to add website:", apiError);
       const message = apiError?.data?.message || apiError?.message || "An unexpected error occurred.";
-      setStatus({ error: message });
+      //setStatus({ error: message }); // Not needed if using Snackbar
       setNotification({ open: true, message: `Error: ${message}`, severity: "error" });
       // Ensure submitting is set to false on error *if* Formik doesn't do it automatically
       setSubmitting(false);
     }
+    // No finally needed for setSubmitting(false) if Formik handles it or if error case covers it.
   };
 
-  const handleNotificationClose = useCallback(() => {
+  const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
     setNotification((prev) => ({ ...prev, open: false }));
   }, []);
 
@@ -196,14 +200,15 @@ const AddWebsite: React.FC = () => {
           onSubmit={handleSubmit}
           enableReinitialize
         >
-          {({ errors, touched, values, isSubmitting, setFieldValue, status, dirty, isValid }) => (
+          {({ errors, touched, values, isSubmitting, setFieldValue, dirty, isValid }) => (
             <Form noValidate>
-              {status?.error && (
-                <Alert severity="error" sx={{ mb: 3 }}>{status.error}</Alert>
-              )}
-              {errorAdding && !status?.error && (
-                 <Alert severity="error" sx={{ mb: 3 }}>{ (errorAdding as ApiError).message || 'Failed to add website.' }</Alert>
-              )}
+               {/* Removed redundant inline Alert for status.error and errorAdding */}
+               {/* {status?.error && (
+                 <Alert severity="error" sx={{ mb: 3 }}>{status.error}</Alert>
+               )}
+               {errorAdding && !status?.error && (
+                  <Alert severity="error" sx={{ mb: 3 }}>{ (errorAdding as ApiError).message || 'Failed to add website.' }</Alert>
+               )} */}
 
               <Box sx={{ mt: 3 }}>
                 {/* Grid v2 container */}
@@ -339,6 +344,7 @@ const AddWebsite: React.FC = () => {
         </Formik>
       </Paper>
 
+      {/* Use FormNotification */}
       <FormNotification
         notification={notification}
         onClose={handleNotificationClose}

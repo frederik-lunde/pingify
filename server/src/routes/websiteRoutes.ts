@@ -2,35 +2,107 @@
 import { Router } from 'express';
 import * as websiteController from '../controllers/websiteController';
 import { authenticate } from '../middleware/authMiddleware';
-// Import admin check middleware if you have one, e.g., isAdmin
-// import { isAdmin } from '../middleware/authMiddleware';
+import { handleValidationErrors } from '../middleware/validators/authValidator'; // Reuse this
+import {
+    getWebsiteByIdValidationRules,
+    createWebsiteValidationRules,
+    updateWebsiteValidationRules,
+    updateUserWebsiteValidationRules,
+    setPinStatusValidationRules,
+    deleteWebsiteValidationRules,
+    toggleWebsiteStatusValidationRules,
+    addWebsiteToUserValidationRules,
+    searchWebsitesValidationRules,
+} from '../middleware/validators/websiteValidator';
+
 
 const router = Router();
 
-// Apply authentication to all routes
 router.use(authenticate);
 
-// Admin routes for managing all websites
-// Optional: Add isAdmin middleware if needed for admin routes
-// Example: router.get('/admin/all', isAdmin, websiteController.getAllWebsites);
-router.get('/admin/all', websiteController.getAllWebsites);
-router.post('/admin/create', websiteController.createWebsite);
-router.put('/admin/:id', websiteController.updateWebsite);
-router.delete('/admin/:id', websiteController.deleteWebsite);
-router.patch('/admin/:id/toggle', websiteController.toggleWebsiteStatus);
+// --- Admin Routes ---
+// Optional: Add isAdmin middleware if needed
+router.get('/admin/all', websiteController.getAllWebsites); // No input validation
 
-// Core website routes
-router.get('/search', websiteController.searchWebsites); // Access controlled by `authenticate`
-router.get('/:id', websiteController.getWebsiteById); // Access controlled by `authenticate`
+router.post(
+    '/admin/create',
+    createWebsiteValidationRules(),
+    handleValidationErrors,
+    websiteController.createWebsite
+);
 
-// User dashboard routes (implicitly user-specific due to logic in controllers using req.user.id)
-router.get('/user/dashboard', websiteController.getUserWebsites);
-router.get('/user/dashboard/:id', websiteController.getUserWebsiteById);
-router.post('/user/dashboard', websiteController.addWebsiteToUser);
-router.put('/user/dashboard/:id', websiteController.updateUserWebsite);
-router.delete('/user/dashboard/:id', websiteController.removeWebsiteFromUser);
+router.put(
+    '/admin/:id',
+    updateWebsiteValidationRules(),
+    handleValidationErrors,
+    websiteController.updateWebsite
+);
 
-// New route for pinning/unpinning a website for the user
-router.patch('/user/dashboard/:id/pin', websiteController.setPinStatus); // Sets the isPinned status
+router.delete(
+    '/admin/:id',
+    deleteWebsiteValidationRules(), // Only validates ID param
+    handleValidationErrors,
+    websiteController.deleteWebsite
+);
+
+router.patch(
+    '/admin/:id/toggle',
+    toggleWebsiteStatusValidationRules(), // Only validates ID param
+    handleValidationErrors,
+    websiteController.toggleWebsiteStatus
+);
+
+// --- Core website routes ---
+router.get(
+    '/search',
+    searchWebsitesValidationRules(),
+    handleValidationErrors,
+    websiteController.searchWebsites
+);
+
+router.get(
+    '/:id',
+    getWebsiteByIdValidationRules(), // Only validates ID param
+    handleValidationErrors,
+    websiteController.getWebsiteById
+);
+
+// --- User dashboard routes ---
+router.get('/user/dashboard', websiteController.getUserWebsites); // No input validation
+
+router.get(
+    '/user/dashboard/:id',
+    getWebsiteByIdValidationRules(), // Only validates ID param
+    handleValidationErrors,
+    websiteController.getUserWebsiteById
+);
+
+router.post(
+    '/user/dashboard',
+    addWebsiteToUserValidationRules(),
+    handleValidationErrors,
+    websiteController.addWebsiteToUser
+);
+
+router.put(
+    '/user/dashboard/:id',
+    updateUserWebsiteValidationRules(),
+    handleValidationErrors,
+    websiteController.updateUserWebsite
+);
+
+router.delete(
+    '/user/dashboard/:id',
+    deleteWebsiteValidationRules(), // Only validates ID param
+    handleValidationErrors,
+    websiteController.removeWebsiteFromUser
+);
+
+router.patch(
+    '/user/dashboard/:id/pin',
+    setPinStatusValidationRules(),
+    handleValidationErrors,
+    websiteController.setPinStatus
+);
 
 export default router;

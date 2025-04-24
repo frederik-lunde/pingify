@@ -5,6 +5,7 @@ import { Request, Response, NextFunction } from 'express';
 // --- Import Services ---
 import { ResultsManager, WebsiteMonitor, StatsCalculator } from '../services/monitoringService';
 import * as websiteService from '../services/websiteService';
+import * as IncidentService from '../services/incidentService';
 
 // --- Import SHARED Types ---
 import {
@@ -14,8 +15,9 @@ import {
     ChartDataPoint,
     WebsiteStatsData,
     OverallStats,
-    DownWebsite,
-    IncidentCountResponse // <-- Import type
+    Incident,
+    SortDirection,
+    MonitoringResultSortBy
 } from '../types';
 
 // --- Import Backend-Specific Helpers/Clients ---
@@ -34,14 +36,6 @@ const getStartDateForTimeframe = (timeframe: TimeframeKey): Date => {
     }
 };
 
-// Helper for safe ID parsing
-const parseIdParam = (idParam: string | undefined): number | null => {
-    if (!idParam) return null;
-    const id = parseInt(idParam, 10);
-    return !isNaN(id) && id > 0 ? id : null;
-};
-
-
 /**
  * Maps a Prisma MonitoringResult's core fields to the shared MonitoringResult type.
  */
@@ -56,38 +50,37 @@ const mapPrismaResultToSharedCore = (
         responseTime: prismaResult.responseTime,
         isAvailable: prismaResult.isAvailable,
         statusCode: prismaResult.statusCode,
-        errorMessage: prismaResult.errorMessage,
+        errorMessage: prismaResult.errorMessage
     };
     return coreData as SharedMonitoringResult;
 };
 
-
 // --- Controller Functions ---
 
 /**
- * GET /api/monitoring/admin/results - Get all monitoring results with optional filtering (Admin)
+ * GET /api/monitoring/admin/results - Get all results (admin).
+ * Validation handled by middleware.
  */
 export const getAllResults = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
   try {
-    const { limit = '100', from, to } = req.query;
-    const parsedLimit = parseInt(limit as string, 10);
-    if (isNaN(parsedLimit) || parsedLimit <= 0) {
-        res.status(400).json({ message: 'Invalid limit format.' }); return;
-    }
+    const { limit, from, to } = req.query;
+
     const results = await ResultsManager.getAllResults({
-      limit: parsedLimit,
-      from: from ? new Date(from as string) : undefined,
-      to: to ? new Date(to as string) : undefined
+        limit: limit as unknown as number | undefined,
+        from: from as unknown as Date | undefined,
+        to: to as unknown as Date | undefined
     });
 
-    const responseData: SharedMonitoringResult[] = results.map((r: any) => {
+    const responseData: SharedMonitoringResult[] = results.map((r: any): SharedMonitoringResult | null => {
         const coreData = mapPrismaResultToSharedCore(r);
         if (!coreData) return null;
-        return {
+        const mappedResult: SharedMonitoringResult = {
             ...coreData,
             website: r.website ? { url: r.website.url } : undefined
         };
-    }).filter(r => r !== null) as SharedMonitoringResult[];
+        return mappedResult;
+    }).filter((r): r is SharedMonitoringResult => r !== null);
+
     res.json(responseData);
   } catch (error) {
     next(error);
@@ -95,36 +88,34 @@ export const getAllResults = async ( req: Request, res: Response, next: NextFunc
 };
 
 /**
- * GET /api/monitoring/user/results - Get monitoring results for the current user
+ * GET /api/monitoring/user/results - Get results for the authenticated user.
+ * Validation handled by middleware.
  */
 export const getUserResults = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
   try {
-      // Ensure req.user is attached by middleware
-     if (!req.user?.id) {
-         res.status(401).json({ message: 'Authentication required.' });
-         return;
-     }
+     if (!req.user?.id) { res.status(401).json({ message: 'Authentication required.' }); return; }
      const userId = req.user.id;
+     const { limit, from, to } = req.query;
 
-     const { limit = '100', from, to } = req.query;
-     const parsedLimit = parseInt(limit as string, 10);
-     if (isNaN(parsedLimit) || parsedLimit <= 0) {
-         res.status(400).json({ message: 'Invalid limit format.' }); return;
-     }
      const results = await ResultsManager.getResultsForUser(userId, {
-        limit: parsedLimit,
-        from: from ? new Date(from as string) : undefined,
-        to: to ? new Date(to as string) : undefined
-      });
+         limit: limit as unknown as number | undefined,
+         from: from as unknown as Date | undefined,
+         to: to as unknown as Date | undefined
+     });
 
-     const responseData: SharedMonitoringResult[] = results.map((r: any) => {
-        const coreData = mapPrismaResultToSharedCore(r);
-        if (!coreData) return null;
-        return {
-            ...coreData,
-            website: r.website ? { url: r.website.url, name: r.website.websiteUsers?.[0]?.name ?? undefined } : undefined
-        };
-     }).filter(r => r !== null) as SharedMonitoringResult[];
+     const responseData: SharedMonitoringResult[] = results.map((r: any): SharedMonitoringResult | null => {
+         const coreData = mapPrismaResultToSharedCore(r);
+         if (!coreData) return null;
+         const mappedResult: SharedMonitoringResult = {
+             ...coreData,
+             website: r.website ? {
+                 url: r.website.url,
+                 name: r.website.websiteUsers?.[0]?.name ?? undefined
+                } : undefined
+            };
+         return mappedResult;
+        }).filter((r): r is SharedMonitoringResult => r !== null);
+
      res.json(responseData);
   } catch (error) {
     next(error);
@@ -132,112 +123,83 @@ export const getUserResults = async ( req: Request, res: Response, next: NextFun
 };
 
 /**
- * GET /api/monitoring/website/:websiteId/results - Get monitoring results for a specific website (requires user access)
+ * GET /api/monitoring/website/:websiteId/results - Get results for a specific website.
+ * Validation handled by middleware.
  */
 export const getResultsByWebsite = async ( req: Request<{ websiteId: string }>, res: Response, next: NextFunction ): Promise<void> => {
   try {
-    const { websiteId: websiteIdParam } = req.params;
-     // Used for access check
-     if (!req.user?.id) {
-         res.status(401).json({ message: 'Authentication required.' });
-         return;
-     }
+     if (!req.user?.id) { res.status(401).json({ message: 'Authentication required.' }); return; }
     const userId = req.user.id;
-     // Use helper
+    const websiteId = req.params.websiteId as unknown as number;
+    const { limit, from, to } = req.query;
 
-    const websiteId = parseIdParam(websiteIdParam);
-
-    if (websiteId === null) {
-        res.status(400).json({ message: 'Invalid Website ID format.' }); return;
-    }
     const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
     if (!hasAccess) {
-        res.status(404).json({ message: 'Website not found or access denied.' }); return;
+        res.status(404).json({ message: 'Website not found or access denied.' });
+        return;
     }
 
-    const { limit = '100', from, to } = req.query;
-    const parsedLimit = parseInt(limit as string, 10);
-    if (isNaN(parsedLimit) || parsedLimit <= 0) {
-        res.status(400).json({ message: 'Invalid limit format.' }); return;
-    }
     const results = await ResultsManager.getFilteredResultsByWebsite(websiteId, {
-        limit: parsedLimit,
-        from: from ? new Date(from as string) : undefined,
-        to: to ? new Date(to as string) : undefined
-      });
+        limit: limit as unknown as number | undefined,
+        from: from as unknown as Date | undefined,
+        to: to as unknown as Date | undefined
+    });
 
     const responseData: SharedMonitoringResult[] = results
         .map(mapPrismaResultToSharedCore)
-        .filter(r => r !== null) as SharedMonitoringResult[];
+        .filter((r): r is SharedMonitoringResult => r !== null);
+
     res.json(responseData);
   } catch (error) {
     next(error);
   }
 };
 
-
 /**
- * POST /api/monitoring/check/:websiteId - Trigger an immediate check for a website (requires user access).
+ * POST /api/monitoring/check/:websiteId - Trigger a manual check for a website.
+ * Validation handled by middleware.
  */
-export const triggerWebsiteCheck = async (
-    req: Request<{ websiteId: string }>,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const triggerWebsiteCheck = async ( req: Request<{ websiteId: string }>, res: Response, next: NextFunction ): Promise<void> => {
     try {
-        const { websiteId: websiteIdParam } = req.params;
-        if (!req.user?.id) {
-             res.status(401).json({ message: 'Authentication required.' });
-             return;
-        }
+        if (!req.user?.id) { res.status(401).json({ message: 'Authentication required.' }); return; }
         const userId = req.user.id;
-         // Use helper
-
-        const websiteId = parseIdParam(websiteIdParam);
-
-        if (websiteId === null) {
-           res.status(400).json({ message: 'Invalid Website ID format.' }); return;
-        }
+        const websiteId = req.params.websiteId as unknown as number;
 
         const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
         if (!hasAccess) {
-           res.status(404).json({ message: 'Website not found or access denied.' }); return;
+            res.status(404).json({ message: 'Website not found or access denied.' });
+            return;
         }
 
         const websitePrisma: PrismaWebsite | null = await prisma.website.findUnique({ where: { id: websiteId } });
         if (!websitePrisma) {
-           res.status(404).json({ message: 'Website data not found.' }); return;
+            res.status(404).json({ message: 'Website data not found.' });
+            return;
         }
 
-        console.log(`[triggerWebsiteCheck] Starting check for website ID: ${websiteId}`);
+        console.log(`[triggerWebsiteCheck] User ${userId} starting check for website ID: ${websiteId}`);
         const newPrismaResult: PrismaMonitoringResult = await WebsiteMonitor.checkWebsite(websitePrisma);
         console.log(`[triggerWebsiteCheck] Check completed for website ID: ${websiteId}. Result ID: ${newPrismaResult?.id}`);
 
         const newSharedResult: SharedMonitoringResult | null = mapPrismaResultToSharedCore(newPrismaResult);
          if (!newSharedResult) {
-             console.error(`[triggerWebsiteCheck] Failed to map Prisma result for website ID: ${websiteId}`);
-             res.status(500).json({ message: 'Failed to process check result after execution.' });
-             return;
+            console.error(`[triggerWebsiteCheck] Failed to map Prisma result for website ID: ${websiteId}`);
+            return next(new Error('Failed to process check result after execution.'));
          }
-
         res.status(200).json(newSharedResult);
-
      } catch (error) {
-        console.error(`[triggerWebsiteCheck] Error checking website ID ${req.params.websiteId}:`, error);
-       next(error);
+        next(error);
      }
 };
 
 /**
- * GET /api/monitoring/admin/stats - Get monitoring statistics for all websites (Admin)
+ * GET /api/monitoring/admin/stats - Get overall stats (admin).
+ * Validation handled by middleware.
  */
 export const getOverallStats = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
     try {
-      const { period = 'week' } = req.query;
-      // Service already returns the shared OverallStats type with dates as strings
-      // Passing userId as undefined calculates stats system-wide
-
-      const stats: OverallStats = await StatsCalculator.getOverallStats(undefined, period as string );
+      const period = req.query.period as string;
+      const stats: OverallStats = await StatsCalculator.getOverallStats(undefined, period );
       res.json(stats);
     } catch (error) {
       next(error);
@@ -245,21 +207,15 @@ export const getOverallStats = async ( req: Request, res: Response, next: NextFu
 };
 
 /**
- * GET /api/monitoring/user/stats - Get monitoring statistics for current user's websites
+ * GET /api/monitoring/user/stats - Get stats for the authenticated user's dashboard.
+ * Validation handled by middleware.
  */
 export const getUserStats = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
     try {
-      // Ensure user is authenticated
-     if (!req.user?.id) {
-         res.status(401).json({ message: 'Authentication required.' });
-         return;
-     }
+      if (!req.user?.id) { res.status(401).json({ message: 'Authentication required.' }); return; }
       const userId = req.user.id;
-      const { period = 'week' } = req.query;
-      // Service already returns the shared OverallStats type with dates as strings
-      // The service function getUserDashboardStats will handle fetching the incident count for this user
-
-      const stats: OverallStats = await StatsCalculator.getUserDashboardStats(userId, period as string );
+      const period = req.query.period as string;
+      const stats: OverallStats = await StatsCalculator.getUserDashboardStats(userId, period );
       res.json(stats);
     } catch (error) {
       next(error);
@@ -267,41 +223,33 @@ export const getUserStats = async ( req: Request, res: Response, next: NextFunct
 };
 
 /**
- * GET /api/monitoring/website/:websiteId/stats - Get monitoring statistics for a specific website (requires user access)
+ * GET /api/monitoring/website/:websiteId/stats - Get stats for a specific website.
+ * Validation handled by middleware.
  */
 export const getWebsiteStats = async ( req: Request<{ websiteId: string }>, res: Response, next: NextFunction ): Promise<void> => {
     try {
-      const { websiteId: websiteIdParam } = req.params;
-        // Ensure user is authenticated
-     if (!req.user?.id) {
-         res.status(401).json({ message: 'Authentication required.' });
-         return;
-     }
+      if (!req.user?.id) { res.status(401).json({ message: 'Authentication required.' }); return; }
       const userId = req.user.id;
-       // Use helper
-
-
-      const websiteId = parseIdParam(websiteIdParam);
-      if (websiteId === null) {
-          res.status(400).json({ message: 'Invalid Website ID format.' }); return;
-      }
+      const websiteId = req.params.websiteId as unknown as number;
+      const period = req.query.period as string;
 
       const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
        if (!hasAccess) {
-          res.status(404).json({ message: 'Website not found or access denied.' }); return;
-      }
+           res.status(404).json({ message: 'Website not found or access denied.' });
+           return;
+       }
 
-      const { period = 'week' } = req.query;
-      const stats: WebsiteStatsData = await StatsCalculator.getWebsiteStats(websiteId, userId, period as string );
+      const stats: WebsiteStatsData = await StatsCalculator.getWebsiteStats(websiteId, userId, period );
       res.json(stats);
     } catch (error) {
       next(error);
     }
 };
 
-
 /**
- * GET /api/monitoring/website/:websiteId - Get comprehensive details for a specific website view (requires user access)
+ * GET /api/monitoring/website/:websiteId - Get detailed data for a single website view.
+ * Validation handled by middleware.
+ * --- MODIFIED: Added safety checks for data from Promise.all ---
  */
 export const getWebsiteDetails = async (
     req: Request<{ websiteId: string }>,
@@ -309,121 +257,77 @@ export const getWebsiteDetails = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        const { websiteId: websiteIdParam } = req.params;
-        // Ensure user is authenticated
-        if (!req.user?.id) {
-             res.status(401).json({ message: 'Authentication required.' });
-             return;
-        }
+        if (!req.user?.id) { res.status(401).json({ message: 'Authentication required.' }); return; }
         const userId = req.user.id;
-         // Use helper
 
-        const websiteId = parseIdParam(websiteIdParam);
-
-        if (websiteId === null) {
-            res.status(400).json({ message: 'Invalid Website ID format.' }); return;
-        }
-
-        const timeframe = (req.query.timeframe as TimeframeKey) || 'day';
-        const limit = parseInt(req.query.limit as string, 10) || 25;
-        if (isNaN(limit) || limit <= 0) {
-             res.status(400).json({ message: 'Invalid limit format.' }); return;
-        }
-
-        const validSortByFields = ['checkedAt', 'isAvailable', 'responseTime', 'statusCode', 'id'];
-        const sortByInput = req.query.sortBy as string | undefined;
-        const sortBy = (sortByInput && validSortByFields.includes(sortByInput)) ? sortByInput : 'checkedAt';
-        const sortDirInput = req.query.sortDir as string | undefined;
-        const sortDir: Prisma.SortOrder = (sortDirInput === 'asc') ? 'asc' : 'desc';
+        const websiteId = req.params.websiteId as unknown as number;
+        const timeframe = req.query.timeframe as TimeframeKey;
+        const limit = req.query.limit as unknown as number;
+        const incidentLimit = req.query.incidentLimit as unknown as number;
+        const sortBy = req.query.sortBy as MonitoringResultSortBy;
+        const sortDir = req.query.sortDir as SortDirection;
 
         const userWebsite = await websiteService.getUserWebsiteById(userId, websiteId);
         if (!userWebsite || !userWebsite.website) {
-            res.status(404).json({ message: 'Website not found or access denied.' }); return;
+            res.status(404).json({ message: 'Website not found or access denied.' });
+            return;
         }
 
         const startDate = getStartDateForTimeframe(timeframe);
         const endDate = new Date();
 
         let orderByClause: Prisma.MonitoringResultOrderByWithRelationInput[] = [];
-        const sortField = sortBy as keyof Prisma.MonitoringResultOrderByWithRelationInput;
-        if (sortField === 'statusCode' || sortField === 'responseTime') {
-             orderByClause.push({ [sortField]: { sort: sortDir, nulls: 'last' } });
-        } else if (sortField === 'isAvailable' || sortField === 'checkedAt' || sortField === 'id' ) {
-             orderByClause.push({ [sortField]: sortDir });
+        if (sortBy === 'statusCode' || sortBy === 'responseTime') {
+            orderByClause.push({ [sortBy]: { sort: sortDir, nulls: 'last' } });
         } else {
-             orderByClause.push({ checkedAt: sortDir });
+            orderByClause.push({ [sortBy]: sortDir });
         }
         if (sortBy !== 'checkedAt') {
             orderByClause.push({ checkedAt: 'desc' });
         }
 
-        const [ latestResultData, chartDataResult, recentChecksData, uptimePercentData, downtimeInfoResult ] = await Promise.all([
+        // Fetch data in parallel
+        const [
+            latestResultData,
+            chartDataResult,
+            recentChecksData,
+            uptimePercentData,
+            currentIncidentData,
+            recentIncidentsData
+        ] = await Promise.all([
             prisma.monitoringResult.findFirst({ where: { websiteId }, orderBy: { checkedAt: 'desc' }}),
             StatsCalculator.getChartDataForWebsite(websiteId, timeframe),
             prisma.monitoringResult.findMany({ where: { websiteId: websiteId }, orderBy: orderByClause, take: limit }),
             StatsCalculator.calculateUptimeBetweenDates(websiteId, startDate, endDate),
-            StatsCalculator.getCurrentDowntimeInfo(websiteId)
+            IncidentService.getCurrentOpenIncidentForWebsite(websiteId),
+            IncidentService.getIncidents({ websiteId: websiteId, limit: incidentLimit }, userId)
         ]);
 
+        // --- Safety Checks and Mapping ---
         const latestSharedResult = mapPrismaResultToSharedCore(latestResultData);
+        // Ensure arrays are arrays, provide defaults if null/undefined unexpectedly
+        const safeChartData = Array.isArray(chartDataResult) ? chartDataResult : [];
+        const safeRecentChecksPrisma = Array.isArray(recentChecksData) ? recentChecksData : [];
+        const safeRecentIncidents = Array.isArray(recentIncidentsData) ? recentIncidentsData : [];
+
+        const mappedRecentChecks = safeRecentChecksPrisma
+            .map(mapPrismaResultToSharedCore)
+            .filter((r): r is SharedMonitoringResult => r !== null);
 
         const responseData: WebsiteDetailsData = {
             websiteId: userWebsite.websiteId,
             name: userWebsite.name || userWebsite.website.url,
             url: userWebsite.website.url,
-            latestResult: latestSharedResult,
-            chartData: chartDataResult,
-            recentChecks: recentChecksData.map(mapPrismaResultToSharedCore).filter(r => r !== null) as SharedMonitoringResult[],
-            uptimePercent: uptimePercentData,
-            consecutiveFailures: latestSharedResult?.isAvailable === false ? downtimeInfoResult.consecutiveFailures : undefined,
-            downtimeStartedAt: latestSharedResult?.isAvailable === false ? downtimeInfoResult.downtimeStartedAt?.toISOString() ?? null : null,
+            latestResult: latestSharedResult, // Already handles null
+            chartData: safeChartData,
+            recentChecks: mappedRecentChecks,
+            uptimePercent: typeof uptimePercentData === 'number' ? uptimePercentData : 100, // Default to 100 if calculation failed? Or handle error earlier.
+            currentIncident: currentIncidentData ?? null, // Ensure null if undefined
+            recentIncidents: safeRecentIncidents,
         };
         res.json(responseData);
     } catch (error) {
-        console.error(`Error fetching website details for ID ${req.params.websiteId}:`, error);
-        next(error);
-    }
-};
-
-/**
- * NEW: GET /api/monitoring/user/incidents/last24h
- * Gets the count of distinct websites with incidents (down/slow based on user threshold) in the last 24h.
- */
-export const getUserIncidentCountLast24h = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
-    try {
-        const userId = req.user!.id;
-
-        // Call the new service function from StatsCalculator
-        const count = await StatsCalculator.countUserDistinctWebsiteIncidentsLast24h(userId);
-
-        const response: IncidentCountResponse = { incidentCount: count };
-        res.json(response);
-
-    } catch (error) {
-        console.error(`Error fetching monitoring-based incident count for user ${req.user?.id}:`, error);
-        next(error);
-    }
-};
-
-/**
- * GET /api/monitoring/user/down-websites/last24h
- * Gets list of websites with down incidents in last 24h
- */
-export const getDownWebsitesLast24h = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
-    try {
-        const userId = req.user!.id;
-        const downWebsites = await StatsCalculator.getDownWebsitesLast24h(userId);
-        res.json(downWebsites);
-    } catch (error) {
-        console.error(`Error fetching down websites for user ${req.user?.id}:`, error);
-        next(error);
+        console.error(`[getWebsiteDetails] Error fetching details for website ${req.params.websiteId}:`, error);
+        next(error); // Pass to error handler middleware
     }
 };

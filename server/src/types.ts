@@ -1,11 +1,12 @@
 // server/src/types.ts
-// --- SECTION 1: Prisma Type Re-exports (Minimal Required) ---
 import {
   Website as PrismaWebsite,
   MonitoringResult as PrismaMonitoringResult,
   Alert as PrismaAlert,
   User as PrismaUser,
   WebsiteUser as PrismaWebsiteUser,
+  Incident as PrismaIncident, // Import new Prisma type
+  Prisma, // Import Prisma namespace for SortOrder etc.
 } from '@prisma/client';
 
 // Re-export core Prisma types if needed directly elsewhere
@@ -14,6 +15,7 @@ export type MonitoringResultPrisma = PrismaMonitoringResult;
 export type AlertPrisma = PrismaAlert;
 export type UserPrisma = PrismaUser;
 export type WebsiteUserPrisma = PrismaWebsiteUser;
+export type IncidentPrisma = PrismaIncident; // Export new Prisma type
 
 // --- SECTION 2: Core API/Service Types (Reflecting New Schema) ---
 
@@ -42,20 +44,20 @@ export interface Website {
 }
 
 export interface User {
-  id: number;
+  id: string;
   email: string;
   name?: string | null;
 }
 
 export interface WebsiteUser {
   id: number;
-  userId: number;
+  userId: string;
   websiteId: number;
   name: string | null; // User-defined alias
   interval: number | null; // User-specific interval override (seconds)
   alertEnabled: boolean;
   alertThreshold: number | null; // Response time threshold (ms) for alerts
-  notifyEmail: boolean | null; // User preference for email alerts
+  notifyEmail: string | null; // User's email for notifications
   createdAt: string; // ISO 8601 date string
   isPinned: boolean; // User preference to pin the website
 
@@ -64,33 +66,66 @@ export interface WebsiteUser {
   latestResult?: MonitoringResult | null; // Last monitoring result
   chartData?: ChartDataPoint[]; // Pre-calculated chart data for the card (daily, last 24 points)
   uptimePercent?: number; // Uptime percentage for the card timeframe (e.g., 'day')
-  consecutiveFailures?: number; // Current count if down
-  downtimeStartedAt?: string | null; // ISO timestamp if down
+  currentIncident?: Incident | null; // Add current open incident if any
 }
 
 // Define the *simplified* alert types based on the new schema/requirements
 export type AlertType = "down" | "slow";
-export const VALID_ALERT_TYPES: AlertType[] = ["down", "slow"]; // For validation
+export const VALID_ALERT_TYPES = ["down", "slow"] as const; // Use 'as const' for stricter typing
 
 export interface Alert {
+  id: number;
+  websiteId: number;
+  userId: string; // Direct relation shown in response
+  type: AlertType;
+  message: string;
+  createdAt: string; // ISO 8601 date string
+  incidentId?: number; // <-- Add optional incidentId
+  // Optional nested data included by backend controllers
+  website?: {
+      id: number;
+      url: string;
+      name?: string | null; // User's custom name for this website
+  };
+  user?: { // Included by some backend endpoints (e.g., getAlertsByWebsite)
+      id: string; // User ID is string
+      name: string | null;
+  }
+  // Optional nested incident details if included by backend
+  incident?: {
+      id: number;
+      startTime?: string;
+      endTime?: string | null;
+  }
+}
+
+
+// --- NEW: Incident Type ---
+export type IncidentType = "down" | "slow"; // Same as AlertType for now
+export const VALID_INCIDENT_TYPES = ["down", "slow"] as const; // Use 'as const'
+
+export interface Incident {
     id: number;
     websiteId: number;
-    userId: number;
-    type: AlertType;
-    message: string;
-    createdAt: string; // ISO 8601 date string
+    type: IncidentType;
+    startTime: string; // ISO 8601 date string
+    endTime: string | null; // ISO 8601 date string or null
+    durationSeconds: number | null;
+    initialResultId: number | null;
+    confirmingResultId: number | null;
+    resolvingResultId: number | null;
     // Optional nested data for API responses
     website?: {
         id: number;
         url: string;
-        // Get the specific user's name for this website for display
-        name?: string | null;
+        name?: string | null; // User's custom name for this website
     };
-    user?: { // Less common but possible
-        id: number;
-        name: string | null;
-    }
+    // Optional: Include results if needed, but can be large
+    // initialResult?: MonitoringResult | null;
+    // confirmingResult?: MonitoringResult | null;
+    // resolvingResult?: MonitoringResult | null;
 }
+
 
 // --- SECTION 3: Utility & Shared Types ---
 
@@ -98,6 +133,25 @@ export interface Alert {
 * Defines the standard keys used for selecting timeframes in the UI and API requests.
 */
 export type TimeframeKey = 'hour' | 'day' | 'week' | 'month' | 'year';
+export const VALID_TIMEFRAMES = ['hour', 'day', 'week', 'month', 'year'] as const;
+
+/**
+ * Defines valid fields for sorting monitoring results.
+ */
+export type MonitoringResultSortBy = keyof Pick<Prisma.MonitoringResultOrderByWithRelationInput, 'checkedAt' | 'isAvailable' | 'responseTime' | 'statusCode' | 'id'>;
+export const VALID_SORT_BY = ['checkedAt', 'isAvailable', 'responseTime', 'statusCode', 'id'] as const;
+
+/**
+ * Defines valid sort directions.
+ */
+export type SortDirection = Prisma.SortOrder;
+export const VALID_SORT_DIR = ['asc', 'desc'] as const;
+
+/**
+ * Defines valid incident status filters.
+ */
+export type IncidentStatusFilter = 'open' | 'closed';
+export const VALID_INCIDENT_STATUSES = ['open', 'closed'] as const;
 
 /**
 * Standardized structure for API errors.
@@ -124,7 +178,7 @@ export interface AddWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean;
   notifyEmail?: string | null;
-  isPinned?: boolean; // Already included - correct
+  isPinned?: boolean;
 }
 
 export interface UpdateWebsiteUserDTO {
@@ -133,7 +187,7 @@ export interface UpdateWebsiteUserDTO {
   alertThreshold?: number | null;
   alertEnabled?: boolean | null;
   notifyEmail?: string | null;
-  isPinned?: boolean; // Already included - correct
+  isPinned?: boolean;
 }
 
 // DTO specifically for updating the pin status
@@ -159,7 +213,7 @@ export interface ResultsQueryOptions {
   from?: Date;
   to?: Date;
   websiteId?: number;
-  userId?: number; // Still useful if filtering results viewable by user
+  userId?: string; // Still useful if filtering results viewable by user
 }
 
 // Simplified Alert Query Options
@@ -168,9 +222,21 @@ export interface AlertQueryOptions {
   type?: AlertType; // Only 'down' or 'slow'
   from?: Date;
   to?: Date;
-  userId?: number;   // Filter by user
+  userId?: string;   // Filter by user
   websiteId?: number;// Filter by website
 }
+
+// --- NEW: Incident Query Options ---
+export interface IncidentQueryOptions {
+    limit?: number;
+    type?: IncidentType;
+    from?: Date; // Filter by startTime >= from
+    to?: Date; // Filter by startTime <= to
+    userId?: string; // Filter by user who monitors the website
+    websiteId?: number; // Filter by specific website
+    status?: IncidentStatusFilter; // Filter by incident status
+}
+
 
 // --- SECTION 6: API Response Shapes & ViewModels ---
 
@@ -192,11 +258,13 @@ export interface WebsiteStatsData {
   websiteId: number;
   websiteName: string;
   url: string;
-  uptime: number;
-  averageResponseTime: number | null;
-  totalChecks: number;
-  lastCheck: string | null; // ISO 8601 string
-  consecutiveFailures: number; // Already exists, calculated differently maybe, keep for general stats
+  uptime: number; // Uptime percentage over the period
+  averageResponseTime: number | null; // Average response time over the period
+  totalChecks: number; // Total checks in the period
+  lastCheck: string | null; // ISO 8601 string of the last check (anytime)
+  incidentCount: number; // Total incidents started in the period
+  downIncidentCount: number; // 'down' incidents started in the period
+  slowIncidentCount: number; // 'slow' incidents started in the period
 }
 
 /**
@@ -205,14 +273,12 @@ export interface WebsiteStatsData {
 export interface OverallStats {
   totalWebsites: number;
   activeWebsites: number;
-  websiteStats: WebsiteStatsData[];
-  overallUptime: number;
-  overallResponseTime: number | null;
-  // --- ADDED ---
-  incidentsLast24h: number; 
-  lastIncidentTimestamp?: string | null;
-  lastIncidentWebsiteId?: number | null;
-  // --- END ADDED ---
+  websiteStats: WebsiteStatsData[]; // Stats for each website *over the selected period*
+  overallUptime: number; // Average uptime across websites *over the selected period*
+  overallResponseTime: number | null; // Average response time across websites *over the selected period*
+  incidentsLast24h: number; // Count of incidents started in last 24h
+  lastIncidentTimestamp?: string | null; // Start time of the most recent incident
+  lastIncidentWebsiteId?: number | null; // Website ID of the most recent incident
 }
 
 /**
@@ -238,11 +304,8 @@ export interface WebsiteDetailsData {
   chartData: ChartDataPoint[];       // Array of points formatted for charts
   recentChecks: MonitoringResult[];  // Array of shared MonitoringResult types
   uptimePercent: number;             // Calculated uptime for the selected timeframe
-  // --- ADDED FOR DOWNTIME INFO ---
-  // Only populated if the latest status is 'down'
-  consecutiveFailures?: number;
-  downtimeStartedAt?: string | null; // ISO 8601 date string of the first failure in the sequence
-  // --- END ADDED ---
+  currentIncident?: Incident | null; // Details of the currently open incident, if any
+  recentIncidents?: Incident[]; // List of recent incidents (e.g., last 7 days)
 }
 
 
@@ -283,24 +346,9 @@ export interface AuthContextType {
   logout: () => void;
 }
 
-export interface DownWebsite {
-  id: number;
-  name: string;
-  url: string;
-  lastDownTime: string; // ISO 8601 date string
-  consecutiveFailures: number;
-}
-
-// --- ADDED: Type for Downtime Info Calculation Result ---
-export interface DowntimeInfo {
-    consecutiveFailures: number;
-    downtimeStartedAt: Date | null; // Use Date internally, convert to string for API
-}
-
 export interface WebsiteIncidentInfo {
   websiteId: number;
   name: string | null; // User's name for the website
   url: string;
-  // Optionally, add when the *first* incident in the 24h window occurred? (More complex query)
-  // firstIncidentAt?: string;
+  
 }

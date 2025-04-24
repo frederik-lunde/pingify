@@ -2,83 +2,60 @@
 import { useMemo, useCallback } from "react";
 
 import {
-    WebsiteUser,
     ApiError,
-    OverallStats
+    WebsiteDataSummary, // Import the newly defined type
+    WebsiteUser // Import WebsiteUser if not already implicitly available
 } from "../../types"; // Adjust path if needed
 import { useUserWebsitesQuery } from "../api/useWebsites"; // Assuming correct path
 import { useUserStatsQuery } from "../api/useMonitoring"; // Assuming correct path
 
-
-// Interface for the combined data structure for each website card
-export interface WebsiteWithResults {
-    userWebsite: WebsiteUser; // Contains all WebsiteUser fields including nested data
-}
-
-// Interface for the hook's return value
-export interface WebsiteDataSummary {
-    websitesWithResults: WebsiteWithResults[];
-    overallStats: OverallStats | null;
-    isLoading: boolean;
-    isFetching: boolean;
-    error: ApiError | null;
-    refetch: () => Promise<any>;
-    totalWebsitesCount: number;
-    upWebsitesCount: number;
-    incidentsLast24h: number | null;
-    lastIncidentTimestamp: string | null | undefined;
-    lastIncidentWebsiteId: number | null | undefined;
-}
-
 /**
- * Custom hook to fetch and combine website list (now including results/chart data) and overall stats.
+ * Custom hook to fetch and combine website list and overall stats.
  */
 export function useWebsiteData(
-    statsPeriod: string = 'week', // Period for overall stats (e.g., 'day', 'week', 'month')
-    refetchInterval?: number | false // Optional auto-refetch interval in ms
-): WebsiteDataSummary {
+    statsPeriod: string = 'week',
+    refetchInterval?: number | false
+): WebsiteDataSummary { // Use the defined return type
 
     const queryOptions = useMemo(() => ({
         refetchInterval,
         staleTime: refetchInterval ? refetchInterval / 2 : 5 * 60 * 1000,
+        gcTime: 1000 * 60 * 15,
     }), [refetchInterval]);
 
-    // --- TanStack Queries ---
     const websitesQuery = useUserWebsitesQuery(queryOptions);
     const statsQuery = useUserStatsQuery(statsPeriod, queryOptions);
 
-    // --- Loading and Error States ---
     const isLoading = websitesQuery.isPending || (statsQuery.isPending && !statsQuery.data);
     const isFetching = websitesQuery.isFetching || statsQuery.isFetching;
     const errors: (ApiError | null)[] = [websitesQuery.error, statsQuery.error];
     const combinedError = errors.find(e => e !== null) ?? null;
 
     // --- Process and Combine Data ---
-    const processedWebsitesWithResults = useMemo((): WebsiteWithResults[] => {
+    // --- MODIFIED: Rename and simplify ---
+    const websiteCards = useMemo((): WebsiteUser[] => { // Type is now WebsiteUser[]
         if (!websitesQuery.isSuccess || !websitesQuery.data) {
             return [];
         }
-        const userWebsites: WebsiteUser[] = websitesQuery.data;
-
-        const newProcessedWebsites: WebsiteWithResults[] = userWebsites.map(userWebsite => ({
-             userWebsite // Map directly
-        }));
-
-        return newProcessedWebsites;
+        // The data from useUserWebsitesQuery is already WebsiteUser[]
+        return websitesQuery.data;
     }, [websitesQuery.isSuccess, websitesQuery.data]);
 
 
     // --- Calculate Aggregate Counts ---
     const { totalWebsitesCount, upWebsitesCount } = useMemo(() => {
-        const total = processedWebsitesWithResults.length;
-        const up = processedWebsitesWithResults.reduce((count, item) => {
-            if (item.userWebsite.latestResult?.isAvailable === true) {
+        // --- MODIFIED: Use websiteCards ---
+        const total = websiteCards.length;
+        const up = websiteCards.reduce((count, item) => {
+            // Logic remains the same, operates directly on WebsiteUser item
+            const isDownIncident = item.currentIncident?.type === 'down';
+            if (!isDownIncident) {
                 return count + 1;
             }
             return count;
         }, 0);
         return { totalWebsitesCount: total, upWebsitesCount: up };
-    }, [processedWebsitesWithResults]);
+    }, [websiteCards]); // Depend on websiteCards
 
 
     // --- Extract Specific Data from Overall Stats Query ---
@@ -108,17 +85,19 @@ export function useWebsiteData(
 
 
     // --- Return Value ---
+    // Structure matches WebsiteDataSummary
     return {
-        websitesWithResults: processedWebsitesWithResults,
+        // --- MODIFIED: Use websiteCards ---
+        websiteCards: websiteCards,
         overallStats: statsQuery.data ?? null,
-        isLoading, // Simplified return
-        isFetching, // Simplified return
+        isLoading,
+        isFetching,
         error: combinedError,
-        refetch, // Simplified return
-        totalWebsitesCount, // Simplified return
-        upWebsitesCount, // Simplified return
-        incidentsLast24h, // Simplified return
-        lastIncidentTimestamp, // Simplified return
-        lastIncidentWebsiteId, // Simplified return
+        refetch,
+        totalWebsitesCount,
+        upWebsitesCount,
+        incidentsLast24h,
+        lastIncidentTimestamp,
+        lastIncidentWebsiteId,
     };
 }

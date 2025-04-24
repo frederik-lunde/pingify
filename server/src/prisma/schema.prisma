@@ -1,4 +1,4 @@
-//schema.prisma
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,50 +10,53 @@ datasource db {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  password     String
-  name         String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  websiteUsers WebsiteUser[] // Relation to the join table
+  id        String      @id @default(cuid()) // Changed: String, CUID
+  email     String      @unique
+  password  String
+  name      String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  websiteUsers WebsiteUser[]
   Alert        Alert[]
 }
 
 model Website {
   id          Int       @id @default(autoincrement())
-  url         String    @unique // Unique URL to avoid duplicates
+  url         String    @unique
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   lastChecked DateTime?
 
-  isActive          Boolean            @default(false) // Master switch for monitoring
-  globalInterval    Int                @default(300) // Global check interval in seconds
+  isActive          Boolean            @default(false)
+  globalInterval    Int                @default(300)
   alerts            Alert[]
   monitoringResults MonitoringResult[]
-  websiteUsers      WebsiteUser[] // Relation to the join table
+  websiteUsers      WebsiteUser[]
+  incidents         Incident[]
 
   @@index([isActive])
 }
 
-// Join table for many-to-many relationship with user-specific settings
 model WebsiteUser {
   id             Int      @id @default(autoincrement())
-  userId         Int
+  userId         String   // Changed: String
   websiteId      Int
-  name           String? // User's custom name for this website
-  interval       Int? // User's preferred checking interval
-  alertThreshold Int? // User's threshold for slow response alerts
+  name           String?
+  interval       Int?
+  alertThreshold Int?
   alertEnabled   Boolean  @default(false)
-  notifyEmail    String? // User's email for notifications
+  notifyEmail    String?
   createdAt      DateTime @default(now())
-  isPinned       Boolean  @default(false) // For pinning websites in the UI
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  website        Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  isPinned       Boolean  @default(false)
 
-  @@unique([userId, websiteId]) // Ensures a user can only be associated with a website once
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, websiteId])
   @@index([userId])
   @@index([websiteId])
+  @@map("website_users") // Optional: explicit table name
 }
 
 model MonitoringResult {
@@ -64,25 +67,61 @@ model MonitoringResult {
   statusCode   Int?
   errorMessage String?  @db.Text
   checkedAt    DateTime @default(now())
-  website      Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  triggeredIncidents Incident[] @relation("TriggeringResult")
+  confirmedIncidents Incident[] @relation("ConfirmingResult")
+  resolvedIncidents  Incident[] @relation("ResolvingResult")
 
   @@index([websiteId])
   @@index([checkedAt])
   @@index([isAvailable])
+  @@map("monitoring_results") // Optional: explicit table name
 }
 
 model Alert {
-  id        Int      @id @default(autoincrement())
-  websiteId Int
-  userId    Int
-  message   String
-  type      String
-  createdAt DateTime @default(now())
-  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         Int       @id @default(autoincrement())
+  websiteId  Int
+  userId     String    // Changed: String
+  message    String
+  type       String
+  createdAt  DateTime  @default(now())
+  incidentId Int?
+
+  website  Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  incident Incident? @relation(fields: [incidentId], references: [id], onDelete: SetNull) // Ensure onDelete is appropriate
 
   @@index([websiteId])
   @@index([userId])
   @@index([createdAt])
   @@index([type])
+  @@index([incidentId])
+}
+
+model Incident {
+  id                 Int       @id @default(autoincrement())
+  websiteId          Int
+  type               String
+  startTime          DateTime
+  endTime            DateTime?
+  durationSeconds    Int?
+  initialResultId    Int?
+  confirmingResultId Int?
+  resolvingResultId  Int?
+
+  website          Website           @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  initialResult    MonitoringResult? @relation("TriggeringResult", fields: [initialResultId], references: [id], onDelete: SetNull)
+  confirmingResult MonitoringResult? @relation("ConfirmingResult", fields: [confirmingResultId], references: [id], onDelete: SetNull)
+  resolvingResult  MonitoringResult? @relation("ResolvingResult", fields: [resolvingResultId], references: [id], onDelete: SetNull)
+  alerts           Alert[]
+
+  @@index([websiteId])
+  @@index([startTime])
+  @@index([endTime])
+  @@index([type])
+  @@index([initialResultId])
+  @@index([confirmingResultId])
+  @@index([resolvingResultId])
 }

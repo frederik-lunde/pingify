@@ -4,7 +4,6 @@ import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
 
-// --- CHART.JS REGISTRATION (Centralized) ---
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -29,9 +28,7 @@ ChartJS.register(
   Legend,
   Filler
 );
-// --- END CHART.JS REGISTRATION ---
 
-// Import the ThemeProviderWrapper from your context
 import { ThemeProviderWrapper } from "./context/ThemeContext";
 import App from "./App.tsx";
 import queryClient from './lib/queryClient';
@@ -51,7 +48,6 @@ const root = createRoot(rootElement);
 root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      {/* Wrap the entire app with the dynamic theme provider */}
       <ThemeProviderWrapper>
         <BrowserRouter>
           <App />

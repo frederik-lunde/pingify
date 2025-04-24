@@ -7,9 +7,12 @@ import compression from 'compression';
 
 // Routes
 import authRoutes from './routes/authRoutes';
+import userRoutes  from './routes/userRoutes';
 import websiteRoutes from './routes/websiteRoutes';
 import monitoringRoutes from './routes/monitoringRoutes';
 import alertRoutes from './routes/alertRoutes';
+import incidentRoutes from './routes/incidentRoutes';
+
 
 // Middleware
 import errorMiddleware from './middleware/errorMiddleware';
@@ -23,7 +26,7 @@ const app = express();
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 500, // Limit each IP to 100 requests per windowMs
+    max: 1000, // Limit each IP to 500 requests per windowMs
     message: 'Too many requests, please try again later.'
 });
 // Global middlewares
@@ -40,9 +43,12 @@ app.use('/api/auth', authRoutes);
 
 
 // Protected routes for user-specific data
+app.use('/api/users', authenticate, userRoutes);
 app.use('/api/websites',authenticate, websiteRoutes);
 app.use('/api/monitoring',authenticate, monitoringRoutes);
+app.use('/api/incidents',authenticate, incidentRoutes);
 app.use('/api/alerts',authenticate, alertRoutes);
+
 
 // Start monitoring scheduler (runs for all websites regardless of user access)
 scheduleMonitoring();

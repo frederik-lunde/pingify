@@ -1,27 +1,27 @@
-// src/utils/statusUtils.ts
+/* src/utils/statusUtils.ts */
 import { AlertColor } from '@mui/material';
-// --- Import date-fns for downtime formatting ---
-import { formatDistanceToNowStrict, parseISO } from 'date-fns';
-import { AlertType } from "../types"; // Ensure this path is correct
+import { formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns'; // Added differenceInSeconds, formatDistanceStrict
+import { AlertType, Incident } from "../types"; // Ensure this path is correct, Added Incident
 
 /**
  * Determines a status color based on uptime percentage.
+ * Includes 'success', 'warning', and 'error' states.
  * @param uptime Uptime percentage (0-100). Can be null or undefined.
  * @returns Material UI color key ('success', 'warning', 'error') or 'default'.
  */
 export function getStatusColor(
   uptime: number | null | undefined,
 ): 'success' | 'warning' | 'error' | 'default' {
-  if (uptime === null || uptime === undefined || isNaN(uptime)) return 'default'; // Handle NaN as well
-  // Clamp value for safety
+  if (uptime === null || uptime === undefined || isNaN(uptime)) return 'default';
   const clampedUptime = Math.max(0, Math.min(100, uptime));
 
-  if (clampedUptime >= 99.9) return 'success'; // Excellent
-  if (clampedUptime >= 99) return 'warning'; // Okay/Needs Attention
-  // Error threshold adjusted
-  if (clampedUptime < 99 && clampedUptime >= 95) return 'error'; // Poor
-  if (clampedUptime < 95) return 'error'; // Very Poor / Down significantly
-  return 'default'; // Fallback
+  // --- MODIFICATION: Define thresholds for success, warning, error ---
+  if (clampedUptime >= 99.9) return 'success'; // e.g., 99.9% and above is great
+  if (clampedUptime >= 99.0) return 'warning'; // e.g., 99.0% to 99.89% is okay/warning
+  if (clampedUptime < 99.0) return 'error';   // e.g., Below 99.0% is poor/error
+  // --- END MODIFICATION ---
+
+  return 'default'; // Should not be reached with the logic above
 }
 
 /**
@@ -32,7 +32,7 @@ export function getStatusColor(
 export function getResponseTimeColor(
   time: number | null | undefined,
 ): 'success' | 'warning' | 'error' | 'default' {
-  if (time === null || time === undefined || isNaN(time)) return 'default'; // Handle NaN
+  if (time === null || time === undefined || isNaN(time)) return 'default';
   if (time <= 500) return 'success';  // Fast
   if (time <= 1500) return 'warning'; // Acceptable
   return 'error';                   // Slow
@@ -41,26 +41,19 @@ export function getResponseTimeColor(
 /**
  * Determines a status color based on the type of alert.
  * Uses the AlertColor type from MUI for compatibility.
- * @param type The AlertType string ('down', 'slow', etc.).
- * @returns An MUI AlertColor ('success', 'warning', 'error', 'info').
+ * @param type The AlertType string ('down', 'slow').
+ * @returns An MUI AlertColor ('error', 'warning', 'info').
  */
 export function getAlertTypeColor(
   type: AlertType | string | undefined,
 ): AlertColor {
-  // Added more potential types based on your example
   switch (type?.toLowerCase()) {
     case 'down':
       return 'error';
     case 'slow':
       return 'warning';
-    case 'recovered':
-      return 'success';
-     case 'ssl': // Example added type
-       return 'warning';
-     case 'dns': // Example added type
-       return 'error';
     default:
-      return 'info'; // Default for unknown or other types
+      return 'info'; // Default for unknown types
   }
 }
 
@@ -76,7 +69,6 @@ export function formatResponseTime(ms: number | null | undefined): string {
     return `${Math.round(ms)} ms`;
   } else {
     const seconds = ms / 1000;
-    // Adjust decimals based on value
     const decimals = seconds % 1 === 0 ? 0 : (seconds < 10 ? 2 : 1);
     return `${seconds.toFixed(decimals)} s`;
   }
@@ -84,53 +76,102 @@ export function formatResponseTime(ms: number | null | undefined): string {
 
 /**
  * Formats uptime percentage for display (e.g., "99.95", "100").
- * NOTE: Returns only the number string, WITHOUT the '%' symbol.
+ * Returns only the number string, WITHOUT the '%' symbol.
  * @param uptime Uptime percentage (0-100). Can be null or undefined.
  * @returns Formatted number string or "N/A".
  */
 export function formatUptime(uptime: number | null | undefined): string {
   if (uptime === null || uptime === undefined || isNaN(uptime)) return "N/A";
-
   const clampedUptime = Math.max(0, Math.min(100, uptime));
-
-  // Show "100" without decimals, otherwise show 2 decimal places
   const formatted = clampedUptime === 100 ? "100" : clampedUptime.toFixed(2);
-  return formatted; // Return only the number part
+  return formatted;
 }
 
 /**
- * Formats the time elapsed since a given ISO date string for downtime display.
- * Example: "Down for 2 hours", "Down for 5 minutes"
- * @param isoDateString The ISO 8601 string from the API.
- * @returns Formatted duration string or null.
+ * Formats the duration of an incident (if ended) or the time elapsed since it started (if ongoing).
+ * @param incident The Incident object.
+ * @returns Formatted duration string (e.g., "for 2 hours", "since 5 minutes ago") or null.
  */
-export const formatDowntimeDuration = (isoDateString: string | null | undefined): string | null => {
-    if (!isoDateString) {
+export const formatIncidentDuration = (incident: Incident | null | undefined): string | null => {
+    if (!incident) {
         return null;
     }
     try {
-        const date = parseISO(isoDateString);
-        // formatDistanceToNowStrict provides "x units" output
-        const duration = formatDistanceToNowStrict(date);
-        // Construct the display string
-        return `Down for ${duration}`;
+        const startDate = parseISO(incident.startTime);
+        if (incident.endTime) {
+            // Incident has ended, format the fixed duration
+            const endDate = parseISO(incident.endTime);
+
+            // Use provided durationSeconds if available and valid, otherwise calculate
+            let durationString: string;
+            if (incident.durationSeconds !== null && incident.durationSeconds !== undefined && incident.durationSeconds >= 0) {
+                 durationString = formatSeconds(incident.durationSeconds);
+            } else {
+                 // Calculate using date-fns as a fallback or primary method
+                 durationString = formatDistanceStrict(endDate, startDate);
+                 // Alternatively, use manual seconds calculation:
+                 // const calculatedSeconds = differenceInSeconds(endDate, startDate);
+                 // durationString = formatSeconds(calculatedSeconds);
+            }
+            return `for ${durationString}`;
+
+        } else {
+            // Incident is ongoing, format time since start
+            const timeSince = formatDistanceToNowStrict(startDate, { addSuffix: true });
+            return `since ${timeSince}`;
+        }
     } catch (e) {
-        // Log error during parsing
-        console.error("Error parsing downtime date:", isoDateString, e);
-        // Provide a fallback message
-        return "Down (time unavailable)";
+        console.error("Error parsing incident dates:", incident, e);
+        return "duration unavailable";
     }
 };
 
+/**
+ * Helper function to format seconds into a human-readable duration string.
+ * (e.g., 125 -> "2m 5s", 3700 -> "1h 1m 40s") - Adjust formatting as desired.
+ */
+function formatSeconds(totalSeconds: number): string {
+    if (totalSeconds < 0) totalSeconds = 0;
+
+    const days = Math.floor(totalSeconds / (3600 * 24));
+    totalSeconds %= (3600 * 24);
+    const hours = Math.floor(totalSeconds / 3600);
+    totalSeconds %= 3600;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+
+    let parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    // Include seconds if it's the only unit, or if there are other units and seconds > 0,
+    // or if the total duration is less than a minute.
+    if (seconds > 0 || parts.length === 0 || (days === 0 && hours === 0 && minutes === 0)) {
+        parts.push(`${seconds}s`);
+    }
+
+    return parts.join(' ') || '0s'; // Return '0s' if totalSeconds is 0
+}
+
 
 /**
- * Provides a simple human-readable status label ("Online", "Offline", "Unknown").
- * @param isAvailable Boolean indicating availability. Can be undefined.
- * @returns The status label string.
+ * Provides a simple human-readable status label based on incident or result.
+ * @param incident The current incident (if any).
+ * @param isAvailable Boolean indicating availability from latestResult (used as fallback).
+ * @returns The status label string ("Online", "Offline", "Slow", "Pending").
  */
-export function getStatusLabel(isAvailable: boolean | undefined): string {
-  if (isAvailable === undefined) return "Unknown";
-  return isAvailable ? "Online" : "Offline";
+export function getWebsiteStatusLabel(
+    incident: Incident | null | undefined,
+    isAvailable: boolean | null | undefined
+): "Online" | "Offline" | "Slow" | "Pending" {
+    if (incident) {
+        if (incident.type === 'down') return "Offline";
+        if (incident.type === 'slow') return "Slow";
+    }
+    // If no incident, rely on latest result
+    if (isAvailable === true) return "Online";
+    if (isAvailable === false) return "Offline"; // Explicitly offline from result
+    return "Pending"; // No incident and no result yet
 }
 
 /**
@@ -139,18 +180,11 @@ export function getStatusLabel(isAvailable: boolean | undefined): string {
  * @returns A human-readable description.
  */
 export function getAlertTypeDescription(type: AlertType | string | undefined): string {
-  // Added more potential types based on your example
   switch (type?.toLowerCase()) {
     case 'down':
       return "Website is offline or unreachable.";
-    case 'recovered':
-      return "Website recovered and is back online.";
     case 'slow':
       return "Website response time exceeded threshold.";
-    case 'ssl': // Example added type
-       return "SSL certificate issue detected.";
-     case 'dns': // Example added type
-       return "DNS resolution problem detected.";
     default:
       return "An alert was triggered."; // Generic default
   }

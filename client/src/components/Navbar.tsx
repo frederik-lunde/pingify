@@ -1,6 +1,4 @@
-/*
-src/components/Navbar.tsx
-*/
+// src/components/Navbar.tsx
 import * as React from "react";
 import { useCallback, useState, useMemo } from "react";
 import { useLocation, useNavigate } from 'react-router';
@@ -23,8 +21,7 @@ import { useAuth } from "../context/AuthContext";
 import { useThemeMode } from "../context/ThemeContext";
 import { useWebsiteData } from "../hooks";
 import AlertsDropdown from "./navbar/AlertDropdown";
-import StatsHeader from "../components/dashboard/StatsHeader";
-
+import StatsHeader from "../components/dashboard/StatsHeader"; // Correct path
 
 const pages = [
   { name: "Add Website", path: "/add-website", icon: <AddIcon fontSize="small" />, ariaLabel: "Add new website to monitor" },
@@ -41,18 +38,18 @@ function Navbar() {
   const location = useLocation();
   const { mode, toggleThemeMode } = useThemeMode();
 
+  // Fetch data specifically for the navbar stats header
   const {
       overallStats,
       incidentsLast24h,
       lastIncidentTimestamp,
-      lastIncidentWebsiteId,
       isLoading: isLoadingData,
-      error: dataError,
+      // error: dataError, // Error is not passed to navbar StatsHeader anymore
       totalWebsitesCount,
       upWebsitesCount,
   } = useWebsiteData(
-      'week',
-      60000
+      'week', // Use 'week' for navbar stats consistency
+      60000   // Poll every minute
   );
 
   const headerUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
@@ -65,7 +62,7 @@ function Navbar() {
   const handlePageClick = useCallback((path: string) => {
     handleCloseNavMenu();
     if (path !== "#") navigate(path);
-  }, [navigate]);
+  }, [navigate, handleCloseNavMenu]);
 
   const handleSettingClick = useCallback(async (setting: string) => {
     handleCloseUserMenu();
@@ -73,7 +70,7 @@ function Navbar() {
       try { await logout(); navigate('/login'); }
       catch (error) { console.error("Failed to logout:", error); }
     } else if (setting === "Profile") {
-       navigate("/profile");
+      navigate("/profile");
     }
   }, [logout, navigate, handleCloseUserMenu]);
 
@@ -96,17 +93,18 @@ function Navbar() {
 
   return (
     <AppBar position="static">
-      {/* Change Container to use full width and apply padding manually */}
       <Container maxWidth={false} sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
         <Toolbar disableGutters>
 
-          {/* Left Section: Stays left due to parent Toolbar flex layout */}
+          {/* Left Section */}
           <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: { xs: 0, md: 1 } }}>
+            {/* Desktop Logo */}
             <Box onClick={() => navigate("/")} sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", cursor: "pointer", mr: 1 }}>
               <AdbIcon sx={{ mr: 1 }}/>
               <Typography variant="h6" noWrap component="div" sx={{ mr: 2, fontFamily: "monospace", fontWeight: 700, letterSpacing: ".3rem" }}>PINGIFY</Typography>
             </Box>
 
+            {/* Mobile Nav Menu */}
             <Box sx={{ display: { xs: "flex", md: "none" } }}>
               <IconButton size="large" aria-label="navigation menu" aria-controls="menu-appbar-nav" aria-haspopup="true" onClick={handleOpenNavMenu} color="inherit"><MenuIcon /></IconButton>
               <Menu id="menu-appbar-nav" anchorEl={anchorElNav} anchorOrigin={{ vertical: "bottom", horizontal: "left" }} keepMounted transformOrigin={{ vertical: "top", horizontal: "left" }} open={Boolean(anchorElNav)} onClose={handleCloseNavMenu} sx={{ display: { xs: "block", md: "none" } }}>
@@ -118,50 +116,64 @@ function Navbar() {
               </Menu>
             </Box>
 
+            {/* Mobile Logo */}
             <Box onClick={() => navigate("/")} sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", cursor: "pointer", flexGrow: 1, justifyContent: 'center' }}>
               <AdbIcon sx={{ mr: 1 }}/>
               <Typography variant="h5" noWrap component="div" sx={{ fontFamily: "monospace", fontWeight: 700, letterSpacing: ".3rem" }}>PINGIFY</Typography>
             </Box>
 
+            {/* Desktop Nav Links */}
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1, ml: 2 }}>
               {pages.map((page) => (
                 <Tooltip key={page.name} title={page.ariaLabel || page.name} arrow>
-                  <span><IconButton aria-label={page.ariaLabel || page.name} onClick={() => handlePageClick(page.path)} color="inherit" size="medium">{page.icon}</IconButton></span>
+                  <span>
+                    <IconButton
+                      aria-label={page.ariaLabel || page.name}
+                      onClick={() => handlePageClick(page.path)}
+                      color="inherit"
+                      size="medium"
+                    >
+                      {page.icon}
+                    </IconButton>
+                  </span>
                 </Tooltip>
               ))}
             </Box>
           </Box>
 
-          {/* Center Section: Will occupy space between left/right */}
+          {/* Center Section: Stats Header */}
+          {/* Show stats in navbar only when NOT on the main dashboard */}
           {!isDashboard && (
             <StatsHeader
+              // Show loading only if initial stats data hasn't loaded yet
               isLoading={isLoadingData && !overallStats}
-              error={dataError}
+              // error prop is removed - Navbar doesn't show a dedicated error state for stats
               upCount={upWebsitesCount}
               totalCount={totalWebsitesCount}
               uptime={headerUptime}
               incidentsLast24h={incidentsLast24h}
               lastIncidentTimestamp={lastIncidentTimestamp}
-              lastIncidentWebsiteId={lastIncidentWebsiteId}
-              center={true}
-              onShowDownWebsites={() => {}}
-              showDownWebsites={false}
-              onToggleHighlight={undefined}
-              isHighlightActive={false}
+              center={true} // Use the compact, centered layout for navbar
             />
           )}
 
-          {/* Right Section: Stays right due to parent Toolbar flex layout */}
+          {/* Right Section: Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: 0, gap: { xs: 0.5, sm: 1 } }}>
-             <AlertsDropdown options={{ limit: 50 }} pollingInterval={60000} />
+            {/* Alert Dropdown */}
+            <AlertsDropdown
+                apiFilters={{ limit: 10, status: 'active' }}
+                pollingInterval={60000}
+              />
 
-             <Tooltip title={`Toggle ${mode === 'dark' ? 'light' : 'dark'} mode`}>
+            {/* Theme Toggle */}
+            <Tooltip title={`Toggle ${mode === 'dark' ? 'light' : 'dark'} mode`}>
                 <IconButton onClick={handleThemeToggle} color="inherit">
                     {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
                 </IconButton>
-             </Tooltip>
+            </Tooltip>
 
-             <Tooltip title="Open settings">
+            {/* User Menu */}
+            <Tooltip title="Open settings">
                 <IconButton onClick={handleOpenUserMenu} aria-label="open user menu" aria-controls="menu-appbar-user" aria-haspopup="true" sx={{ p: 0 }}>
                   <Avatar alt={user?.name || user?.email || 'User'} sx={{ width: { xs: 32, sm: 40 }, height: { xs: 32, sm: 40 }, bgcolor: "secondary.main", color: (theme) => theme.palette.getContrastText(theme.palette.secondary.main), fontSize: "1rem" }}>
                     {userInitial}
@@ -169,11 +181,14 @@ function Navbar() {
                 </IconButton>
               </Tooltip>
 
+            {/* User Menu Dropdown */}
             <Menu id="menu-appbar-user" sx={{ mt: "45px" }} anchorEl={anchorElUser} anchorOrigin={{ vertical: "top", horizontal: "right" }} keepMounted transformOrigin={{ vertical: "top", horizontal: "right" }} open={Boolean(anchorElUser)} onClose={handleCloseUserMenu}>
+              {/* User Info Header */}
               <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
                   <Typography variant="subtitle1" fontWeight="bold" noWrap>{user?.name || 'User'}</Typography>
                   <Typography variant="body2" color="text.secondary" noWrap>{user?.email}</Typography>
               </Box>
+              {/* Settings Items */}
               {settings.map((setting) => (
                 <MenuItem key={setting} onClick={() => handleSettingClick(setting)}>
                   <Typography sx={{ textAlign: "center", width: '100%' }}>{setting}</Typography>

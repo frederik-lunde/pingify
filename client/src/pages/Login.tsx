@@ -1,5 +1,5 @@
 // client/src/pages/Login.tsx
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react"; // Added useCallback
 import { useNavigate, Link } from "react-router";
 import { Formik, Form, Field, FormikHelpers } from "formik";
 import * as Yup from "yup";
@@ -10,12 +10,12 @@ import {
   Typography,
   TextField,
   Button,
-  Alert,
+  // Alert, // Removed Alert import
   Checkbox,
   FormControlLabel,
   InputAdornment,
   IconButton,
-  CircularProgress, // Import CircularProgress
+  CircularProgress,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import {
@@ -25,9 +25,13 @@ import {
   VisibilityOff as VisibilityOffIcon,
   Login as LoginIcon,
 } from "@mui/icons-material";
-// Import the mutation hook, remove useAuth import for login/register
-import { useLoginMutation } from "../hooks/api/useAuth"; // Adjust path
-import { ApiError } from "../types"; // Adjust path
+// Import the mutation hook
+import { useLoginMutation } from "../hooks/api/useAuth";
+import { ApiError } from "../types";
+// Import FormNotification
+import FormNotification, {
+  initialNotificationState, FormNotificationState
+} from "../components/common/FormNotification";
 
 // Login form values interface - unchanged
 interface LoginFormValues {
@@ -44,11 +48,13 @@ const LoginSchema = Yup.object().shape({
 });
 
 const Login: React.FC = () => {
-  // UI state - unchanged
+  // UI state
   const [showPassword, setShowPassword] = useState(false);
+  // Notification state
+  const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
 
   // --- Use the login mutation hook ---
-  const { mutateAsync: loginUser, isPending: isLoggingIn, error: loginError } = useLoginMutation();
+  const { mutateAsync: loginUser, isPending: isLoggingIn /*, error: loginError */ } = useLoginMutation(); // Removed loginError, will use notification
   const navigate = useNavigate();
 
   // Initial form values - unchanged
@@ -59,7 +65,8 @@ const Login: React.FC = () => {
     values: LoginFormValues,
     formikHelpers: FormikHelpers<LoginFormValues>
   ) => {
-     formikHelpers.setStatus({ error: null }); // Clear previous form error
+     // formikHelpers.setStatus({ error: null }); // Not needed if using Snackbar for errors
+     setNotification(initialNotificationState); // Clear previous notification
     try {
       // Call the mutation
       await loginUser({
@@ -67,14 +74,14 @@ const Login: React.FC = () => {
           password: values.password,
           rememberMe: values.rememberMe
       });
-      // On success, TanStack Query handles token storage and query invalidation via onSuccess
-      // Navigation happens after successful mutation
+      // On success, navigate immediately. A notification is usually not needed for login success.
       navigate("/");
     } catch (err) {
       // Catch errors from the mutation
       const apiError = err as ApiError;
-      // Set the error message in Formik's status for display
-      formikHelpers.setStatus({ error: apiError.message || "Login failed. Please check your credentials." });
+      const message = apiError.message || "Login failed. Please check your credentials.";
+      // Set the notification state instead of Formik status or inline alert
+      setNotification({ open: true, message, severity: "error" });
       console.error("Login error:", apiError);
     } finally {
         // Ensure submitting state is always reset
@@ -84,6 +91,15 @@ const Login: React.FC = () => {
 
   // Toggle password visibility - unchanged
   const togglePasswordVisibility = () => setShowPassword((prev) => !prev);
+
+  // Handle notification close
+  const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setNotification((prev) => ({ ...prev, open: false }));
+  }, []);
+
 
   return (
     <Container maxWidth="sm" sx={{ mt: 4, mb: 8 }}>
@@ -102,14 +118,14 @@ const Login: React.FC = () => {
           validationSchema={LoginSchema}
           onSubmit={handleSubmit}
         >
-          {({ errors, touched, isSubmitting, status }) => (
+          {({ errors, touched, isSubmitting /*, status */ }) => ( // Removed status
             <Form>
-              {/* Display form-level errors from Formik status OR direct mutation error */}
-              {(status?.error || loginError?.message) && (
+              {/* Removed inline Alert for errors, FormNotification will handle them */}
+              {/* {(status?.error || loginError?.message) && (
                 <Alert severity="error" sx={{ mb: 3 }}>
                   {status?.error || loginError?.message}
                 </Alert>
-              )}
+              )} */}
 
               <Grid container spacing={2}>
                 {/* Email Field - unchanged */}
@@ -153,6 +169,12 @@ const Login: React.FC = () => {
           )}
         </Formik>
       </Paper>
+
+       {/* Add FormNotification component */}
+       <FormNotification
+         notification={notification}
+         onClose={handleNotificationClose}
+      />
     </Container>
   );
 };

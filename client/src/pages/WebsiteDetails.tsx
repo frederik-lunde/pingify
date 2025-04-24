@@ -1,31 +1,32 @@
-/*
-src/components/details/WebsiteDetails.tsx
-*/
+/* src/pages/WebsiteDetails.tsx */
 import React, { useState, useMemo, useCallback, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
     Container, Box, Alert, Button, Skeleton, Paper, SelectChangeEvent, CircularProgress,
-    FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { keepPreviousData } from '@tanstack/react-query';
-import { NetworkCheck as NetworkCheckIcon } from '@mui/icons-material';
 
-// Adjust paths as needed
-import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks';
-import { TimeframeKey, ApiError } from '../types';
-import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader'; 
-import RecentChecksList from '../components/details/RecentCheckList'; 
+import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks'; // Corrected path if needed
+// --- MODIFIED: Import MonitoringResultSortBy ---
+import { TimeframeKey, ApiError, MonitoringResultSortBy } from '../types';
+import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader';
+import RecentChecksList from '../components/details/RecentCheckList';
+import RecentIncidentsList from '../components/details/RecentIncidentsList';
+import WebsiteCurrentIncidentAlert from '../components/details/CurrentIncidentAlert';
+import WebsiteDetailsControls from '../components/details/WebsiteDetailsControls';
+import DataFetchError from '../components/common/DataFetchError'; // Import the common error component
+
 const LazyWebsiteCharts = React.lazy(() => import('../components/details/WebsiteCharts'));
 
-export type SortableColumn = 'isAvailable' | 'timestamp' | 'statusCode' | 'responseTime';
+// --- MODIFIED: Use MonitoringResultSortBy for API compatibility ---
+// Note: 'id' is valid for sorting but might not be useful in the UI here. Add if needed.
+export type SortableColumn = Extract<MonitoringResultSortBy, 'checkedAt' | 'isAvailable' | 'statusCode' | 'responseTime'>;
 export type SortDirection = 'asc' | 'desc';
 
-// --- Skeletons & Fallbacks ---
-const PageSkeleton = () => (
+const PageSkeleton = () => ( /* Skeleton remains the same */
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Paper sx={{ p: 2, mb: 3 }}><Skeleton variant="rectangular" height={80} /></Paper>
-        {/* Skeleton for controls area */}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 2 }}>
             <Skeleton variant="rectangular" width={120} height={40} />
             <Skeleton variant="rectangular" width={150} height={40} />
@@ -34,6 +35,12 @@ const PageSkeleton = () => (
             <Grid size={{ xs: 12, md: 6 }}><Paper sx={{ p: 2 }}><Skeleton variant="rectangular" height={300} /></Paper></Grid>
             <Grid size={{ xs: 12, md: 6 }}><Paper sx={{ p: 2 }}><Skeleton variant="rectangular" height={300} /></Paper></Grid>
         </Grid>
+        <Paper sx={{ p: 2, mb: 3 }}>
+             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Skeleton variant="text" width={150} height={30} />
+            </Box>
+            <Skeleton variant="rectangular" height={150} />
+        </Paper>
         <Paper sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Skeleton variant="text" width={150} height={30} />
@@ -44,12 +51,11 @@ const PageSkeleton = () => (
     </Container>
 );
 
-const LoadingFallback = () => (
+const LoadingFallback = () => ( /* Fallback remains the same */
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
         <CircularProgress />
     </Box>
 );
-// --- End Skeletons & Fallbacks ---
 
 const WebsiteDetails: React.FC = () => {
     const { websiteId: websiteIdParam } = useParams<{ websiteId: string }>();
@@ -60,13 +66,12 @@ const WebsiteDetails: React.FC = () => {
         return isNaN(id) || id <= 0 ? undefined : id;
     }, [websiteIdParam]);
 
-    // --- Local UI State ---
     const [timeframeKey, setTimeframeKey] = useState<TimeframeKey>('day');
     const [checkLimit, setCheckLimit] = useState<number>(25);
-    const [sortBy, setSortBy] = useState<SortableColumn>('timestamp');
+    // --- MODIFIED: Initialize sortBy with 'checkedAt' ---
+    const [sortBy, setSortBy] = useState<SortableColumn>('checkedAt');
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
-    // --- Data Fetching ---
     const {
         data: websiteDetails,
         isPending: isInitialLoading,
@@ -77,19 +82,18 @@ const WebsiteDetails: React.FC = () => {
         websiteId: numericWebsiteId!,
         timeframe: timeframeKey,
         limit: checkLimit,
-        sortBy: sortBy,
+        sortBy: sortBy, // Now sends 'checkedAt' (or other valid values)
         sortDir: sortDir,
+        incidentLimit: 15, // How many recent incidents to fetch
     }, {
         enabled: !!numericWebsiteId,
-        staleTime: 60 * 1000,
-        refetchOnWindowFocus: true,
-        placeholderData: keepPreviousData,
+        staleTime: 60 * 1000, // Don't refetch automatically for 1 minute unless invalidated
+        refetchOnWindowFocus: true, // Refetch when window regains focus
+        placeholderData: keepPreviousData, // Keep showing old data while fetching new
     });
 
-    // --- Mutation ---
     const { mutate: checkWebsite, isPending: isChecking } = useWebsiteCheckMutation();
 
-    // --- Event Handlers ---
     const handleTimeframeChange = useCallback((event: SelectChangeEvent<TimeframeKey>) => {
         setTimeframeKey(event.target.value as TimeframeKey);
     }, []);
@@ -99,6 +103,7 @@ const WebsiteDetails: React.FC = () => {
         if (!isNaN(newLimit) && newLimit > 0) { setCheckLimit(newLimit); }
     }, []);
 
+    // This function should receive the correct SortableColumn type ('checkedAt', etc.)
     const handleSort = useCallback((column: SortableColumn) => {
         setSortDir(currentDir => (column === sortBy && currentDir === 'desc' ? 'asc' : 'desc'));
         setSortBy(column);
@@ -114,49 +119,65 @@ const WebsiteDetails: React.FC = () => {
         if (numericWebsiteId) { navigate(`/website/${numericWebsiteId}/settings`); }
     }, [navigate, numericWebsiteId]);
 
-    // --- Derived Data & Loading States ---
+    // Derived Data & Loading States
     const name = websiteDetails?.name ?? (isInitialLoading ? 'Loading...' : 'N/A');
     const url = websiteDetails?.url ?? '';
     const latestResult = websiteDetails?.latestResult ?? null;
     const chartData = websiteDetails?.chartData ?? [];
     const recentChecks = websiteDetails?.recentChecks ?? [];
     const uptimePercent = websiteDetails?.uptimePercent ?? null;
+    const currentIncident = websiteDetails?.currentIncident ?? null;
+    const recentIncidents = websiteDetails?.recentIncidents ?? [];
 
     const isProcessingData = isDetailsRefetching || isChecking;
     const isManualChecking = isChecking;
     const isBackgroundRefetching = isDetailsRefetching && !isChecking;
 
     // --- Render Logic ---
-
     if (websiteIdParam !== undefined && numericWebsiteId === undefined) {
         return <Container sx={{ mt: 4 }}><Alert severity="error">Invalid Website ID provided in URL.</Alert></Container>;
     }
     if (isInitialLoading) {
         return <PageSkeleton />;
     }
-    if (detailsError && !websiteDetails) {
+
+    // Initial Load Error Check - Use DataFetchError
+    if (detailsError && !websiteDetails && !isInitialLoading) { // Check !isInitialLoading to ensure it's a true error after attempting load
         return (
             <Container sx={{ mt: 4 }}>
-                <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => refetchDetails()}>Retry</Button>}>
-                    Error loading website details: {(detailsError as ApiError).message || 'Unknown error'}
-                </Alert>
+                <DataFetchError
+                    error={detailsError as ApiError}
+                    onRetry={refetchDetails}
+                    context="Website Details"
+                />
             </Container>
         );
     }
-    if (!isInitialLoading && !websiteDetails) {
+
+    // Website Not Found (after load attempt, no error, but no data)
+    if (!isInitialLoading && !websiteDetails && !detailsError) {
        return <Container sx={{ mt: 4 }}><Alert severity="warning">Could not find data for this website.</Alert></Container>;
     }
 
+    // Check if data exists before proceeding (for TypeScript)
+    if (!websiteDetails) {
+        // This case should ideally be covered by the checks above, but acts as a fallback
+        return <Container sx={{ mt: 4 }}><Alert severity="info">Loading website data...</Alert></Container>;
+    }
+
+    // Check for partial errors (refresh failed, but showing stale data)
     const showInlineError = detailsError && !!websiteDetails;
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+            {/* Partial Error Alert */}
             {showInlineError && (
                 <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => refetchDetails()}>Retry</Button>}>
                     Could not refresh data: {(detailsError as ApiError)?.message || 'Unknown error'}. Displaying last known data.
                 </Alert>
             )}
 
+            {/* Header Component */}
             <WebsiteDetailsHeader
                 name={name}
                 url={url}
@@ -165,62 +186,43 @@ const WebsiteDetails: React.FC = () => {
                 onSettingsClick={handleSettingsClick}
             />
 
-            {/* Controls Area: Check Now Button and Timeframe Selector */}
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-                 {/* Check Now Button */}
-                 <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={isManualChecking ? <CircularProgress size={20} color="inherit" /> : <NetworkCheckIcon />}
-                    onClick={handleCheckNow}
-                    disabled={isManualChecking}
-                    size="medium"
-                    sx={{ borderRadius: 2, whiteSpace: 'nowrap', minWidth: { xs: 'auto', sm: 110 } }}
-                >
-                    {isManualChecking ? "Checking..." : "Check Now"}
-                </Button>
+             {/* Current Incident Alert Component */}
+             <WebsiteCurrentIncidentAlert incident={currentIncident} />
 
-                {/* Timeframe Selector (This is the single source now) */}
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                    <InputLabel id="timeframe-select-label">Chart Timeframe</InputLabel>
-                    <Select
-                        labelId="timeframe-select-label"
-                        id="timeframe-select"
-                        value={timeframeKey}
-                        label="Chart Timeframe"
-                        onChange={handleTimeframeChange}
-                        disabled={isProcessingData}
-                    >
-                        <MenuItem value={'hour'}>Last Hour</MenuItem>
-                        <MenuItem value={'day'}>Last 24 Hours</MenuItem>
-                        <MenuItem value={'week'}>Last 7 Days</MenuItem>
-                        <MenuItem value={'month'}>Last 30 Days</MenuItem>
-                        <MenuItem value={'year'}>Last Year</MenuItem>
-                    </Select>
-                </FormControl>
-            </Box>
+            {/* Controls Area Component */}
+            <WebsiteDetailsControls
+                timeframeKey={timeframeKey}
+                onTimeframeChange={handleTimeframeChange}
+                onCheckNow={handleCheckNow}
+                isChecking={isManualChecking}
+                isProcessingData={isProcessingData}
+            />
 
-
-            {/* Suspense for lazy charts */}
+            {/* Charts Component (Lazy Loaded) */}
              <Suspense fallback={<LoadingFallback />}>
-                {/* Use the renamed variable for the lazy component */}
                 <LazyWebsiteCharts
                     chartData={chartData}
                     uptimePercent={uptimePercent}
                     timeframeKey={timeframeKey}
-                    isLoading={isProcessingData}
+                    isLoading={isProcessingData} // Indicate loading on charts if refetching/checking
                 />
             </Suspense>
 
-            {/* Recent Checks List */}
+            {/* Recent Incidents List Component */}
+             <RecentIncidentsList
+                incidents={recentIncidents}
+                isLoading={isProcessingData} // Indicate loading if refetching/checking
+             />
+
+            {/* Recent Checks List Component */}
             <RecentChecksList
                 recentChecks={recentChecks}
                 checkLimit={checkLimit}
-                sortBy={sortBy}
+                sortBy={sortBy} // Pass the correct state value ('checkedAt', etc.)
                 sortDir={sortDir}
-                isLoading={isProcessingData}
+                isLoading={isProcessingData} // Indicate loading if refetching/checking
                 onCheckLimitChange={handleCheckLimitChange}
-                onSort={handleSort}
+                onSort={handleSort} // Ensure this receives the correct SortableColumn type
             />
         </Container>
     );

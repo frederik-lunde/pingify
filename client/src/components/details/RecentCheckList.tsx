@@ -1,12 +1,12 @@
 /*
 src/components/details/RecentChecksList.tsx
 */
-import { memo } from 'react'; // Removed React prefix
+import { memo } from 'react';
 import {
     Paper, Box, Typography, Stack, FormControl, InputLabel, Select, MenuItem,
     List, Tooltip, ButtonBase, SelectChangeEvent, alpha, useTheme, ListItem
 } from '@mui/material';
-import Grid from '@mui/material/Grid2'; // <-- Use Grid v2
+import Grid from '@mui/material/Grid2'; // Use Grid v2
 import {
     ListAlt as ListAltIcon, InfoOutlined as InfoOutlinedIcon,
     CheckCircleOutline as CheckIcon, CalendarToday as CalendarTodayIcon, Code as CodeIcon,
@@ -16,17 +16,18 @@ import {
 import { MonitoringResult } from '../../types'; // Adjust path
 import CheckListItem from './CheckListItem'; // Adjust path
 
-type SortableColumn = 'isAvailable' | 'timestamp' | 'statusCode' | 'responseTime';
+// --- MODIFIED: Use 'checkedAt' to match API and parent component ---
+type SortableColumn = 'isAvailable' | 'checkedAt' | 'statusCode' | 'responseTime';
 type SortDirection = 'asc' | 'desc';
 
 interface RecentChecksListProps {
     recentChecks: MonitoringResult[];
     checkLimit: number;
-    sortBy: SortableColumn;
+    sortBy: SortableColumn; // Now expects 'checkedAt', etc.
     sortDir: SortDirection;
     isLoading: boolean;
     onCheckLimitChange: (event: SelectChangeEvent<number | string>) => void;
-    onSort: (column: SortableColumn) => void;
+    onSort: (column: SortableColumn) => void; // Now expects a function taking 'checkedAt', etc.
 }
 
 // Helper to render sort icon
@@ -84,7 +85,7 @@ const RecentChecksList = memo(({
                     background: alpha(theme.palette.action.hover, 0.04),
                     borderRadius: 1, px: 1
                 }}>
-                {/* Use size prop */}
+                {/* Status Column */}
                 <Grid size={1} display="flex" justifyContent="center" alignItems="center">
                     <Tooltip title="Sort by Status">
                         <ButtonBase onClick={() => onSort('isAvailable')} sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 1, p: 0.5, '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08)} }} aria-label="Sort by Status">
@@ -92,13 +93,16 @@ const RecentChecksList = memo(({
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
+                {/* Date & Time Column */}
                 <Grid size={5} >
                     <Tooltip title="Sort by Date & Time">
-                        <ButtonBase onClick={() => onSort('timestamp')} sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', borderRadius: 1, p: 0.5, width: '100%', justifyContent: 'flex-start', '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08) } }} aria-label="Sort by Date and Time">
-                            <CalendarTodayIcon fontSize="small" sx={{ color: 'text.secondary', mr: 0.5 }} /><Typography variant="caption" color="textSecondary" fontWeight="bold">Date & Time</Typography>{renderSortIcon('timestamp', sortBy, sortDir)}
+                        {/* --- MODIFIED: Call onSort with 'checkedAt' --- */}
+                        <ButtonBase onClick={() => onSort('checkedAt')} sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', borderRadius: 1, p: 0.5, width: '100%', justifyContent: 'flex-start', '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08) } }} aria-label="Sort by Date and Time">
+                            <CalendarTodayIcon fontSize="small" sx={{ color: 'text.secondary', mr: 0.5 }} /><Typography variant="caption" color="textSecondary" fontWeight="bold">Date & Time</Typography>{renderSortIcon('checkedAt', sortBy, sortDir)}
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
+                {/* Status Code Column */}
                 <Grid size={3} display="flex" justifyContent="center" alignItems="center">
                     <Tooltip title="Sort by HTTP Status Code">
                         <ButtonBase onClick={() => onSort('statusCode')} sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 1, p: 0.5, width: '100%', justifyContent: 'center', '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08) } }} aria-label="Sort by HTTP Status Code">
@@ -106,6 +110,7 @@ const RecentChecksList = memo(({
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
+                {/* Response Time Column */}
                 <Grid size={3} display="flex" justifyContent="center" alignItems="center">
                     <Tooltip title="Sort by Response Time">
                         <ButtonBase onClick={() => onSort('responseTime')} sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 1, p: 0.5, width: '100%', justifyContent: 'center', '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08) } }} aria-label="Sort by Response Time">

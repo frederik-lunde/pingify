@@ -1,5 +1,5 @@
 // client/src/pages/Register.tsx
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react"; // Added useCallback
 import { useNavigate, Link } from "react-router";
 import { Formik, Form, Field, FormikHelpers } from "formik";
 import * as Yup from "yup";
@@ -10,11 +10,11 @@ import {
   Typography,
   TextField,
   Button,
-  Alert,
+  // Alert, // Removed Alert
   InputAdornment,
   Tooltip,
   IconButton,
-  CircularProgress, 
+  CircularProgress,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import {
@@ -26,8 +26,12 @@ import {
   VisibilityOff as VisibilityOffIcon,
   Login as LoginIcon,
 } from "@mui/icons-material";
-import { useRegisterMutation } from "../hooks/api/useAuth"; 
-import { ApiError } from "../types"; 
+import { useRegisterMutation } from "../hooks/api/useAuth";
+import { ApiError } from "../types";
+// Import FormNotification
+import FormNotification, {
+  initialNotificationState, FormNotificationState
+} from "../components/common/FormNotification";
 
 interface RegisterFormValues {
   email: string;
@@ -44,11 +48,13 @@ const RegisterSchema = Yup.object().shape({
 });
 
 const Register: React.FC = () => {
-  // UI state - unchanged
+  // UI state
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // Notification state
+  const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
 
-  const { mutateAsync: registerUser, isPending: isRegistering, error: registerError } = useRegisterMutation();
+  const { mutateAsync: registerUser, isPending: isRegistering } = useRegisterMutation();
   const navigate = useNavigate();
 
   const initialValues: RegisterFormValues = { email: "", name: "", password: "", confirmPassword: "" };
@@ -57,20 +63,26 @@ const Register: React.FC = () => {
     values: RegisterFormValues,
     formikHelpers: FormikHelpers<RegisterFormValues>
   ) => {
-     formikHelpers.setStatus({ error: null }); 
+     // formikHelpers.setStatus({ error: null }); // Not needed if using Snackbar
+     setNotification(initialNotificationState); // Clear previous notification
     try {
         // Call the mutation
         await registerUser({
             email: values.email,
             password: values.password,
-            name: values.name || undefined 
+            name: values.name || undefined
         });
-  
-         navigate("/"); 
+
+        // Show success notification
+        setNotification({ open: true, message: "Account created successfully! Redirecting...", severity: "success" });
+        // Navigate after a short delay to let user see the message
+        setTimeout(() => navigate("/"), 2000);
 
     } catch (err) {
         const apiError = err as ApiError;
-        formikHelpers.setStatus({ error: apiError.message || "Registration failed. Please try again." });
+        const message = apiError.message || "Registration failed. Please try again.";
+        // formikHelpers.setStatus({ error: message }); // Use Snackbar instead
+        setNotification({ open: true, message, severity: "error" });
         console.error("Registration error:", apiError);
     } finally {
          formikHelpers.setSubmitting(false);
@@ -79,6 +91,15 @@ const Register: React.FC = () => {
 
   const togglePasswordVisibility = () => setShowPassword((prev) => !prev);
   const toggleConfirmPasswordVisibility = () => setShowConfirmPassword((prev) => !prev);
+
+  // Handle notification close
+  const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setNotification((prev) => ({ ...prev, open: false }));
+  }, []);
+
 
   return (
     <Container maxWidth="sm" sx={{ mt: 4, mb: 8 }}>
@@ -98,13 +119,14 @@ const Register: React.FC = () => {
           validationSchema={RegisterSchema}
           onSubmit={handleSubmit}
         >
-          {({ errors, touched, isSubmitting, status }) => (
+          {({ errors, touched, isSubmitting /*, status */ }) => ( // Removed status
             <Form>
-              {status?.error && (
+              {/* Removed inline Alert, using FormNotification instead */}
+              {/* {status?.error && (
                 <Alert severity="error" sx={{ mb: 3 }}>
                   {status.error}
                 </Alert>
-              )}
+              )} */}
 
               <Grid container spacing={2}>
                  <Grid size={12}>
@@ -145,7 +167,12 @@ const Register: React.FC = () => {
         </Formik>
       </Paper>
 
-   
+      {/* Add FormNotification */}
+      <FormNotification
+        notification={notification}
+        onClose={handleNotificationClose}
+      />
+
     </Container>
   );
 };

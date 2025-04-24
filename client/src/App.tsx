@@ -1,100 +1,69 @@
 // src/App.tsx
 import { Routes, Route } from "react-router";
-import { CssBaseline, Box, Alert } from "@mui/material";
+import { CssBaseline } from "@mui/material"; // Removed Alert
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 // Core Components & Pages
-import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
+import MainLayout from "./components/layout/MainLayout"; // Import MainLayout
 import Dashboard from "./pages/Dashboard";
-// *** Import Page Components ***
 import WebsiteDetails from "./pages/WebsiteDetails";
 import WebsiteSettings from "./pages/WebsiteSettings";
 import AddWebsite from "./pages/AddWebsite";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import IncidentsPage from "./pages/Incidents";
+import ProfilePage from "./pages/Profile";
+import NotFoundPage from "./pages/NotFound"; // Import NotFoundPage
 
 // Context
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { useApplyUserThemePreference } from "./context/ThemeContext"; // Adjust path if needed
-// *** Correct Import Path & Import Hook ***
-import { FocusModeProvider, useFocusMode } from "./context/FocusModeContext"; // Adjust path if needed
+import { AuthProvider } from "./context/AuthContext"; // Removed useAuth here
+import { useApplyUserThemePreference } from "./context/ThemeContext";
+import { TvModeProvider } from "./context/TvModeContext"; // Removed useTvMode here
 
-// --- Correctly Defined Wrapper Components ---
-function WebsiteDetailsWrapper() {
-  // This component wraps WebsiteDetails in ProtectedRoute
-  return (
-    <ProtectedRoute>
-      <WebsiteDetails />
-    </ProtectedRoute>
-  );
-}
+// Component containing Routes - Navbar is now in MainLayout
+function AppRoutes() {
+    useApplyUserThemePreference(); // Apply theme preference based on context
 
-function WebsiteSettingsWrapper() {
-  // This component wraps WebsiteSettings in ProtectedRoute
-  return (
-    <ProtectedRoute>
-      <WebsiteSettings />
-    </ProtectedRoute>
-  );
-}
-// --- End Wrapper Components ---
+    return (
+        <Routes>
+            {/* Public routes - No Navbar */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-// Component containing Navbar and Routes
-function AppContent() {
-  const { user } = useAuth();
-  // *** Use the imported useFocusMode hook ***
-  const { isFocusMode } = useFocusMode();
-  // Apply theme preference (assuming this hook exists and works)
-  useApplyUserThemePreference();
+            <Route
+                element={
+                    <ProtectedRoute>
+                        <MainLayout />
+                    </ProtectedRoute>
+                }
+            >
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/website/:websiteId" element={<WebsiteDetails />} />
+                <Route path="/website/:websiteId/settings" element={<WebsiteSettings />} />
+                <Route path="/add-website" element={<AddWebsite />} />
+                <Route path="/incidents" element={<IncidentsPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+            </Route>
 
-  return (
-    <>
-      {/* Conditionally render Navbar based on user AND focus mode */}
-      {user && !isFocusMode && <Navbar />}
-      {/* Define application routes */}
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-
-        {/* Protected Routes */}
-        <Route path="/" element={ <ProtectedRoute><Dashboard /></ProtectedRoute> } />
-        {/* Use the correctly defined wrapper components */}
-        <Route path="/website/:websiteId" element={<WebsiteDetailsWrapper />} />
-        <Route path="/website/:websiteId/settings" element={<WebsiteSettingsWrapper />} />
-        <Route path="/add-website" element={ <ProtectedRoute><AddWebsite /></ProtectedRoute> } />
-
-        {/* Fallback for unknown routes */}
-        <Route path="*" element={
-            // Adjust top margin based on whether Navbar is rendered
-            <Box sx={{ p: 4, mt: user && !isFocusMode ? 8 : 2, textAlign: 'center' }}>
-                <Alert severity="warning">Page Not Found (404)</Alert>
-            </Box>
-        } />
-      </Routes>
-    </>
-  );
+            <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+    );
 }
 
 // Main App component
 function App() {
-  return (
-    <>
-      {/* Apply baseline CSS normalization */}
-      <CssBaseline />
-      {/* Provide Authentication context */}
-      <AuthProvider>
-        {/* Provide Focus Mode context */}
-        <FocusModeProvider>
-          {/* Render main application content */}
-          <AppContent />
-        </FocusModeProvider>
-      </AuthProvider>
-      {/* Optionally include React Query DevTools in development */}
-      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
-    </>
-  );
+    return (
+        <>
+            <CssBaseline />
+            <AuthProvider>
+                <TvModeProvider>
+                    <AppRoutes />
+                </TvModeProvider>
+            </AuthProvider>
+            {import.meta.env.DEV && <ReactQueryDevtools/>}
+        </>
+    );
 }
 
 export default App;

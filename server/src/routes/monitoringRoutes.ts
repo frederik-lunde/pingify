@@ -1,42 +1,76 @@
 // server/src/routes/monitoringRoutes.ts
 import { Router } from 'express';
-// --- UPDATED PATH ---
-import * as monitoringController from '../controllers/monitorController'; // Corrected controller filename
-import { authenticate } from '../middleware/authMiddleware'; // Ensure path is correct
-// Import admin check middleware if you have one, e.g., isAdmin
-// import { isAdmin } from '../middleware/authMiddleware';
-
+import * as monitoringController from '../controllers/monitorController'; // Corrected controller import name
+import { authenticate } from '../middleware/authMiddleware';
+import { handleValidationErrors } from '../middleware/validators/authValidator'; // Reuse this
+import {
+    getResultsValidationRules,
+    getResultsByWebsiteValidationRules,
+    triggerWebsiteCheckValidationRules,
+    getStatsValidationRules,
+    getWebsiteStatsValidationRules,
+    getWebsiteDetailsValidationRules,
+} from '../middleware/validators/monitorValidator';
 
 const router = Router();
 
 router.use(authenticate);
 
 // --- Admin Routes ---
-// GET all results across the system (paginated/filtered)
-// Optional: Add isAdmin middleware if needed: router.get('/admin/results', isAdmin, monitoringController.getAllResults);
-router.get('/admin/results', monitoringController.getAllResults);
-// GET overall system stats (e.g., for admin dashboard)
-// Optional: Add isAdmin middleware if needed: router.get('/admin/stats', isAdmin, monitoringController.getOverallStats);
-
-router.get('/admin/stats', monitoringController.getOverallStats);
+// Optional: Add isAdmin middleware if needed
+router.get(
+    '/admin/results',
+    getResultsValidationRules(),
+    handleValidationErrors,
+    monitoringController.getAllResults
+);
+router.get(
+    '/admin/stats',
+    getStatsValidationRules(),
+    handleValidationErrors,
+    monitoringController.getOverallStats
+);
 
 // --- User Routes ---
-router.get('/user/results', monitoringController.getUserResults);
-// GET aggregated stats for the user's monitored websites
-// This endpoint now includes the incidentsLast24h field
-
-router.get('/user/stats', monitoringController.getUserStats);
-// --- NEW ROUTE FOR INCIDENT COUNT ---
-router.get('/user/incidents/last24h', monitoringController.getUserIncidentCountLast24h); // <-- ADDED
-router.get('/user/down-websites/last24h', monitoringController.getDownWebsitesLast24h);
-
+router.get(
+    '/user/results',
+    getResultsValidationRules(),
+    handleValidationErrors,
+    monitoringController.getUserResults
+);
+router.get(
+    '/user/stats',
+    getStatsValidationRules(),
+    handleValidationErrors,
+    monitoringController.getUserStats
+);
 
 // --- Website-Specific Routes ---
-router.get('/website/:websiteId/results', monitoringController.getResultsByWebsite);
-router.get('/website/:websiteId/stats', monitoringController.getWebsiteStats);
-router.get('/website/:websiteId', monitoringController.getWebsiteDetails);
+router.get(
+    '/website/:websiteId/results',
+    getResultsByWebsiteValidationRules(),
+    handleValidationErrors,
+    monitoringController.getResultsByWebsite
+);
+router.get(
+    '/website/:websiteId/stats',
+    getWebsiteStatsValidationRules(),
+    handleValidationErrors,
+    monitoringController.getWebsiteStats
+);
+router.get(
+    '/website/:websiteId',
+    getWebsiteDetailsValidationRules(),
+    handleValidationErrors,
+    monitoringController.getWebsiteDetails
+);
 
 // --- Actions ---
-router.post('/check/:websiteId', monitoringController.triggerWebsiteCheck);
+router.post(
+    '/check/:websiteId',
+    triggerWebsiteCheckValidationRules(),
+    handleValidationErrors,
+    monitoringController.triggerWebsiteCheck
+);
 
 export default router;

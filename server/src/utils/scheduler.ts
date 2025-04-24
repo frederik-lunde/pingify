@@ -1,20 +1,20 @@
 // server/src/utils/scheduler.ts
-
 import cron from 'node-cron';
 import { Website as PrismaWebsite, Prisma } from '@prisma/client';
-import {
-    CONCURRENCY,
-    DEFAULT_INTERVAL,
-    MONITORING_RESULTS_TO_KEEP
-} from '../config/config'; // Import config values (ensure path is correct)
-// Import the monitor class from the refactored monitoring service
-import { WebsiteMonitor } from '../services/monitoringService'; // Adjust path if needed
-import prisma from '../prisma/prismaClient'; // Adjust the path if needed
+//
+// Import structured config objects
+//
+import { monitoringConfig, schedulerConfig } from '../config/config';
+import { WebsiteMonitor } from '../services/monitoringService';
+import prisma from '../prisma/prismaClient';
 
-// --- Configuration ---
-const BATCH_CONCURRENCY = CONCURRENCY ?? 5; // How many websites to check concurrently
-const DEFAULT_WEBSITE_INTERVAL = DEFAULT_INTERVAL ?? 300; // Default check interval if website.globalInterval is null
-const RESULTS_TO_KEEP_PER_WEBSITE = MONITORING_RESULTS_TO_KEEP ?? 2000; // How many recent results to retain per site
+//
+// Use constants from config
+//
+const BATCH_CONCURRENCY = monitoringConfig.concurrency;
+const DEFAULT_WEBSITE_INTERVAL = monitoringConfig.defaultIntervalSeconds;
+const RESULTS_TO_KEEP_PER_WEBSITE = monitoringConfig.resultsToKeep;
+const MINIMUM_INTERVAL_SECONDS = monitoringConfig.minimumIntervalSeconds;
 
 // --- Website Monitoring Logic ---
 
@@ -22,11 +22,14 @@ const RESULTS_TO_KEEP_PER_WEBSITE = MONITORING_RESULTS_TO_KEEP ?? 2000; // How m
  * Determines if a website is due for checking based on its interval and last check time.
  */
 function isWebsiteDueForCheck(website: PrismaWebsite): boolean {
-  if (!website.lastChecked) { return true; } // Never checked
-
+  if (!website.lastChecked) {
+    return true; // Never checked
+  }
   const intervalInSeconds = website.globalInterval ?? DEFAULT_WEBSITE_INTERVAL;
-  const effectiveIntervalSeconds = Math.max(30, intervalInSeconds); // Minimum interval 30s
-
+  //
+  // Use minimum interval from config
+  //
+  const effectiveIntervalSeconds = Math.max(MINIMUM_INTERVAL_SECONDS, intervalInSeconds);
   const millisecondsSinceLastCheck = Date.now() - new Date(website.lastChecked).getTime();
   return millisecondsSinceLastCheck >= (effectiveIntervalSeconds * 1000);
 }
@@ -53,21 +56,24 @@ async function processBatches(websites: PrismaWebsite[]): Promise<void> {
     console.log(`[Scheduler] Starting batch ${batchNum}/${totalBatches} (Size: ${batch.length})`);
 
     const results = await Promise.allSettled(batch.map(website => {
-        return WebsiteMonitor.checkWebsite(website).catch(err => {
-            console.error(`[Scheduler Batch Error] Unhandled error checking website ${website.id} (${website.url}):`, err);
-            return { websiteId: website.id, error: true };
-        });
+      return WebsiteMonitor.checkWebsite(website).catch(err => {
+        console.error(`[Scheduler Batch Error] Unhandled error checking website ${website.id} (${website.url}):`, err);
+        return { websiteId: website.id, error: true };
+      });
     }));
 
+    //
     // Optional: Log detailed batch results if needed
+    //
     results.forEach((result, index) => {
-        const websiteId = batch[index].id;
-        if (result.status === 'rejected') {
-            console.error(`[Scheduler Batch Result] Check Failed (Promise Rejected) for Website ID ${websiteId}:`, result.reason);
-        } else if (result.value && (result.value as any).error === true) {
-             console.warn(`[Scheduler Batch Result] Check Completed with Error for Website ID ${websiteId}. See previous logs.`);
-        }
+      const websiteId = batch[index].id;
+      if (result.status === 'rejected') {
+        console.error(`[Scheduler Batch Result] Check Failed (Promise Rejected) for Website ID ${websiteId}:`, result.reason);
+      } else if (result.value && (result.value as any).error === true) {
+        console.warn(`[Scheduler Batch Result] Check Completed with Error for Website ID ${websiteId}. See previous logs.`);
+      }
     });
+
     console.log(`[Scheduler] Finished batch ${batchNum}/${totalBatches}.`);
   }
 }
@@ -78,12 +84,11 @@ async function processBatches(websites: PrismaWebsite[]): Promise<void> {
 export async function checkDueWebsites(): Promise<void> {
   const startTime = Date.now();
   console.log(`[Scheduler - ${new Date().toISOString()}] Starting check for due websites...`);
-
   try {
     const activeWebsites = await getActiveWebsites();
     if (activeWebsites.length === 0) {
-        console.log("[Scheduler] No active websites found.");
-        return;
+      console.log("[Scheduler] No active websites found.");
+      return;
     }
 
     const dueWebsites = activeWebsites.filter(isWebsiteDueForCheck);
@@ -102,7 +107,6 @@ export async function checkDueWebsites(): Promise<void> {
     console.error('[Scheduler] CRITICAL error during checkDueWebsites execution:', error);
   }
 }
-
 
 // --- Cleanup Tasks ---
 
@@ -138,7 +142,6 @@ export async function cleanupUnusedWebsites(): Promise<void> {
 
     const duration = Date.now() - startTime;
     console.log(`[Scheduler Cleanup] Deactivated ${updateResult.count} unused websites in ${duration}ms.`);
-
   } catch (error) {
     console.error('[Scheduler Cleanup] Failed to cleanup unused websites:', error);
   }
@@ -147,10 +150,12 @@ export async function cleanupUnusedWebsites(): Promise<void> {
 /**
  * Purges old monitoring results for each website, keeping only the most recent N records.
  */
+//
+// Pass the configured value directly
+//
 export async function purgeOldMonitoringResults(resultsToKeep: number = RESULTS_TO_KEEP_PER_WEBSITE): Promise<void> {
   const startTime = Date.now();
   console.log(`[Scheduler Purge - ${new Date().toISOString()}] Starting purge of old monitoring results (keeping last ${resultsToKeep} per website)...`);
-
   try {
     const websites = await prisma.website.findMany({
       select: { id: true }
@@ -175,7 +180,9 @@ export async function purgeOldMonitoringResults(resultsToKeep: number = RESULTS_
 
         const resultIdsToKeep = recentResults.map(r => r.id);
 
+        //
         // Only delete if the number of results exceeds the keep threshold
+        //
         const totalCount = await prisma.monitoringResult.count({ where: { websiteId: website.id } });
 
         if (totalCount > resultsToKeep) {
@@ -194,7 +201,7 @@ export async function purgeOldMonitoringResults(resultsToKeep: number = RESULTS_
       } catch (innerError) {
           console.error(`[Scheduler Purge] Error purging results for website ${website.id}:`, innerError);
       }
-    } // End loop
+    }
 
     const duration = Date.now() - startTime;
     if (totalPurgedCount > 0) {
@@ -202,11 +209,11 @@ export async function purgeOldMonitoringResults(resultsToKeep: number = RESULTS_
     } else {
       console.log(`[Scheduler Purge] No old monitoring results found to purge across ${websitesProcessed} websites in ${duration}ms.`);
     }
+
   } catch (error) {
     console.error('[Scheduler Purge] Failed during the overall process of purging old monitoring results:', error);
   }
 }
-
 
 // --- Scheduler Setup ---
 
@@ -216,37 +223,46 @@ export async function purgeOldMonitoringResults(resultsToKeep: number = RESULTS_
 export function scheduleMonitoring(): void {
   console.log("[Scheduler] Initializing schedulers...");
 
-  // 1. Website Monitoring Check (Runs frequently)
-  const monitorCron = '*/30 * * * * *'; // Every 30 seconds
+  //
+  // 1. Website Monitoring Check (Use config pattern)
+  //
+  const monitorCron = schedulerConfig.monitorCronPattern;
   if (cron.validate(monitorCron)) {
-      cron.schedule(monitorCron, checkDueWebsites, { name: "websiteChecker" });
-      console.log(`[Scheduler] Website monitoring scheduler started: runs every 30 seconds ('${monitorCron}').`);
+    cron.schedule(monitorCron, checkDueWebsites, { name: "websiteChecker" });
+    console.log(`[Scheduler] Website monitoring scheduler started: runs based on '${monitorCron}'.`);
   } else {
-      console.error(`[Scheduler] Invalid cron pattern for monitoring: ${monitorCron}`);
+    console.error(`[Scheduler] Invalid cron pattern for monitoring: ${monitorCron}`);
   }
 
-  // 2. Unused Website Cleanup (Hourly)
-  const cleanupCron = '0 * * * *'; // Start of every hour
-   if (cron.validate(cleanupCron)) {
-      cron.schedule(cleanupCron, cleanupUnusedWebsites, { name: "unusedWebsiteCleanup" });
-      console.log(`[Scheduler] Unused website cleanup scheduler started: runs hourly ('${cleanupCron}').`);
-   } else {
-       console.error(`[Scheduler] Invalid cron pattern for cleanup: ${cleanupCron}`);
-   }
+  //
+  // 2. Unused Website Cleanup (Use config pattern)
+  //
+  const cleanupCron = schedulerConfig.cleanupCronPattern;
+  if (cron.validate(cleanupCron)) {
+    cron.schedule(cleanupCron, cleanupUnusedWebsites, { name: "unusedWebsiteCleanup" });
+    console.log(`[Scheduler] Unused website cleanup scheduler started: runs based on '${cleanupCron}'.`);
+  } else {
+    console.error(`[Scheduler] Invalid cron pattern for cleanup: ${cleanupCron}`);
+  }
 
-  // 3. Old Monitoring Results Purge (Daily)
-  const purgeCron = '0 2 * * *'; // 2:00 AM daily
-   if (cron.validate(purgeCron)) {
-      cron.schedule(purgeCron, () => purgeOldMonitoringResults(RESULTS_TO_KEEP_PER_WEBSITE), { name: "resultsPurge" });
-      console.log(`[Scheduler] Database monitoring results purge scheduler started: runs daily at 2 AM ('${purgeCron}'), keeping ${RESULTS_TO_KEEP_PER_WEBSITE} results.`);
-   } else {
-       console.error(`[Scheduler] Invalid cron pattern for purge: ${purgeCron}`);
-   }
+  //
+  // 3. Old Monitoring Results Purge (Use config pattern)
+  //
+  const purgeCron = schedulerConfig.purgeCronPattern;
+  if (cron.validate(purgeCron)) {
+    cron.schedule(purgeCron, () => purgeOldMonitoringResults(RESULTS_TO_KEEP_PER_WEBSITE), { name: "resultsPurge" });
+    console.log(`[Scheduler] Database monitoring results purge scheduler started: runs based on '${purgeCron}', keeping ${RESULTS_TO_KEEP_PER_WEBSITE} results.`);
+  } else {
+    console.error(`[Scheduler] Invalid cron pattern for purge: ${purgeCron}`);
+  }
 
-   console.log("[Scheduler] All schedulers initialized.");
+  console.log("[Scheduler] All schedulers initialized.");
 }
 
 // --- Manual Execution Exports ---
 export const runMonitoringCheck = checkDueWebsites;
 export const runUnusedCleanup = cleanupUnusedWebsites;
+//
+// Ensure manual run uses the config value
+//
 export const runResultsPurge = () => purgeOldMonitoringResults(RESULTS_TO_KEEP_PER_WEBSITE);
