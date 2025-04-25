@@ -11,14 +11,10 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import NotificationsOffIcon from '@mui/icons-material/NotificationsOff';
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router";
+import { useUserAlertsQuery, useAlertActions } from "../../hooks/api/useAlerts"; // Ensure this path is correct
+import { Alert, ApiError, AlertQueryOptions, AlertType, VALID_ALERT_TYPES } from "../../types"; // Ensure this path is correct
+import { getAlertTypeColor } from "../../utils/statusUtils"; // Ensure this path is correct
 
-// Import the updated hooks and types
-import { useUserAlertsQuery, useAlertActions } from "../../hooks/api/useAlerts";
-// Ensure AlertQueryOptions is imported from the updated types file
-import { Alert, ApiError, AlertQueryOptions, AlertType, VALID_ALERT_TYPES } from "../../types";
-import { getAlertTypeColor } from "../../utils/statusUtils";
-
-// --- AlertItem Sub-component (remains the same) ---
 interface AlertItemProps {
     alert: Alert;
     isDismissing: boolean;
@@ -34,7 +30,6 @@ const AlertItem: React.FC<AlertItemProps> = React.memo(({
     onDismiss,
     isLastItem
 }) => {
-    // ... (implementation remains the same) ...
     if (!alert?.id) return null;
 
     const websiteId = alert.website?.id;
@@ -101,18 +96,14 @@ const AlertItem: React.FC<AlertItemProps> = React.memo(({
 });
 AlertItem.displayName = 'AlertItem';
 
-// --- Main AlertsDropdown Component ---
 interface AlertsDropdownProps {
-    // API filtering options (limit, status, etc.)
-    // Ensure this uses the *updated* AlertQueryOptions type
     apiFilters?: AlertQueryOptions;
     pollingInterval?: number | false;
     maxItems?: number;
 }
 
 const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
-    // Use the clearer prop name 'apiFilters'
-    apiFilters = { limit: 10, status: 'active' }, // Default API filters (status:'active' is now valid)
+    apiFilters = { limit: 10 },
     pollingInterval = 60000,
     maxItems = 10,
 }) => {
@@ -120,41 +111,36 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
     const navigate = useNavigate();
     const isMenuOpen = Boolean(anchorEl);
 
-    // --- Data Fetching using the updated hook ---
     const {
-        data: activeAlerts = [],
-        isPending, // Use isPending from React Query v5
+        data: fetchedAlerts,
+        isPending,
         isFetching,
         error: queryError,
-        // refetch, // Available if needed
     } = useUserAlertsQuery(
-        apiFilters, // Pass the API filters
-        { // Pass hook options (React Query overrides)
-            // Poll only when menu is open
+        apiFilters,
+        {
             refetchInterval: isMenuOpen ? pollingInterval : false,
-            // Override staleTime to match polling interval when polling is active
-            // Uses hook's default staleTime otherwise
             staleTime: (isMenuOpen && pollingInterval) ? pollingInterval : undefined,
-            // No need to explicitly set enabled:true unless overriding to false
         }
     );
+    const activeAlerts: Alert[] = fetchedAlerts ?? [];
 
-    // --- Mutations ---
+    // --- FIX IS HERE ---
+    // Destructure the correct property name returned by the hook
     const {
         dismissAlert,
-        isDismissingAlert,
+        isDismissingAlert, // Directly get isDismissingAlert
+        // errorDismissingAlert // You can uncomment this if you need to handle the mutation error
     } = useAlertActions();
+    // --- END FIX ---
 
-    // --- UI State ---
     const isLoading = isPending && !activeAlerts.length;
     const isPollingIndicator = isFetching && !isPending;
 
-    // --- Derived State ---
     const badgeCount = useMemo(() => activeAlerts.length, [activeAlerts]);
     const displayedAlerts = useMemo(() => activeAlerts.slice(0, maxItems), [activeAlerts, maxItems]);
     const hasMoreAlerts = useMemo(() => activeAlerts.length > maxItems, [activeAlerts, maxItems]);
 
-    // --- Handlers ---
     const handleOpenMenu = useCallback((event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);
     }, []);
@@ -166,10 +152,10 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
     const handleNavigateToWebsite = useCallback(
         (websiteId: number | undefined) => {
             handleCloseMenu();
-            if (websiteId) {
+            if (websiteId !== undefined) {
                 navigate(`/website/${websiteId}`);
             } else {
-                console.warn("Cannot navigate: Missing websiteId in alert data");
+                console.warn("Cannot navigate: Missing websiteId in alert data", alert);
             }
         },
         [navigate, handleCloseMenu]
@@ -178,13 +164,13 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
     const handleDismiss = useCallback(
         (event: React.MouseEvent, alertId: number | undefined) => {
             event.stopPropagation();
-            if (alertId !== undefined && !isDismissingAlert) {
+            if (alertId !== undefined && !isDismissingAlert) { // Use the correctly destructured variable
                 dismissAlert(alertId);
             } else if (alertId === undefined) {
                 console.error("Attempted to dismiss alert with undefined ID");
             }
         },
-        [dismissAlert, isDismissingAlert]
+        [dismissAlert, isDismissingAlert] // Use the correctly destructured variable
     );
 
     const handleViewAllAlerts = useCallback(() => {
@@ -192,7 +178,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
         navigate('/alerts');
     }, [navigate, handleCloseMenu]);
 
-    // --- Menu Content Rendering ---
     const renderMenuContent = () => {
         if (isLoading) {
             return (
@@ -203,7 +188,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
         }
 
         if (queryError) {
-            // Improved error display
             return (
                  <MenuItem disabled sx={{ py: 2, whiteSpace: 'normal', cursor: 'default' }}>
                     <Stack direction="row" spacing={1.5} alignItems="center" sx={{ color: 'error.main', width: '100%' }}>
@@ -232,24 +216,19 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
             );
         }
 
-        // Map displayed alerts using AlertItem
         const menuItems = displayedAlerts.map((alert, index) => (
             <AlertItem
                 key={`alert-${alert.id}`}
                 alert={alert}
-                isDismissing={isDismissingAlert}
+                isDismissing={isDismissingAlert} // Use the correctly destructured variable
                 onNavigate={handleNavigateToWebsite}
                 onDismiss={handleDismiss}
-                // Determine if this is the last visible item (no border needed)
                 isLastItem={index === displayedAlerts.length - 1 && !hasMoreAlerts}
             />
         ));
 
-        // Add "View All" link if necessary
         if (hasMoreAlerts) {
-            // Add divider only if there were items displayed above it
-            if (menuItems.length > 0) {
-                 // Adjust border of the actual last displayed item before the divider
+             if (menuItems.length > 0) {
                  const lastItemIndex = menuItems.length - 1;
                  if(React.isValidElement(menuItems[lastItemIndex])) {
                     menuItems[lastItemIndex] = React.cloneElement(menuItems[lastItemIndex] as React.ReactElement<any>, { isLastItem: false });
@@ -268,7 +247,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
         return menuItems;
     };
 
-    // --- Component Return JSX ---
     return (
         <>
             <Tooltip title={badgeCount > 0 ? `${badgeCount} Active Alert${badgeCount > 1 ? 's' : ''}` : "No active alerts"}>
@@ -280,7 +258,7 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                     aria-expanded={isMenuOpen ? 'true' : undefined}
                     color="inherit"
                     onClick={handleOpenMenu}
-                    sx={{ opacity: isPollingIndicator ? 0.7 : 1 }} // Dim slightly during background fetch
+                    sx={{ opacity: isPollingIndicator ? 0.7 : 1 }}
                 >
                     <Badge badgeContent={badgeCount} color="error" max={99}>
                         <NotificationsIcon />
@@ -307,7 +285,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                     }}
                 >
                     <Typography variant="subtitle1" fontWeight="bold">Active Alerts</Typography>
-                    {/* Show spinner in header during background fetch */}
                     {isPollingIndicator && <CircularProgress size={20} thickness={4} sx={{ mr: 1 }}/>}
                 </Stack>
 

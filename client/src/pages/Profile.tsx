@@ -1,5 +1,5 @@
 // src/pages/ProfilePage.tsx
-import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import React, { useState, useEffect, useCallback } from 'react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import {
@@ -11,23 +11,27 @@ import {
     Paper,
     Divider,
     CircularProgress,
-    Alert, // Keep Alert for deleteUserAccount error in Danger Zone if desired
-    // Snackbar, // Removed Snackbar
+    Alert,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    SelectChangeEvent
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'; // Now returns CoreAuthContextType | null
+import { useThemeMode, AppThemeMode } from '../context/ThemeContext';
 import {
     useUpdateUserProfileMutation,
     useUpdateUserPasswordMutation,
     useDeleteUserAccountMutation,
 } from '../hooks/api/useUserMutations';
 import ConfirmationDialog from '../components/common/ConfirmationDialog';
-// Import FormNotification
 import FormNotification, {
     initialNotificationState, FormNotificationState
 } from "../components/common/FormNotification";
 
-// --- Validation Schemas using Yup ---
+// --- Validation Schemas --- (Keep as is)
 const profileSchema = Yup.object({
     name: Yup.string()
         .required('Name is required')
@@ -50,32 +54,39 @@ const passwordSchema = Yup.object({
 
 // --- Component ---
 const ProfilePage: React.FC = () => {
-    const { user, loading: authLoading } = useAuth();
-    // Replace Snackbar state with FormNotification state
+    // Get the auth context value, which might be null
+    const auth = useAuth();
+    // Safely access user and loading state
+    // Use optional chaining (?.) and nullish coalescing (??)
+    const user = auth?.user; // user will be undefined if auth is null
+    const authLoading = auth?.loading ?? true; // Default to true if auth or auth.loading is null/undefined
+
+    const { mode: currentThemeMode, setThemeMode } = useThemeMode();
     const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-    // --- Mutations ---
+    // --- Mutations --- (Keep as is)
     const updateUserProfile = useUpdateUserProfileMutation();
     const updateUserPassword = useUpdateUserPasswordMutation();
     const deleteUserAccount = useDeleteUserAccountMutation();
 
-    // --- Helper to show notification ---
+    // --- Helper to show notification --- (Keep as is)
     const showNotification = useCallback((message: string, severity: "success" | "error") => {
         setNotification({ open: true, message, severity });
     }, []);
 
     // --- Formik Hooks ---
     const profileFormik = useFormik({
-        initialValues: { name: '', email: '' },
+        // Use user safely, defaulting to empty strings if user is undefined initially
+        initialValues: { name: user?.name || '', email: user?.email || '' },
         validationSchema: profileSchema,
-        enableReinitialize: true,
+        enableReinitialize: true, // This will update initialValues when user changes
         onSubmit: (values, { setSubmitting, resetForm }) => {
-            setNotification(initialNotificationState); // Clear previous notification
+            setNotification(initialNotificationState);
             updateUserProfile.mutate(values, {
                 onSuccess: (res) => {
                     showNotification(res.message || 'Profile updated successfully!', 'success');
-                    resetForm({ values }); // Reset with current successful values
+                    resetForm({ values });
                 },
                 onError: (error) => {
                     showNotification(error.message || 'Failed to update profile.', 'error');
@@ -91,12 +102,12 @@ const ProfilePage: React.FC = () => {
         initialValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
         validationSchema: passwordSchema,
         onSubmit: (values, { setSubmitting, resetForm }) => {
-            setNotification(initialNotificationState); // Clear previous notification
-            const { confirmPassword, ...payload } = values; // eslint-disable-line @typescript-eslint/no-unused-vars
+            setNotification(initialNotificationState);
+            const { confirmPassword, ...payload } = values;
             updateUserPassword.mutate(payload, {
                 onSuccess: (res) => {
                     showNotification(res.message || 'Password updated successfully!', 'success');
-                    resetForm(); // Reset password fields
+                    resetForm();
                 },
                 onError: (error) => {
                      showNotification(error.message || 'Failed to update password.', 'error');
@@ -109,39 +120,44 @@ const ProfilePage: React.FC = () => {
     });
 
     // --- Effects ---
+    // Effect to update formik values if user object changes after initial load
+    // Note: enableReinitialize: true in useFormik also helps with this.
+    // This useEffect might become redundant depending on exact Formik behavior with enableReinitialize,
+    // but it's safe to keep for explicit synchronization.
     useEffect(() => {
-        if (user) {
+        if (user) { // Only update if user object is available
             profileFormik.setValues({
                 name: user.name || '',
                 email: user.email || '',
-            });
+            }, false); // Pass false to avoid marking form as dirty
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]); // profileFormik is stable
+    }, [user]); // Rerun only when the user object itself changes
 
-    // --- Handlers ---
+    // --- Handlers --- (Keep as is)
+    const handleThemeChange = (event: SelectChangeEvent<AppThemeMode>) => {
+        const newMode = event.target.value as AppThemeMode;
+        setThemeMode(newMode);
+    };
+
     const handleDeleteAccount = () => {
          setDeleteConfirmOpen(true);
     };
 
     const handleConfirmDelete = () => {
-        setNotification(initialNotificationState); // Clear previous notification
+        setNotification(initialNotificationState);
         deleteUserAccount.mutate(undefined, {
              onError: (error) => {
                 showNotification(error.message || 'Failed to delete account.', 'error');
-                setDeleteConfirmOpen(false); // Close dialog on error
+                setDeleteConfirmOpen(false);
             },
              onSuccess: () => {
-                // Success notification might not be seen if logout happens immediately
                 showNotification('Account deleted successfully.', 'success');
                 setDeleteConfirmOpen(false);
-                 // Logout is likely handled by AuthContext detecting user removal
             },
-             // onSettled can be used for cleanup if needed regardless of outcome
         });
     };
 
-    // Handle FormNotification close
     const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
         if (reason === 'clickaway') {
             return;
@@ -150,6 +166,7 @@ const ProfilePage: React.FC = () => {
     }, []);
 
     // --- Render ---
+    // Updated loading check: Show spinner if auth is loading OR if auth has finished loading but user is still null/undefined (e.g., not logged in)
     if (authLoading || !user) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
@@ -158,24 +175,46 @@ const ProfilePage: React.FC = () => {
         );
     }
 
+    // --- If loading is done and user exists, render the profile page ---
     return (
         <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
             <Typography variant="h4" component="h1" gutterBottom>
                 Profile Settings
             </Typography>
 
+             {/* Theme Selection */}
+             <Paper sx={{ p: 3, mb: 4 }}>
+                <Typography variant="h6" gutterBottom>Appearance</Typography>
+                <FormControl fullWidth sx={{ mt: 1 }}>
+                    <InputLabel id="theme-select-label">Theme</InputLabel>
+                    <Select
+                        labelId="theme-select-label"
+                        id="theme-select"
+                        value={currentThemeMode}
+                        label="Theme"
+                        onChange={handleThemeChange}
+                    >
+                        <MenuItem value={'light'}>Light</MenuItem>
+                        <MenuItem value={'dark'}>Dark</MenuItem>
+                        <MenuItem value={'colorblind'}>Colorblind Friendly (Dark)</MenuItem>
+                    </Select>
+                </FormControl>
+            </Paper>
+
+            <Divider sx={{ my: 4 }} />
+
             {/* Profile Information Form */}
             <Paper sx={{ p: 3, mb: 4 }}>
-                <Typography variant="h6" gutterBottom>Account Information</Typography>
-                <Box component="form" onSubmit={profileFormik.handleSubmit} noValidate sx={{ mt: 1 }}>
-                    <Grid container spacing={2}>
+                 <Typography variant="h6" gutterBottom>Account Information</Typography>
+                 <Box component="form" onSubmit={profileFormik.handleSubmit} noValidate sx={{ mt: 1 }}>
+                     <Grid container spacing={2}>
                         <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField
                                 fullWidth
                                 id="name"
                                 name="name"
                                 label="Display Name"
-                                value={profileFormik.values.name}
+                                value={profileFormik.values.name} // Formik now manages the state
                                 onChange={profileFormik.handleChange}
                                 onBlur={profileFormik.handleBlur}
                                 error={profileFormik.touched.name && Boolean(profileFormik.errors.name)}
@@ -191,7 +230,7 @@ const ProfilePage: React.FC = () => {
                                 name="email"
                                 label="Email Address"
                                 type="email"
-                                value={profileFormik.values.email}
+                                value={profileFormik.values.email} // Formik now manages the state
                                 onChange={profileFormik.handleChange}
                                 onBlur={profileFormik.handleBlur}
                                 error={profileFormik.touched.email && Boolean(profileFormik.errors.email)}
@@ -201,8 +240,7 @@ const ProfilePage: React.FC = () => {
                             />
                         </Grid>
                         <Grid size={12}>
-                             {/* Removed inline Alert for updateUserProfile.error */}
-                            <Button
+                             <Button
                                 type="submit"
                                 variant="contained"
                                 disabled={!profileFormik.dirty || profileFormik.isSubmitting || updateUserProfile.isPending}
@@ -212,7 +250,7 @@ const ProfilePage: React.FC = () => {
                             </Button>
                         </Grid>
                     </Grid>
-                </Box>
+                 </Box>
             </Paper>
 
             <Divider sx={{ my: 4 }} />
@@ -221,7 +259,8 @@ const ProfilePage: React.FC = () => {
             <Paper sx={{ p: 3, mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Change Password</Typography>
                 <Box component="form" onSubmit={passwordFormik.handleSubmit} noValidate sx={{ mt: 1 }}>
-                    <Grid container spacing={2}>
+                     <Grid container spacing={2}>
+                         {/* Password fields remain the same */}
                          <Grid size={12}>
                               <TextField
                                 fullWidth
@@ -271,7 +310,6 @@ const ProfilePage: React.FC = () => {
                             />
                         </Grid>
                         <Grid size={12}>
-                              {/* Removed inline Alert for updateUserPassword.error */}
                             <Button
                                 type="submit"
                                 variant="contained"
@@ -288,13 +326,11 @@ const ProfilePage: React.FC = () => {
             <Divider sx={{ my: 4 }} />
 
              {/* Delete Account Section */}
-             <Paper sx={{ p: 3, backgroundColor: (theme) => theme.palette.error.light + '33' }}>
+             <Paper sx={{ p: 3, backgroundColor: (theme) => theme.palette.error.light ? theme.palette.error.light + '33' : theme.palette.error.main + '33' }}>
                 <Typography variant="h6" gutterBottom color="error">Danger Zone</Typography>
                 <Typography variant="body2" sx={{ mb: 2 }}>
                     Deleting your account is permanent and cannot be undone. All your associated data (websites, incidents, etc.) will be removed.
                 </Typography>
-                 {/* Optional: Keep this inline alert for context *before* clicking delete,
-                     but FormNotification will show errors *after* attempting deletion. */}
                  {deleteUserAccount.error && !notification.open && (
                     <Alert severity="error" sx={{ mb: 2 }}>Failed to delete account: {deleteUserAccount.error.message}</Alert>
                 )}
@@ -304,7 +340,8 @@ const ProfilePage: React.FC = () => {
                     onClick={handleDeleteAccount}
                     disabled={deleteUserAccount.isPending}
                      sx={{ '&.Mui-disabled': {
-                        backgroundColor: 'error.light',
+                        backgroundColor: 'action.disabledBackground',
+                        color: 'action.disabled',
                         cursor: 'not-allowed',
                      } }}
                 >
@@ -312,7 +349,7 @@ const ProfilePage: React.FC = () => {
                 </Button>
             </Paper>
 
-            {/* Confirmation Dialog for Delete */}
+            {/* Confirmation Dialog */}
             <ConfirmationDialog
                 open={deleteConfirmOpen}
                 onClose={() => setDeleteConfirmOpen(false)}
@@ -322,10 +359,10 @@ const ProfilePage: React.FC = () => {
                 confirmText="Delete Account"
                 cancelText="Cancel"
                 isLoading={deleteUserAccount.isPending}
-                confirmButtonColor="error" // Ensure confirm button is red
+                confirmButtonColor="error"
             />
 
-             {/* FormNotification for Feedback */}
+             {/* FormNotification */}
             <FormNotification
                 notification={notification}
                 onClose={handleNotificationClose}

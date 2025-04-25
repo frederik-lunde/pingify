@@ -1,11 +1,11 @@
 // src/App.tsx
 import { Routes, Route } from "react-router";
-import { CssBaseline } from "@mui/material"; // Removed Alert
+// import { CssBaseline } from "@mui/material"; // REMOVE CssBaseline import here
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 // Core Components & Pages
 import ProtectedRoute from "./components/ProtectedRoute";
-import MainLayout from "./components/layout/MainLayout"; // Import MainLayout
+import MainLayout from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import WebsiteDetails from "./pages/WebsiteDetails";
 import WebsiteSettings from "./pages/WebsiteSettings";
@@ -13,24 +13,23 @@ import AddWebsite from "./pages/AddWebsite";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import IncidentsPage from "./pages/Incidents";
-import ProfilePage from "./pages/Profile";
-import NotFoundPage from "./pages/NotFound"; // Import NotFoundPage
+import ProfilePage from "./pages/Profile"; // Corrected path
+import NotFoundPage from "./pages/NotFound";
 
 // Context
-import { AuthProvider } from "./context/AuthContext"; // Removed useAuth here
-import { useApplyUserThemePreference } from "./context/ThemeContext";
-import { TvModeProvider } from "./context/TvModeContext"; // Removed useTvMode here
+import { AuthProvider } from "./context/AuthContext";
+import { ThemeProviderWrapper } from "./context/ThemeContext";
+import { TvModeProvider } from "./context/TvModeContext";
 
-// Component containing Routes - Navbar is now in MainLayout
+// Component containing Routes
 function AppRoutes() {
-    useApplyUserThemePreference(); // Apply theme preference based on context
-
     return (
         <Routes>
-            {/* Public routes - No Navbar */}
+            {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
+            {/* Protected routes within MainLayout */}
             <Route
                 element={
                     <ProtectedRoute>
@@ -46,6 +45,7 @@ function AppRoutes() {
                 <Route path="/profile" element={<ProfilePage />} />
             </Route>
 
+            {/* Catch-all 404 route */}
             <Route path="*" element={<NotFoundPage />} />
         </Routes>
     );
@@ -55,13 +55,15 @@ function AppRoutes() {
 function App() {
     return (
         <>
-            <CssBaseline />
+            {/* CssBaseline is now handled within ThemeProviderWrapper */}
             <AuthProvider>
-                <TvModeProvider>
-                    <AppRoutes />
-                </TvModeProvider>
+                <ThemeProviderWrapper>
+                    <TvModeProvider>
+                        <AppRoutes />
+                    </TvModeProvider>
+                </ThemeProviderWrapper>
             </AuthProvider>
-            {import.meta.env.DEV && <ReactQueryDevtools/>}
+            {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
         </>
     );
 }

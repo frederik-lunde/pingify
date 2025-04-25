@@ -1,22 +1,41 @@
-// src/components/layout/MainLayout.tsx
 import React from 'react';
+// Correct import for Outlet
 import { Outlet } from 'react-router';
 import { Box } from '@mui/material';
 import Navbar from '../Navbar'; // Adjust path as needed
 import { useAuth } from '../../context/AuthContext'; // Adjust path
 import { useTvMode } from '../../context/TvModeContext'; // Adjust path
+import LoadingScreen from '../common/LoadingScreen'; // Import the LoadingScreen component
+// Import Auth types if you need stricter type checking or casting
+import { AuthContextType } from '../../types';
 
 const MainLayout: React.FC = () => {
-    const { user } = useAuth();
+    // Get the full auth context object, which could be null
+    // Assuming useAuth returns AuthContextType | null based on types.ts definition
+    const auth = useAuth() as AuthContextType | null;
     const { isTvMode } = useTvMode();
 
-    // Determine if the Navbar should be visible
-    const showNavbar = user && !isTvMode;
+    // --- Handle Loading State ---
+    // Use optional chaining (?.) to safely access loading even if auth is null initially
+    if (auth?.loading) {
+      return <LoadingScreen message="Checking authentication..." />;
+    }
+    // --- End Loading State Handling ---
+
+    // Determine if the Navbar should be visible *after* loading is complete
+    // We check auth and auth.user again because loading might finish but user could still be null (not logged in)
+    const showNavbar = !!auth && !!auth.user && !isTvMode;
 
     return (
         <>
+            {/* Conditionally render the Navbar */}
             {showNavbar && <Navbar />}
-            <Box component="main" sx={{ pt: showNavbar ? { xs: 3, sm: 2 } : 0, flexGrow: 1 }}>
+            <Box
+                component="main"
+                // Adjust padding top based on whether the Navbar is rendered
+                sx={{ pt: showNavbar ? { xs: 2, sm: 3, md: 4 } : 0, flexGrow: 1 }} // Example padding values
+            >
+                {/* The rest of the routed components will render here */}
                 <Outlet />
             </Box>
         </>
