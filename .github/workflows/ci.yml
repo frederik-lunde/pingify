@@ -1,0 +1,48 @@
+# .github/workflows/client-checks.yml
+
+name: Client Checks # Name shown in GitHub Actions tab
+
+on: # When to run this workflow
+  push:
+    branches: [ main, testingtestsbranch ] # Run on pushes to the main branch
+    paths: # Only run if files changed within the client directory or this workflow file
+      - 'client/**'
+      - '.github/workflows/client-checks.yml'
+  pull_request:
+    branches: [ main, testingtestsbranch ] # Run on pull requests targeting main
+    paths: # Only run if files changed within the client directory or this workflow file
+      - 'client/**'
+      - '.github/workflows/client-checks.yml'
+
+jobs:
+  lint-and-typecheck-client: # ID of the job
+    name: Lint & Typecheck Client # Name shown for the job
+    runs-on: ubuntu-latest # Use the latest Ubuntu runner
+
+    strategy:
+      matrix:
+        node-version: [18.x] # Specify Node.js version(s) to use. 18.x or 20.x are good LTS choices.
+
+    steps:
+      - name: Checkout repository # Step 1: Get the code from the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }} # Step 2: Install the specified Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm' # Enable caching for npm dependencies
+          cache-dependency-path: client/package-lock.json # Important: Cache based on the client's lock file
+
+      - name: Install Client Dependencies # Step 3: Install npm packages for the client
+        run: npm ci # 'ci' ensures a clean install using package-lock.json, faster in CI
+        working-directory: ./client # <<< Run this command inside the client directory
+
+      - name: Run Client Lint Check # Step 4: Run the lint script from client/package.json
+        continue-on-error: true
+        run: npm run lint
+        working-directory: ./client # <<< Run this command inside the client directory
+
+      - name: Run Client TypeScript Check # Step 5: Run the typecheck script from client/package.json
+        run: npm run typecheck
+        working-directory: ./client # <<< Run this command inside the client directory
