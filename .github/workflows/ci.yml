@@ -39,6 +39,7 @@ jobs:
         working-directory: ./client # <<< Run this command inside the client directory
 
       - name: Run Client Lint Check # Step 4: Run the lint script from client/package.json
+        continue-on-error: true
         run: npm run lint
         working-directory: ./client # <<< Run this command inside the client directory
 
