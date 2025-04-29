@@ -2,12 +2,12 @@ import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
 import helmet from 'helmet';
-import { rateLimit } from 'express-rate-limit'
+import { rateLimit } from 'express-rate-limit';
 import compression from 'compression';
 
 // Routes
 import authRoutes from './routes/authRoutes';
-import userRoutes  from './routes/userRoutes';
+import userRoutes from './routes/userRoutes';
 import websiteRoutes from './routes/websiteRoutes';
 import monitoringRoutes from './routes/monitoringRoutes';
 import alertRoutes from './routes/alertRoutes';
@@ -22,44 +22,83 @@ import { scheduleMonitoring } from './utils/scheduler';
 
 const app = express();
 
+// --- Configuration ---
+
+// Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-    max: 1000, 
-    message: 'Too many requests, please try again later.'
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Limit each IP to 1000 requests per windowMs
+  message: 'Too many requests, please try again later.',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 
+// CORS Configuration
 const corsOptions = {
-  origin: 'https://pingify-frontend.onrender.com'
+  // Allow requests specifically from your frontend domain
+  origin: 'https://pingify-frontend.onrender.com',
+  // Specify allowed HTTP methods
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  // Specify allowed headers, especially for auth and content type
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  // Allow cookies or authorization headers to be sent
+  credentials: true,
+  // Set HTTP status code for successful OPTIONS requests (some legacy browsers choke on 204)
+  optionsSuccessStatus: 200 // or 204
 };
-//global middleware
-app.use(cors(corsOptions))
-app.use(helmet()); 
-app.use(express.urlencoded({ extended: true }));
-app.use(limiter);
-app.use(express.json());
-app.use(morgan('tiny'));
+
+
+// --- Global Middleware (Order Matters!) ---
+
+// 1. Basic Security Headers
+app.use(helmet());
+
+// 2. Enable CORS with specified options - Handles preflight OPTIONS requests
+app.use(cors(corsOptions));
+// Note: app.use(cors(corsOptions)) usually handles OPTIONS automatically.
+// You generally don't need app.options('*', cors(corsOptions)) unless facing specific issues.
+
+// 3. Request Logging
+app.use(morgan('tiny')); // Or 'dev' for more details during development
+
+// 4. Body Parsers
+app.use(express.json()); // For parsing application/json
+app.use(express.urlencoded({ extended: true })); // For parsing application/x-www-form-urlencoded
+
+// 5. Response Compression
 app.use(compression());
 
-// Public routes
+// 6. Rate Limiting (Apply after parsing and logging, before routes)
+app.use(limiter);
+
+
+// --- Routes ---
+
+// Health check - place before auth and error handling
+app.get('/health', (req, res) => {
+  // console.log("Health check hit"); // Optional: add logging if needed
+  res.status(200).send('OK');
+});
+
+// Public API routes
 app.use('/api/auth', authRoutes);
 
 
-// Protected routes
+// Protected API routes (Apply authentication middleware here)
 app.use('/api/users', authenticate, userRoutes);
-app.use('/api/websites',authenticate, websiteRoutes);
-app.use('/api/monitoring',authenticate, monitoringRoutes);
-app.use('/api/incidents',authenticate, incidentRoutes);
-app.use('/api/alerts',authenticate, alertRoutes);
+app.use('/api/websites', authenticate, websiteRoutes);
+app.use('/api/monitoring', authenticate, monitoringRoutes);
+app.use('/api/incidents', authenticate, incidentRoutes);
+app.use('/api/alerts', authenticate, alertRoutes);
 
 
-scheduleMonitoring();
+// --- Background Tasks ---
+scheduleMonitoring(); // Start scheduled tasks
 
-// Global error handler (should be the last middleware)
+
+// --- Global Error Handler ---
+// This MUST be the last middleware added to the stack
 app.use(errorMiddleware);
-
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
 
 
 export default app;
