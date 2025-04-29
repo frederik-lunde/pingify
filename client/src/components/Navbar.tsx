@@ -14,12 +14,11 @@ import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
 import AdbIcon from "@mui/icons-material/Adb";
 import AddIcon from "@mui/icons-material/Add";
-import { useAuth } from "../context/AuthContext"; // Assuming AuthContext provides structure similar to AuthContextType | null
+import { useAuth } from "../context/AuthContext";
 import { useWebsiteData } from "../hooks";
 import AlertsDropdown from "./navbar/AlertDropdown";
 import StatsHeader from "../components/dashboard/StatsHeader";
-// Import necessary types from your types file
-import { AuthContextType, User } from "../types";
+import { AuthContextType, User } from "../types"; // Keep import
 
 const pages = [
   { name: "Add Website", path: "/add-website", icon: <AddIcon fontSize="small" />, ariaLabel: "Add new website to monitor" },
@@ -27,18 +26,16 @@ const pages = [
 
 const settings = ["Profile", "Logout"];
 
-// Helper type guard to check if user is not null
+// Helper type guard remains the same
 function isUser(user: User | null): user is User {
   return user !== null;
 }
 
 function Navbar() {
+  // --- Call ALL Hooks Unconditionally at the Top ---
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
-
-  // Use the type from types.ts, assuming useAuth provides this structure or null
-  // You might need to adjust the cast based on the actual return type of useAuth
-  const auth = useAuth() as AuthContextType | null;
+  const auth = useAuth() as AuthContextType | null; // Cast might still be needed depending on useAuth exact type
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -49,31 +46,12 @@ function Navbar() {
       isLoading: isLoadingData,
       totalWebsitesCount,
       upWebsitesCount,
-  } = useWebsiteData(
-      'week', // Example timeframe
-      60000   // Example polling interval
-  );
-
-  // --- Handle Null Auth Context ---
-  // Check for loading state if your context provides it
-  // if (auth?.loading) {
-  //   return <AppBar position="static">...</AppBar>; // Render a loading skeleton navbar if desired
-  // }
-
-  // If not loading and still no auth object or user, render nothing or redirect.
-  // Returning null is simple, but consider UX implications.
-  if (!auth || !isUser(auth.user)) {
-    // You might want to add a useEffect hook here to redirect to '/login' if not authenticated
-    // after an initial check.
-    return null;
-  }
-  // --- Now we know auth and auth.user are not null ---
-  const { logout, user } = auth; // user is guaranteed User, logout is () => void or Promise<void>
+  } = useWebsiteData('week', 60000);
 
   const headerUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
 
-  const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorElNav(event.currentTarget);
-  const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorElUser(event.currentTarget);
+  // Memoize handlers - these can be defined even if auth is null initially
+  // They will capture the current 'auth' value when they are eventually called
   const handleCloseNavMenu = useCallback(() => setAnchorElNav(null), []);
   const handleCloseUserMenu = useCallback(() => setAnchorElUser(null), []);
 
@@ -84,29 +62,46 @@ function Navbar() {
 
   const handleSettingClick = useCallback(async (setting: string) => {
     handleCloseUserMenu();
+    // Check auth status *inside* the handler where it's needed
+    if (!auth || !auth.logout) {
+         console.error("Auth context or logout function not available.");
+         navigate('/login'); // Redirect if auth is missing when trying to interact
+         return;
+    }
+
     if (setting === "Logout") {
       try {
-        // Ensure logout exists and is a function before calling
-        if (typeof logout === 'function') {
-            await logout(); // Await if logout returns a Promise
-            navigate('/login');
-        } else {
-            console.error("Logout function not available in AuthContext");
-            // Potentially navigate to login anyway or show an error
-            navigate('/login');
-        }
+        await auth.logout(); // Call logout from the captured auth context
+        navigate('/login');
+      } catch (error) {
+        console.error("Failed to logout:", error);
       }
-      catch (error) { console.error("Failed to logout:", error); }
     } else if (setting === "Profile") {
       navigate("/profile");
     }
-  }, [logout, navigate, handleCloseUserMenu]); // Include logout in dependency array
+  }, [auth, navigate, handleCloseUserMenu]); // Add `auth` to dependency list
 
+  const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorElNav(event.currentTarget);
+  const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorElUser(event.currentTarget);
 
+  // --- Conditional Rendering Logic ---
+  // Check authentication status AFTER all hooks have been called
+  if (!auth || !isUser(auth.user)) {
+    // Optional: Render a loading state if auth.loading exists and is true
+    // if (auth?.loading) { return <AppBar position="static">...</AppBar>; }
+
+    // Return null (or redirect) if not authenticated
+    // Consider adding a useEffect here for a one-time redirect check if needed
+    return null;
+  }
+
+  // --- Destructure and Prepare Data (Now Safe) ---
+  // We know auth and auth.user are valid here
+  const { user } = auth; // No need for logout here as it's accessed via `auth.logout` in handler
   const isDashboard = location.pathname === '/';
-  // Safely access user properties now
   const userInitial = user.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || "?";
 
+  // --- Return JSX ---
   return (
     <AppBar position="static">
       <Container maxWidth={false} sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
@@ -155,7 +150,6 @@ function Navbar() {
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1, ml: 2 }}>
               {pages.map((page) => (
                 <Tooltip key={page.name} title={page.ariaLabel || page.name} arrow>
-                  {/* Wrap IconButton in span for Tooltip when needed (e.g., if disabled) */}
                   <span>
                     <IconButton
                       aria-label={page.ariaLabel || page.name}
@@ -172,29 +166,25 @@ function Navbar() {
           </Box>
 
           {/* --- Center Section: Stats Header --- */}
-          {/* Show stats header only when *not* on the dashboard page */}
           {!isDashboard && (
             <StatsHeader
-              isLoading={isLoadingData && !overallStats} // Show loading if data is fetching and no stats are available yet
+              isLoading={isLoadingData && !overallStats}
               upCount={upWebsitesCount}
               totalCount={totalWebsitesCount}
               uptime={headerUptime}
-              incidentsLast24h={incidentsLast24h ?? 0} // Provide a default value if null/undefined
+              incidentsLast24h={incidentsLast24h ?? 0}
               lastIncidentTimestamp={lastIncidentTimestamp}
-              center={true} // Prop to center the stats header
+              center={true}
             />
           )}
 
           {/* --- Right Section: Controls --- */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: 0, gap: { xs: 0.5, sm: 1 } }}>
-            {/* Alert Dropdown */}
             <AlertsDropdown
-                // Remove status filter as it's not supported by AlertQueryOptions in types.ts
                 apiFilters={{ limit: 10 }}
-                pollingInterval={60000} // e.g., poll every minute
+                pollingInterval={60000}
               />
 
-            {/* User Menu Avatar Button */}
             <Tooltip title="Open settings">
                 <IconButton onClick={handleOpenUserMenu} aria-label="open user menu" aria-controls="menu-appbar-user" aria-haspopup="true" sx={{ p: 0 }}>
                   <Avatar
@@ -202,7 +192,7 @@ function Navbar() {
                     sx={{
                         width: { xs: 32, sm: 40 },
                         height: { xs: 32, sm: 40 },
-                        bgcolor: "secondary.main", // Example color
+                        bgcolor: "secondary.main",
                         color: (theme) => theme.palette.getContrastText(theme.palette.secondary.main),
                         fontSize: "1rem"
                     }}
@@ -223,12 +213,10 @@ function Navbar() {
                 open={Boolean(anchorElUser)}
                 onClose={handleCloseUserMenu}
             >
-              {/* User Info Header in Menu */}
               <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
                   <Typography variant="subtitle1" fontWeight="bold" noWrap>{user.name || 'User'}</Typography>
                   <Typography variant="body2" color="text.secondary" noWrap>{user.email}</Typography>
               </Box>
-              {/* Settings Menu Items */}
               {settings.map((setting) => (
                 <MenuItem key={setting} onClick={() => handleSettingClick(setting)}>
                   <Typography sx={{ textAlign: "center", width: '100%' }}>{setting}</Typography>

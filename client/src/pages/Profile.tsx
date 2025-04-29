@@ -1,5 +1,5 @@
 // src/pages/ProfilePage.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import {
@@ -103,7 +103,7 @@ const ProfilePage: React.FC = () => {
         validationSchema: passwordSchema,
         onSubmit: (values, { setSubmitting, resetForm }) => {
             setNotification(initialNotificationState);
-            const { confirmPassword, ...payload } = values;
+            const {...payload } = values;
             updateUserPassword.mutate(payload, {
                 onSuccess: (res) => {
                     showNotification(res.message || 'Password updated successfully!', 'success');
@@ -119,20 +119,7 @@ const ProfilePage: React.FC = () => {
         },
     });
 
-    // --- Effects ---
-    // Effect to update formik values if user object changes after initial load
-    // Note: enableReinitialize: true in useFormik also helps with this.
-    // This useEffect might become redundant depending on exact Formik behavior with enableReinitialize,
-    // but it's safe to keep for explicit synchronization.
-    useEffect(() => {
-        if (user) { // Only update if user object is available
-            profileFormik.setValues({
-                name: user.name || '',
-                email: user.email || '',
-            }, false); // Pass false to avoid marking form as dirty
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]); // Rerun only when the user object itself changes
+// Rerun only when the user object itself changes
 
     // --- Handlers --- (Keep as is)
     const handleThemeChange = (event: SelectChangeEvent<AppThemeMode>) => {

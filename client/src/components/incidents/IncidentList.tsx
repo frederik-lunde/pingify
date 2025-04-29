@@ -5,10 +5,9 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid2'; // Use Grid v2
 import {
-    InfoOutlined as InfoOutlinedIcon, ErrorOutline as ErrorIcon, Link as LinkIcon,
-    CalendarToday as CalendarTodayIcon, Timer as TimerIcon, AccessTime as DurationIcon,
+    InfoOutlined as InfoOutlinedIcon, Link as LinkIcon,
+    CalendarToday as CalendarTodayIcon, AccessTime as DurationIcon,
     ArrowUpward as ArrowUpwardIcon, ArrowDownward as ArrowDownwardIcon, SwapVert as SwapVertIcon,
-    CheckCircleOutline as ResolvedIcon // Keep ResolvedIcon for list items
 } from '@mui/icons-material';
 import { Incident } from '../../types'; // Adjust path
 import IncidentListItem from './IncidentListItem'; // Adjust path

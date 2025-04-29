@@ -66,5 +66,5 @@ export const setWebsitePinStatus = async ({ websiteId, pinData }: { websiteId: n
  */
 export const deleteWebsite = async (websiteId: number): Promise<void> => {
      if (!websiteId) throw new Error("Website ID is required for deletion.");
-    await apiClient.delete<any>(`/websites/user/dashboard/${websiteId}`);
+    await apiClient.delete<unknown>(`/websites/user/dashboard/${websiteId}`);
 };

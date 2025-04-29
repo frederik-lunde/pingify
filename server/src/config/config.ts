@@ -2,17 +2,14 @@
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 
-//
-// Load environment variables from .env file FIRST
-//
 dotenv.config();
 
 // --- Environment Variable Validation ---
 
-const requiredEnvVars = [
+// Base required variables for all environments
+const baseRequiredEnvVars = [
   'NODE_ENV',
   'PORT',
-  'DATABASE_URL',
   'JWT_SECRET',
   'MAIL_HOST',
   'MAIL_PORT',
@@ -22,65 +19,95 @@ const requiredEnvVars = [
   'MAIL_FROM',
 ];
 
+// Environment-specific required variables
+const devRequiredEnvVars = ['DATABASE_URL_DEV', 'CORS_ORIGIN_DEV'];
+const prodRequiredEnvVars = ['DATABASE_URL_PROD', 'CORS_ORIGIN_PROD'];
+
+let requiredEnvVars = [...baseRequiredEnvVars];
+const nodeEnv = process.env.NODE_ENV;
+
+if (nodeEnv === 'production') {
+  requiredEnvVars = [...requiredEnvVars, ...prodRequiredEnvVars];
+} else {
+  // Assume development or other non-production environments require dev vars
+  requiredEnvVars = [...requiredEnvVars, ...devRequiredEnvVars];
+}
+
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-  console.error(`FATAL ERROR: Missing required environment variables: ${missingVars.join(', ')}`);
+  console.error(`FATAL ERROR: Missing required environment variables for NODE_ENV=${nodeEnv}: ${missingVars.join(', ')}`);
   process.exit(1);
 }
 
 // --- Parse and Structure Configuration ---
 
-//
-// General Application Config
-//
 export const appConfig = {
-  nodeEnv: process.env.NODE_ENV!, // Non-null assertion due to check above
+  nodeEnv: nodeEnv!, // Non-null assertion safe due to check above
   port: parseInt(process.env.PORT!, 10),
   logLevel: process.env.LOG_LEVEL || 'info',
+  isProduction: nodeEnv === 'production',
+  isDevelopment: nodeEnv === 'development',
 };
 
-//
-// Database Config
-//
+// Database Config - Select based on NODE_ENV
+let resolvedDbUrl: string;
+if (appConfig.isProduction) {
+  resolvedDbUrl = process.env.DATABASE_URL_PROD!;
+} else {
+  resolvedDbUrl = process.env.DATABASE_URL_DEV!;
+}
+
 export const dbConfig = {
-  databaseUrl: process.env.DATABASE_URL!, // Non-null assertion due to check above
+  databaseUrl: resolvedDbUrl,
+  // Keep shadow DB URL if you use it for Prisma migrations
   shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL || '',
 };
 
-//
 // Security Config
-//
 export const securityConfig = {
-  jwtSecret: process.env.JWT_SECRET!, // Non-null assertion due to check above
+  jwtSecret: process.env.JWT_SECRET!,
 };
 
-//
+// CORS Config - Select based on NODE_ENV
+let allowedOrigins: string | string[];
+if (appConfig.isProduction) {
+    allowedOrigins = process.env.CORS_ORIGIN_PROD!;
+    console.log(`[Config] CORS Production Origin configured: ${allowedOrigins}`);
+} else {
+    // Allow dev origin. You could potentially add more here if needed.
+    allowedOrigins = process.env.CORS_ORIGIN_DEV!;
+    console.log(`[Config] CORS Development Origin configured: ${allowedOrigins}`);
+    // Example if you needed multiple origins in dev:
+    // allowedOrigins = [process.env.CORS_ORIGIN_DEV!, 'http://localhost:anotherport'];
+}
+
+export const corsConfig = {
+    allowedOrigins: allowedOrigins,
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+};
+
 // Mailer Config
-//
 const mailPort = parseInt(process.env.MAIL_PORT!, 10);
 if (isNaN(mailPort)) {
   throw new Error('MAIL_PORT environment variable must be a valid number.');
 }
 
 export const mailConfig = {
-  host: process.env.MAIL_HOST!, // Non-null assertion due to check above
+  host: process.env.MAIL_HOST!,
   port: mailPort,
-  //
-  // Parse boolean values correctly
-  //
   secure: process.env.MAIL_SECURE === 'true',
-  tls: process.env.MAIL_TLS === 'true' ? { ciphers: 'SSLv3' } : undefined, // Example of handling TLS options
+  tls: process.env.MAIL_TLS === 'true' ? { ciphers: 'SSLv3' } : undefined,
   auth: {
-    user: process.env.MAIL_USER!, // Non-null assertion due to check above
-    pass: process.env.MAIL_PASS!, // Non-null assertion due to check above
+    user: process.env.MAIL_USER!,
+    pass: process.env.MAIL_PASS!,
   },
-  from: process.env.MAIL_FROM!, // Non-null assertion due to check above
+  from: process.env.MAIL_FROM!,
 };
 
-//
 // Monitoring & Alerting Config
-//
 export const monitoringConfig = {
   concurrency: parseInt(process.env.MONITOR_CONCURRENCY || '5', 10),
   requestTimeoutMs: parseInt(process.env.REQUEST_TIMEOUT || '10000', 10),
@@ -92,23 +119,19 @@ export const monitoringConfig = {
   monitorUserAgent: process.env.MONITOR_USER_AGENT || 'PingifyMonitor/1.0',
 };
 
-//
 // Scheduler Config
-//
 export const schedulerConfig = {
   monitorCronPattern: process.env.MONITOR_CRON_PATTERN || '*/30 * * * * *',
   cleanupCronPattern: process.env.CLEANUP_CRON_PATTERN || '0 * * * *',
   purgeCronPattern: process.env.PURGE_CRON_PATTERN || '0 2 * * *',
 };
 
-// --- Combined Export (Optional) ---
-//
-// You can also export a single object if preferred
-//
+// --- Combined Export (Optional but convenient) ---
 export const config = {
   app: appConfig,
   db: dbConfig,
   security: securityConfig,
+  cors: corsConfig, // Add CORS config here
   mail: mailConfig,
   monitoring: monitoringConfig,
   scheduler: schedulerConfig,
@@ -124,4 +147,5 @@ if (isNaN(monitoringConfig.resultsToKeep)) throw new Error('MONITORING_RESULTS_T
 if (isNaN(monitoringConfig.resolvedAlertLinkCleanupDays)) throw new Error('RESOLVED_ALERT_LINK_CLEANUP_DAYS must be a valid number.');
 if (isNaN(monitoringConfig.recheckDelaySeconds)) throw new Error('RECHECK_DELAY_SECONDS must be a valid number.');
 
-console.log('[Config] Configuration loaded successfully.');
+console.log(`[Config] Configuration loaded successfully for NODE_ENV=${appConfig.nodeEnv}.`);
+console.log(`[Config] Database URL: ${dbConfig.databaseUrl.substring(0, dbConfig.databaseUrl.indexOf('@') + 1)}... (credentials hidden)`);

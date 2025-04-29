@@ -13,20 +13,29 @@ const buildIncidentQueryParams = (options: IncidentQueryOptions): Record<string,
     if (options.to instanceof Date) params.to = options.to.toISOString();
     if (options.websiteId !== undefined) params.websiteId = options.websiteId;
     if (options.status !== undefined) params.status = options.status;
-    // userId is typically handled by the backend via authentication, but included if needed for specific admin endpoints
-    // if (options.userId !== undefined) params.userId = options.userId;
     return params;
 };
 
 /**
  * Helper to log API errors (interceptor already creates/rejects with ApiError).
+ * Accepts 'unknown' and performs type checks.
  */
-const logApiError = (error: any, context: string): void => {
-    if (error instanceof Error && 'status' in error && 'url' in error) {
-        const apiError = error as ApiError;
-         console.error(`API Error (${apiError.status ?? 'Unknown'}) ${context}: ${apiError.message} on ${apiError.method} ${apiError.url}`);
+const logApiError = (error: unknown, context: string): void => {
+    // Check if it looks like our custom ApiError or a standard Error
+    if (error instanceof Error) {
+        // Further check if it has properties specific to ApiError (duck typing)
+        // Assuming ApiError instances will always have a 'name' property set to 'ApiError'
+        // and potentially status, url, method from the interceptor
+        if ('name' in error && error.name === 'ApiError' && 'status' in error && 'url' in error && 'method' in error) {
+            const apiError = error as ApiError; // Safe cast after checks
+            console.error(`API Error (${apiError.status ?? 'Unknown'}) ${context}: ${apiError.message} on ${apiError.method} ${apiError.url}`);
+        } else {
+            // Standard Error (e.g., network error before reaching server)
+            console.error(`Error ${context}: ${error.message}`);
+        }
     } else {
-        console.error(`API Error (Unexpected Type) ${context}:`, error);
+        // Handle cases where the thrown value is not an Error object
+        console.error(`Non-Error Thrown ${context}:`, error);
     }
 };
 
@@ -40,9 +49,9 @@ export const fetchUserIncidents = async (options: IncidentQueryOptions = {}): Pr
         const params = buildIncidentQueryParams(options);
         const data = await apiClient.get<Incident[]>(url, { params });
         return data ?? [];
-    } catch (error: any) {
+    } catch (error) { // Let TypeScript infer 'unknown'
         logApiError(error, 'fetching user incidents');
-        throw error;
+        throw error; // Re-throw the original error (likely an ApiError from the interceptor)
     }
 };
 
@@ -60,9 +69,9 @@ export const fetchWebsiteIncidents = async (websiteId: number, options: Incident
         const params = buildIncidentQueryParams({ ...options, websiteId: undefined });
         const data = await apiClient.get<Incident[]>(url, { params });
         return data ?? [];
-    } catch (error: any) {
+    } catch (error) { // Let TypeScript infer 'unknown'
         logApiError(error, `fetching incidents for website ${websiteId}`);
-        throw error;
+        throw error; // Re-throw the original error
     }
 };
 
@@ -76,9 +85,8 @@ export const fetchUserIncidentCountLast24h = async (): Promise<IncidentCountResp
         const data = await apiClient.get<IncidentCountResponse>(url);
         // Ensure a valid response structure even if API returns null/undefined
         return data ?? { incidentCount: 0 };
-    } catch (error: any) {
+    } catch (error) { // Let TypeScript infer 'unknown'
         logApiError(error, 'fetching user incident count (last 24h)');
-        // Provide a default error response structure
         throw error; // Re-throw the original ApiError
     }
 };

@@ -1,7 +1,7 @@
 // src/theme.ts
 import { createTheme } from "@mui/material/styles";
 // Import necessary colors including teal/cyan
-import { blue, orange, deepOrange, grey, green, red, yellow, teal, cyan } from "@mui/material/colors";
+import { blue, orange, deepOrange, grey, green, red, yellow, teal } from "@mui/material/colors";
 
 // Define common typography settings
 const commonTypography = {

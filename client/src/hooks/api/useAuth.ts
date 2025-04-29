@@ -9,15 +9,12 @@ import {
   storeAuthToken,
   removeAuthToken,
 } from "../../utils/authTokenUtils";
-// Removed unused import AuthContextType
-import { User, ApiError } from "../../types";
+import { User, ApiError, AuthResponse, LoginCredentials, RegisterUserData} from "../../types";
 import {
     fetchCurrentUser,
     loginUser,
     registerUser,
-    AuthResponse,
-    LoginCredentials,
-    RegistrationData
+
 } from "../../api/authApi";
 
 export const authQueryKeys = {
@@ -173,7 +170,7 @@ export function useRegisterMutation() {
     const queryClient = useQueryClient();
     const navigate = useNavigate(); // To redirect after registration
 
-    return useMutation<AuthResponse, ApiError, RegistrationData>({
+    return useMutation<AuthResponse, ApiError, RegisterUserData>({
         mutationFn: registerUser,
         onSuccess: (data) => {
             storeAuthToken(data.token, false); // Session only for registration

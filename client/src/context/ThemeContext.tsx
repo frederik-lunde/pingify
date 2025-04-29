@@ -34,13 +34,11 @@ const getInitialMode = (): AppThemeMode => {
    try {
       const genericPref = localStorage.getItem('themeMode_loggedOut') as AppThemeMode | null;
       if (genericPref && ['light', 'dark', 'colorblind'].includes(genericPref)) {
-          // console.log(`Initial mode from generic preference: ${genericPref}`);
           return genericPref;
       }
-       // console.log("Initial mode defaulting to dark (no generic preference found)");
       return 'dark';
    } catch (e) {
-       // console.error("Error reading initial theme from localStorage, defaulting to dark", e);
+        console.error("Error reading initial theme from localStorage, defaulting to dark", e);
        return 'dark';
    }
 };

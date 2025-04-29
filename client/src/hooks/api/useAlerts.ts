@@ -126,7 +126,7 @@ export function useAlertActions(): UseAlertActionsReturn {
 
     const dismissAlertMutation = useMutation<void, ApiError, number>({ // Alert ID is number
         mutationFn: dismissAlertAPI, // Pass the API function directly
-         onSuccess: (data, alertId) => {
+         onSuccess: (_data, alertId) => {
             // Optional: Log success
             console.log(`Alert ${alertId} dismissed successfully.`);
             // Invalidation is often preferred in onSettled, but can be here too
@@ -138,41 +138,16 @@ export function useAlertActions(): UseAlertActionsReturn {
             // Optionally show error to user
         },
         // onSettled runs after onSuccess or onError
-        onSettled: (data, error, alertId) => {
+        onSettled: (_data, error, alertId) => {
             console.log(`DismissAlert mutation settled for alert ${alertId}. Error: ${error?.message ?? 'None'}`);
             // Invalidate queries to refetch data after the mutation attempt
             // This ensures the UI reflects the latest state from the server
             queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern, refetchType: 'active' }); // Invalidate active user alert lists
             queryClient.invalidateQueries({ queryKey: userAlertStatsQueryKeyPattern, refetchType: 'active' }); // Invalidate active stats queries
 
-            // Consider invalidating specific website alert lists if applicable and efficient
-            // queryClient.invalidateQueries({ queryKey: alertQueryKeys.website(websiteIdFromAlert, {}) }); // Need websiteId
+
         },
-        // OPTIONAL: Optimistic Updates (Advanced)
-        // onMutate: async (alertIdToRemove) => {
-        //   // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-        //   await queryClient.cancelQueries({ queryKey: userAlertListsQueryKeyPattern });
-        //
-        //   // Snapshot the previous value
-        //   const previousAlerts = queryClient.getQueryData<Alert[]>(userAlertListsQueryKeyPattern); // Use specific key if known
-        //
-        //   // Optimistically update to the new value
-        //   if (previousAlerts) {
-        //       queryClient.setQueryData<Alert[]>(userAlertListsQueryKeyPattern,
-        //           old => (old ?? []).filter(alert => alert.id !== alertIdToRemove)
-        //       );
-        //   }
-        //
-        //   // Return a context object with the snapshotted value
-        //   return { previousAlerts };
-        // },
-        // // If the mutation fails, use the context returned from onMutate to roll back
-        // onError: (err, variables, context) => {
-        //   if (context?.previousAlerts) {
-        //     queryClient.setQueryData<Alert[]>(userAlertListsQueryKeyPattern, context.previousAlerts);
-        //   }
-        //   // ... handle error logging / display
-        // },
+
     });
 
     return {

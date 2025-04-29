@@ -63,7 +63,7 @@ const IncidentsPage: React.FC = () => {
         const listToSort = [...incidentsData];
         // Sorting logic remains the same...
         return listToSort.sort((a, b) => {
-             let valA: any; let valB: any;
+             let valA: number | string; let valB: number | string;
              switch (sortBy) {
                 case 'status': valA = a.endTime === null ? 0 : 1; valB = b.endTime === null ? 0 : 1; break;
                 case 'startTime': valA = a.startTime ? new Date(a.startTime).getTime() : 0; valB = b.startTime ? new Date(b.startTime).getTime() : 0; break;
