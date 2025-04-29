@@ -4,18 +4,17 @@ generator client {
 }
 
 datasource db {
-  provider          = "mysql"
-  url               = env("DATABASE_URL")
-  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String      @id @default(cuid()) // Changed: String, CUID
-  email     String      @unique
+  id        String   @id @default(cuid()) // Changed: String, CUID
+  email     String   @unique
   password  String
   name      String?
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   websiteUsers WebsiteUser[]
   Alert        Alert[]
@@ -40,7 +39,7 @@ model Website {
 
 model WebsiteUser {
   id             Int      @id @default(autoincrement())
-  userId         String   // Changed: String
+  userId         String // Changed: String
   websiteId      Int
   name           String?
   interval       Int?
@@ -81,12 +80,12 @@ model MonitoringResult {
 }
 
 model Alert {
-  id         Int       @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   websiteId  Int
-  userId     String    // Changed: String
+  userId     String // Changed: String
   message    String
   type       String
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime @default(now())
   incidentId Int?
 
   website  Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
