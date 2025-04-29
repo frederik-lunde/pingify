@@ -178,25 +178,3 @@ export function useWebsiteStatsQuery(websiteId: number | undefined, period: Time
         ...options,
     });
 }
-
-/**
- * Hook to fetch all monitoring results for the user.
- */
-export function useUserMonitoringResultsQuery(limit: number = 500, options?: CustomQueryOptions<MonitoringResult[]>) {
-    const { user } = useAuth();
-    const userId = user?.id; // This is string | undefined
-    // --- Now correctly passes string | undefined ---
-    const queryKey = monitoringQueryKeys.userResults(limit, userId);
-
-    return useQuery<MonitoringResult[], ApiError>({
-        queryKey: queryKey,
-        queryFn: () => {
-             if (!userId) return Promise.resolve([]);
-             return fetchAllUserMonitoringResults(limit);
-        },
-        enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 60 * 1000,
-        gcTime: 1000 * 60 * 5,
-        ...options,
-    });
-}

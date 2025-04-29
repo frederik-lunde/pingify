@@ -37,7 +37,7 @@ const Dashboard: React.FC = () => {
         upWebsitesCount,
     } = useWebsiteData(
         'week', // Default stats period
-        60000 // Refetch interval (e.g., 1 minute)
+        30000 // Refetch interval (e.g., 1 minute)
     );
 
     // useWebsiteListProcessor expects WebsiteUser[] which `allWebsites` now correctly is

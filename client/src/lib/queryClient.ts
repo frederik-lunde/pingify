@@ -8,7 +8,7 @@ import { ApiError } from '../api/client'; // Adjust path if needed, e.g., '../ty
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0,
+      staleTime: 60000,
       gcTime: 1000 * 60 * 5, // 5 minutes
       retry: (failureCount, error: unknown) => {
         const apiError = error as ApiError; // Type assertion
