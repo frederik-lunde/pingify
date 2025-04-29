@@ -23,7 +23,6 @@ const Dashboard: React.FC = () => {
     const [showTvExitMessage, setShowTvExitMessage] = useState(false);
 
     const {
-        // --- MODIFIED: Destructure using the correct property name ---
         websiteCards: allWebsites,
         overallStats,
         incidentsLast24h,
@@ -40,25 +39,23 @@ const Dashboard: React.FC = () => {
         30000 // Refetch interval (e.g., 1 minute)
     );
 
-    // useWebsiteListProcessor expects WebsiteUser[] which `allWebsites` now correctly is
     const {
         processedWebsites,
         filterTerm,
         setFilterTerm,
         sortOption,
         setSortOption,
-    } = useWebsiteListProcessor(allWebsites); // Pass the correctly named variable
+    } = useWebsiteListProcessor(allWebsites);
 
     const handleFilterChangeInternal = useCallback((term: string) => {
         setFilterTerm(term);
-        if (term) setIsHighlightActive(false); // Disable highlight when filtering
+        if (term) setIsHighlightActive(false);
     }, [setFilterTerm]);
 
     const handleToggleHighlight = useCallback(() => {
         const shouldActivate = !isHighlightActive;
         setIsHighlightActive(shouldActivate);
         if (shouldActivate && lastIncidentWebsiteId) {
-            // Scroll to highlighted card after a short delay
             setTimeout(() => {
                 const element = document.getElementById(`website-card-grid-${lastIncidentWebsiteId}`);
                 element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -66,12 +63,10 @@ const Dashboard: React.FC = () => {
         }
     }, [isHighlightActive, lastIncidentWebsiteId]);
 
-    // Effect to disable highlight when incident changes or filter is applied
     useEffect(() => {
         setIsHighlightActive(false);
     }, [lastIncidentWebsiteId, filterTerm]);
 
-    // Effect for TV Mode exit handling
     useEffect(() => {
         const handleExitTvMode = () => {
             if (isTvMode) toggleTvMode();
@@ -79,18 +74,16 @@ const Dashboard: React.FC = () => {
         if (isTvMode) {
             setShowTvExitMessage(true);
             const timer = setTimeout(() => setShowTvExitMessage(false), 5000);
-            // Add event listeners
             document.addEventListener('keydown', handleExitTvMode);
             document.addEventListener('mousedown', handleExitTvMode);
-            // Cleanup function
             return () => {
                 clearTimeout(timer);
                 document.removeEventListener('keydown', handleExitTvMode);
                 document.removeEventListener('mousedown', handleExitTvMode);
-                setShowTvExitMessage(false); // Hide message on exit
+                setShowTvExitMessage(false);
             };
         } else {
-            setShowTvExitMessage(false); // Ensure message is hidden if not in TV mode
+            setShowTvExitMessage(false);
         }
     }, [isTvMode, toggleTvMode]);
 
@@ -106,7 +99,6 @@ const Dashboard: React.FC = () => {
         return <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress data-testid="dashboard-initial-loading" /></Box>;
     }
 
-    // --- CRITICAL ERROR STATE ---
     if (dataError) {
         return (
             <DataFetchError
@@ -121,7 +113,6 @@ const Dashboard: React.FC = () => {
     if (isTvMode) {
         return (
             <TvModeView
-                // --- MODIFIED: Pass correct prop name ---
                 websiteCards={processedWebsites}
                 isLoading={showLoadingSkeleton}
                 lastIncidentWebsiteId={lastIncidentWebsiteId}
@@ -136,7 +127,8 @@ const Dashboard: React.FC = () => {
 
     // --- Standard Dashboard Render ---
     return (
-        <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 3 }, mt: 2, mb: 4 }}>
+        <Box sx={{ px: { xs: 1, sm: 2, md: 3 }, mt: 2, mb: 4, width: '100%' }}>
+
             <Paper elevation={1} sx={{ mb: 2 }}>
                 <StatsHeader
                     isLoading={isLoadingData && !overallStats}
@@ -176,7 +168,6 @@ const Dashboard: React.FC = () => {
             </Stack>
 
             <WebsiteGrid
-                // --- MODIFIED: Pass correct prop name ---
                 websiteCards={processedWebsites}
                 isLoading={showLoadingSkeleton}
                 lastIncidentWebsiteId={lastIncidentWebsiteId}
@@ -184,10 +175,9 @@ const Dashboard: React.FC = () => {
                 isTvMode={false}
             />
 
-            {/* Empty State Messages */}
             {isEmptyDueToFilter && <EmptyFilterResults />}
             {isEmptyBecauseNoWebsites && <NoWebsitesAdded isTvMode={false} />}
-        </Container>
+        </Box>
     );
 };
 

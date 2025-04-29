@@ -3,6 +3,7 @@ src/components/dashboard/WebsiteGrid.tsx
 */
 import React from "react";
 import Grid from "@mui/material/Grid2";
+import { Box } from "@mui/material";
 import WebsiteCard from "./WebsiteCard";
 // --- MODIFIED: Remove WebsiteWithResults ---
 import { WebsiteUser } from "../../types";
@@ -64,34 +65,33 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
     }
 
     return (
-      <Grid container spacing={2} sx={{ pt: 2 }}>
-        {/* --- MODIFIED: Map over websiteCards --- */}
-        {websiteCards.map((item) => {
-           // --- MODIFIED: Item is WebsiteUser directly ---
-           if (!item) { // Simpler check if item exists
-               console.warn("[WebsiteGrid] Skipping potentially invalid item:", item);
-               return null;
-           }
-           // Access websiteId directly from item
-           const shouldHighlight = isHighlightActive && item.websiteId === lastIncidentWebsiteId;
+      <Box
+    sx={{
+      display: 'grid',
+      gap: 2,
+      gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+      pt: 2,
+    }}
+  >
+    {websiteCards.map((item) => {
+      if (!item) return null;
+      const shouldHighlight = isHighlightActive && item.websiteId === lastIncidentWebsiteId;
 
-           return (
-              <Grid
-                // Use item.websiteId for key and id
-                key={`website-${item.websiteId}`}
-                id={`website-card-grid-${item.websiteId}`}
-                size={gridItemSize}
-              >
-                <WebsiteCard
-                  // Pass item directly as userWebsite prop
-                  userWebsite={item}
-                  shouldHighlightThisCard={shouldHighlight}
-                  isTvMode={isTvMode}
-                />
-              </Grid>
-           );
-        })}
-      </Grid>
+      return (
+        <Box
+          key={`website-${item.websiteId}`}
+          id={`website-card-grid-${item.websiteId}`}
+          sx={{ width: '100%' }}
+        >
+          <WebsiteCard
+            userWebsite={item}
+            shouldHighlightThisCard={shouldHighlight}
+            isTvMode={isTvMode}
+          />
+        </Box>
+      );
+    })}
+  </Box>
     );
   },
 );
