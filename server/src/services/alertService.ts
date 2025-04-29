@@ -6,12 +6,10 @@ import {
   MonitoringResult as PrismaMonitoringResult,
   Prisma,
   Incident as PrismaIncident,
-  User as PrismaUser // Import User if needed for type safety
 } from '@prisma/client';
 import { monitoringConfig } from '../config/config';
 import prisma from '../prisma/prismaClient';
-import { subHours, differenceInSeconds } from 'date-fns';
-// Assuming these types are updated: Alert should reflect userId: string if it includes user details directly
+import { subHours} from 'date-fns';
 import { AlertQueryOptions, AlertType, AlertStats, VALID_ALERT_TYPES, MonitoringResponse, IncidentType, WebsiteUser } from '../types';
 import { WebsiteMonitor, ResultsManager } from './monitoringService';
 import * as IncidentService from './incidentService';
@@ -19,9 +17,7 @@ import { sendMail } from './mailService';
 
 const RECHECK_DELAY_SECONDS = monitoringConfig.recheckDelaySeconds;
 
-// --- Central Result Processing Logic ---
 
-// No changes needed in handleResultProcessing as it operates primarily on websiteId and incident types
 
 export async function handleResultProcessing(website: PrismaWebsite, result: PrismaMonitoringResult): Promise<void> {
   const logPrefix = `[ResultProc W:${website.id} R:${result.id}]`;
@@ -264,10 +260,6 @@ async function handleIncidentConfirmation(
   }
 }
 
-/**
-* Creates an Alert record and sends an email notification for a confirmed incident.
-* Accepts PrismaWebsiteUser which has userId: string.
-*/
 async function createAlertAndNotify(
   website: PrismaWebsite,
   websiteUser: PrismaWebsiteUser, // This object has userId: string

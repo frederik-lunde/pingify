@@ -13,7 +13,6 @@ import monitoringRoutes from './routes/monitoringRoutes';
 import alertRoutes from './routes/alertRoutes';
 import incidentRoutes from './routes/incidentRoutes';
 
-
 // Middleware
 import errorMiddleware from './middleware/errorMiddleware';
 import { authenticate } from './middleware/authMiddleware';
@@ -21,19 +20,19 @@ import { authenticate } from './middleware/authMiddleware';
 // Utils
 import { scheduleMonitoring } from './utils/scheduler';
 
-// Initialize app and database connection
 const app = express();
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000, // Limit each IP to 500 requests per windowMs
+  windowMs: 15 * 60 * 1000, 
+    max: 1000, 
     message: 'Too many requests, please try again later.'
 });
-// Global middlewares
+
+//global middleware
 app.use(cors());
-app.use(helmet()); // Security headers
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
-app.use(limiter); // Rate limiting
+app.use(helmet()); 
+app.use(express.urlencoded({ extended: true }));
+app.use(limiter);
 app.use(express.json());
 app.use(morgan('tiny'));
 app.use(compression());
@@ -42,7 +41,7 @@ app.use(compression());
 app.use('/api/auth', authRoutes);
 
 
-// Protected routes for user-specific data
+// Protected routes
 app.use('/api/users', authenticate, userRoutes);
 app.use('/api/websites',authenticate, websiteRoutes);
 app.use('/api/monitoring',authenticate, monitoringRoutes);
@@ -50,7 +49,6 @@ app.use('/api/incidents',authenticate, incidentRoutes);
 app.use('/api/alerts',authenticate, alertRoutes);
 
 
-// Start monitoring scheduler (runs for all websites regardless of user access)
 scheduleMonitoring();
 
 // Global error handler (should be the last middleware)

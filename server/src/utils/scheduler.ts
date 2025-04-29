@@ -1,52 +1,35 @@
 // server/src/utils/scheduler.ts
 import cron from 'node-cron';
 import { Website as PrismaWebsite, Prisma } from '@prisma/client';
-//
-// Import structured config objects
-//
 import { monitoringConfig, schedulerConfig } from '../config/config';
 import { WebsiteMonitor } from '../services/monitoringService';
 import prisma from '../prisma/prismaClient';
 
-//
+
 // Use constants from config
-//
 const BATCH_CONCURRENCY = monitoringConfig.concurrency;
 const DEFAULT_WEBSITE_INTERVAL = monitoringConfig.defaultIntervalSeconds;
 const RESULTS_TO_KEEP_PER_WEBSITE = monitoringConfig.resultsToKeep;
 const MINIMUM_INTERVAL_SECONDS = monitoringConfig.minimumIntervalSeconds;
 
 // --- Website Monitoring Logic ---
-
-/**
- * Determines if a website is due for checking based on its interval and last check time.
- */
 function isWebsiteDueForCheck(website: PrismaWebsite): boolean {
   if (!website.lastChecked) {
-    return true; // Never checked
+    return true;
   }
   const intervalInSeconds = website.globalInterval ?? DEFAULT_WEBSITE_INTERVAL;
-  //
-  // Use minimum interval from config
-  //
   const effectiveIntervalSeconds = Math.max(MINIMUM_INTERVAL_SECONDS, intervalInSeconds);
   const millisecondsSinceLastCheck = Date.now() - new Date(website.lastChecked).getTime();
   return millisecondsSinceLastCheck >= (effectiveIntervalSeconds * 1000);
 }
 
-/**
- * Retrieves all websites marked as active from the database.
- */
 async function getActiveWebsites(): Promise<PrismaWebsite[]> {
   return prisma.website.findMany({
     where: { isActive: true },
   });
 }
 
-/**
- * Processes websites in batches to limit concurrency during checks.
- * Uses the static method from WebsiteMonitor.
- */
+//Processes websites in batches to limit concurrency during checks.
 async function processBatches(websites: PrismaWebsite[]): Promise<void> {
   console.log(`[Scheduler] Processing ${websites.length} websites in batches of ${BATCH_CONCURRENCY}...`);
   for (let i = 0; i < websites.length; i += BATCH_CONCURRENCY) {
@@ -62,9 +45,7 @@ async function processBatches(websites: PrismaWebsite[]): Promise<void> {
       });
     }));
 
-    //
-    // Optional: Log detailed batch results if needed
-    //
+    //logging
     results.forEach((result, index) => {
       const websiteId = batch[index].id;
       if (result.status === 'rejected') {
@@ -78,9 +59,6 @@ async function processBatches(websites: PrismaWebsite[]): Promise<void> {
   }
 }
 
-/**
- * Main function executed by the cron job to find and check websites that are due.
- */
 export async function checkDueWebsites(): Promise<void> {
   const startTime = Date.now();
   console.log(`[Scheduler - ${new Date().toISOString()}] Starting check for due websites...`);
@@ -110,9 +88,6 @@ export async function checkDueWebsites(): Promise<void> {
 
 // --- Cleanup Tasks ---
 
-/**
- * Deactivates websites that are marked active but have no associated users.
- */
 export async function cleanupUnusedWebsites(): Promise<void> {
   const startTime = Date.now();
   console.log(`[Scheduler Cleanup - ${new Date().toISOString()}] Starting cleanup of unused websites...`);
@@ -147,12 +122,8 @@ export async function cleanupUnusedWebsites(): Promise<void> {
   }
 }
 
-/**
- * Purges old monitoring results for each website, keeping only the most recent N records.
- */
-//
-// Pass the configured value directly
-//
+
+//Purges old monitoring results for each website, keeping only the most recent N records.
 export async function purgeOldMonitoringResults(resultsToKeep: number = RESULTS_TO_KEEP_PER_WEBSITE): Promise<void> {
   const startTime = Date.now();
   console.log(`[Scheduler Purge - ${new Date().toISOString()}] Starting purge of old monitoring results (keeping last ${resultsToKeep} per website)...`);
@@ -180,9 +151,8 @@ export async function purgeOldMonitoringResults(resultsToKeep: number = RESULTS_
 
         const resultIdsToKeep = recentResults.map(r => r.id);
 
-        //
+        
         // Only delete if the number of results exceeds the keep threshold
-        //
         const totalCount = await prisma.monitoringResult.count({ where: { websiteId: website.id } });
 
         if (totalCount > resultsToKeep) {
@@ -216,15 +186,11 @@ export async function purgeOldMonitoringResults(resultsToKeep: number = RESULTS_
 }
 
 // --- Scheduler Setup ---
-
-/**
- * Initializes and starts all scheduled cron jobs.
- */
 export function scheduleMonitoring(): void {
   console.log("[Scheduler] Initializing schedulers...");
 
   //
-  // 1. Website Monitoring Check (Use config pattern)
+  // 1. Website Monitoring Check
   //
   const monitorCron = schedulerConfig.monitorCronPattern;
   if (cron.validate(monitorCron)) {
@@ -234,9 +200,8 @@ export function scheduleMonitoring(): void {
     console.error(`[Scheduler] Invalid cron pattern for monitoring: ${monitorCron}`);
   }
 
-  //
-  // 2. Unused Website Cleanup (Use config pattern)
-  //
+  // 2. Unused Website Cleanup
+  
   const cleanupCron = schedulerConfig.cleanupCronPattern;
   if (cron.validate(cleanupCron)) {
     cron.schedule(cleanupCron, cleanupUnusedWebsites, { name: "unusedWebsiteCleanup" });
@@ -246,7 +211,7 @@ export function scheduleMonitoring(): void {
   }
 
   //
-  // 3. Old Monitoring Results Purge (Use config pattern)
+  // 3. Old Monitoring Results Purge
   //
   const purgeCron = schedulerConfig.purgeCronPattern;
   if (cron.validate(purgeCron)) {
@@ -259,10 +224,6 @@ export function scheduleMonitoring(): void {
   console.log("[Scheduler] All schedulers initialized.");
 }
 
-// --- Manual Execution Exports ---
 export const runMonitoringCheck = checkDueWebsites;
 export const runUnusedCleanup = cleanupUnusedWebsites;
-//
-// Ensure manual run uses the config value
-//
 export const runResultsPurge = () => purgeOldMonitoringResults(RESULTS_TO_KEEP_PER_WEBSITE);
