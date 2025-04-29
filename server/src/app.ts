@@ -28,8 +28,11 @@ const limiter = rateLimit({
     message: 'Too many requests, please try again later.'
 });
 
+const corsOptions = {
+  origin: 'https://your-deployed-frontend-url.com' // Replace with your actual frontend URL
+};
 //global middleware
-app.use(cors());
+app.use(cors(corsOptions))
 app.use(helmet()); 
 app.use(express.urlencoded({ extended: true }));
 app.use(limiter);
