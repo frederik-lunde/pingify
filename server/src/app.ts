@@ -48,15 +48,10 @@ const corsOptions = {
 };
 
 
-// --- Global Middleware (Order Matters!) ---
 
-// 1. Basic Security Headers
 app.use(helmet());
 
-// 2. Enable CORS with specified options - Handles preflight OPTIONS requests
 app.use(cors(corsOptions));
-// Note: app.use(cors(corsOptions)) usually handles OPTIONS automatically.
-// You generally don't need app.options('*', cors(corsOptions)) unless facing specific issues.
 
 // 3. Request Logging
 app.use(morgan('tiny')); // Or 'dev' for more details during development
@@ -70,15 +65,6 @@ app.use(compression());
 
 // 6. Rate Limiting (Apply after parsing and logging, before routes)
 app.use(limiter);
-
-
-// --- Routes ---
-
-// Health check - place before auth and error handling
-app.get('/health', (req, res) => {
-  // console.log("Health check hit"); // Optional: add logging if needed
-  res.status(200).send('OK');
-});
 
 // Public API routes
 app.use('/api/auth', authRoutes);
@@ -96,7 +82,6 @@ app.use('/api/alerts', authenticate, alertRoutes);
 scheduleMonitoring(); // Start scheduled tasks
 
 
-// --- Global Error Handler ---
 // This MUST be the last middleware added to the stack
 app.use(errorMiddleware);
 
