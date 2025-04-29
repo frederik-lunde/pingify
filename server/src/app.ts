@@ -57,5 +57,9 @@ scheduleMonitoring();
 // Global error handler (should be the last middleware)
 app.use(errorMiddleware);
 
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 
 export default app;
