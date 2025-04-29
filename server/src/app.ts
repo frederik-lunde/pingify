@@ -29,7 +29,7 @@ const limiter = rateLimit({
 });
 
 const corsOptions = {
-  origin: 'https://your-deployed-frontend-url.com' // Replace with your actual frontend URL
+  origin: 'https://pingify-frontend.onrender.com'
 };
 //global middleware
 app.use(cors(corsOptions))
