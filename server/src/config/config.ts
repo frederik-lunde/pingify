@@ -2,112 +2,84 @@
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 
+// Load environment variables from .env file (primarily for local development)
+// In production (like Render), variables should be set directly in the environment.
 dotenv.config();
 
 // --- Environment Variable Validation ---
 
-// Base required variables for all environments
-const baseRequiredEnvVars = [
-  'NODE_ENV',
+// Define all required environment variables.
+// Their *values* will differ between environments (local .env vs. Render settings).
+const requiredEnvVars = [
+  'NODE_ENV',       // Should be 'development' or 'production'
   'PORT',
   'JWT_SECRET',
+  'DATABASE_URL',   // Single DB URL variable
+  'CORS_ORIGIN',    // Single CORS Origin variable
   'MAIL_HOST',
   'MAIL_PORT',
-  'MAIL_SECURE',
+  'MAIL_SECURE',    // Expects 'true' or 'false' as string
   'MAIL_USER',
   'MAIL_PASS',
   'MAIL_FROM',
+  // Add any other *always* required variables here
+  // Optional vars with defaults don't need to be listed (e.g., LOG_LEVEL)
 ];
 
-// Environment-specific required variables
-const devRequiredEnvVars = ['DATABASE_URL_DEV', 'CORS_ORIGIN_DEV'];
-const prodRequiredEnvVars = ['DATABASE_URL_PROD', 'CORS_ORIGIN_PROD'];
-
-let requiredEnvVars = [...baseRequiredEnvVars];
-const nodeEnv = process.env.NODE_ENV;
-
-if (nodeEnv === 'production') {
-  requiredEnvVars = [...requiredEnvVars, ...prodRequiredEnvVars];
-} else {
-  // Assume development or other non-production environments require dev vars
-  requiredEnvVars = [...requiredEnvVars, ...devRequiredEnvVars];
-}
+const nodeEnv = process.env.NODE_ENV || 'development'; // Default to development if unset
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-  console.error(`FATAL ERROR: Missing required environment variables for NODE_ENV=${nodeEnv}: ${missingVars.join(', ')}`);
-  process.exit(1);
+  console.error(`FATAL ERROR: Missing required environment variables: ${missingVars.join(', ')} (NODE_ENV=${nodeEnv})`);
+  process.exit(1); // Exit if required variables are missing
 }
 
 // --- Parse and Structure Configuration ---
 
 export const appConfig = {
-  nodeEnv: nodeEnv!, // Non-null assertion safe due to check above
-  port: parseInt(process.env.PORT!, 10),
+  nodeEnv: nodeEnv,
+  port: parseInt(process.env.PORT!, 10), // Use ! because existence is checked above
   logLevel: process.env.LOG_LEVEL || 'info',
   isProduction: nodeEnv === 'production',
   isDevelopment: nodeEnv === 'development',
 };
 
-// Database Config - Select based on NODE_ENV
-let resolvedDbUrl: string;
-if (appConfig.isProduction) {
-  resolvedDbUrl = process.env.DATABASE_URL_PROD!;
-} else {
-  resolvedDbUrl = process.env.DATABASE_URL_DEV!;
-}
-
 export const dbConfig = {
-  databaseUrl: resolvedDbUrl,
-  // Keep shadow DB URL if you use it for Prisma migrations
+  // Use the single DATABASE_URL variable provided by the environment
+  databaseUrl: process.env.DATABASE_URL!, // Use ! because existence is checked above
+  // Keep shadow DB URL if you use it for Prisma migrations (often optional)
   shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL || '',
 };
 
-// Security Config
 export const securityConfig = {
-  jwtSecret: process.env.JWT_SECRET!,
+  jwtSecret: process.env.JWT_SECRET!, // Use ! because existence is checked above
 };
 
-// CORS Config - Select based on NODE_ENV
-let allowedOrigins: string | string[];
-if (appConfig.isProduction) {
-    allowedOrigins = process.env.CORS_ORIGIN_PROD!;
-    console.log(`[Config] CORS Production Origin configured: ${allowedOrigins}`);
-} else {
-    // Allow dev origin. You could potentially add more here if needed.
-    allowedOrigins = process.env.CORS_ORIGIN_DEV!;
-    console.log(`[Config] CORS Development Origin configured: ${allowedOrigins}`);
-    // Example if you needed multiple origins in dev:
-    // allowedOrigins = [process.env.CORS_ORIGIN_DEV!, 'http://localhost:anotherport'];
-}
-
 export const corsConfig = {
-    allowedOrigins: allowedOrigins,
+    // Use the single CORS_ORIGIN variable provided by the environment
+    allowedOrigins: process.env.CORS_ORIGIN!, // Use ! because existence is checked above
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
+    credentials: true, // Often needed for cookies/auth headers
 };
 
 // Mailer Config
-const mailPort = parseInt(process.env.MAIL_PORT!, 10);
-if (isNaN(mailPort)) {
-  throw new Error('MAIL_PORT environment variable must be a valid number.');
-}
+const mailPort = parseInt(process.env.MAIL_PORT!, 10); // Use ! because existence is checked above
 
 export const mailConfig = {
-  host: process.env.MAIL_HOST!,
-  port: mailPort,
-  secure: process.env.MAIL_SECURE === 'true',
-  tls: process.env.MAIL_TLS === 'true' ? { ciphers: 'SSLv3' } : undefined,
+  host: process.env.MAIL_HOST!, // Use ! because existence is checked above
+  port: mailPort, // Already parsed and validated below
+  secure: process.env.MAIL_SECURE === 'true', // Explicit boolean conversion
+  tls: process.env.MAIL_TLS === 'true' ? { ciphers: 'SSLv3' } : undefined, // Conditional TLS config
   auth: {
-    user: process.env.MAIL_USER!,
-    pass: process.env.MAIL_PASS!,
+    user: process.env.MAIL_USER!, // Use ! because existence is checked above
+    pass: process.env.MAIL_PASS!, // Use ! because existence is checked above
   },
-  from: process.env.MAIL_FROM!,
+  from: process.env.MAIL_FROM!, // Use ! because existence is checked above
 };
 
-// Monitoring & Alerting Config
+// Monitoring & Alerting Config (Using defaults if specific env vars aren't set)
 export const monitoringConfig = {
   concurrency: parseInt(process.env.MONITOR_CONCURRENCY || '5', 10),
   requestTimeoutMs: parseInt(process.env.REQUEST_TIMEOUT || '10000', 10),
@@ -116,10 +88,10 @@ export const monitoringConfig = {
   resultsToKeep: parseInt(process.env.MONITORING_RESULTS_TO_KEEP || '2000', 10),
   resolvedAlertLinkCleanupDays: parseInt(process.env.RESOLVED_ALERT_LINK_CLEANUP_DAYS || '30', 10),
   recheckDelaySeconds: parseInt(process.env.RECHECK_DELAY_SECONDS || '60', 10),
-  monitorUserAgent: process.env.MONITOR_USER_AGENT || 'PingifyMonitor/1.0',
+  monitorUserAgent: process.env.MONITOR_USER_AGENT || 'PingifyMonitor/1.0 (+https://pingify.com/monitor)',
 };
 
-// Scheduler Config
+// Scheduler Config (Using defaults if specific env vars aren't set)
 export const schedulerConfig = {
   monitorCronPattern: process.env.MONITOR_CRON_PATTERN || '*/30 * * * * *',
   cleanupCronPattern: process.env.CLEANUP_CRON_PATTERN || '0 * * * *',
@@ -131,21 +103,45 @@ export const config = {
   app: appConfig,
   db: dbConfig,
   security: securityConfig,
-  cors: corsConfig, // Add CORS config here
+  cors: corsConfig,
   mail: mailConfig,
   monitoring: monitoringConfig,
   scheduler: schedulerConfig,
 };
 
-// --- Validate Ports and Numbers ---
-if (isNaN(appConfig.port)) throw new Error('PORT must be a valid number.');
-if (isNaN(monitoringConfig.concurrency)) throw new Error('MONITOR_CONCURRENCY must be a valid number.');
-if (isNaN(monitoringConfig.requestTimeoutMs)) throw new Error('REQUEST_TIMEOUT must be a valid number.');
-if (isNaN(monitoringConfig.defaultIntervalSeconds)) throw new Error('DEFAULT_MONITOR_INTERVAL_SECONDS must be a valid number.');
-if (isNaN(monitoringConfig.minimumIntervalSeconds)) throw new Error('MINIMUM_MONITOR_INTERVAL_SECONDS must be a valid number.');
-if (isNaN(monitoringConfig.resultsToKeep)) throw new Error('MONITORING_RESULTS_TO_KEEP must be a valid number.');
-if (isNaN(monitoringConfig.resolvedAlertLinkCleanupDays)) throw new Error('RESOLVED_ALERT_LINK_CLEANUP_DAYS must be a valid number.');
-if (isNaN(monitoringConfig.recheckDelaySeconds)) throw new Error('RECHECK_DELAY_SECONDS must be a valid number.');
+// --- Runtime Validation for Parsed Numbers ---
+// Check if any parseInt resulted in NaN (Not a Number)
+const numberValidation = [
+    { name: 'PORT', value: appConfig.port },
+    { name: 'MAIL_PORT', value: mailConfig.port },
+    { name: 'MONITOR_CONCURRENCY', value: monitoringConfig.concurrency },
+    { name: 'REQUEST_TIMEOUT', value: monitoringConfig.requestTimeoutMs },
+    { name: 'DEFAULT_MONITOR_INTERVAL_SECONDS', value: monitoringConfig.defaultIntervalSeconds },
+    { name: 'MINIMUM_MONITOR_INTERVAL_SECONDS', value: monitoringConfig.minimumIntervalSeconds },
+    { name: 'MONITORING_RESULTS_TO_KEEP', value: monitoringConfig.resultsToKeep },
+    { name: 'RESOLVED_ALERT_LINK_CLEANUP_DAYS', value: monitoringConfig.resolvedAlertLinkCleanupDays },
+    { name: 'RECHECK_DELAY_SECONDS', value: monitoringConfig.recheckDelaySeconds },
+];
 
+const invalidNumbers = numberValidation.filter(v => isNaN(v.value));
+
+if (invalidNumbers.length > 0) {
+    const invalidNames = invalidNumbers.map(v => v.name).join(', ');
+    console.error(`FATAL ERROR: The following environment variables must be valid numbers: ${invalidNames}`);
+    process.exit(1);
+}
+
+// --- Log Confirmation ---
 console.log(`[Config] Configuration loaded successfully for NODE_ENV=${appConfig.nodeEnv}.`);
-console.log(`[Config] Database URL: ${dbConfig.databaseUrl.substring(0, dbConfig.databaseUrl.indexOf('@') + 1)}... (credentials hidden)`);
+// Avoid logging sensitive parts of the DB URL, especially credentials
+if (dbConfig.databaseUrl) {
+    try {
+        const url = new URL(dbConfig.databaseUrl);
+        console.log(`[Config] Database Host: ${url.hostname}`);
+    } catch (e) {
+        console.log("[Config] Database URL: Set (format unrecognized or invalid)");
+    }
+} else {
+    console.log("[Config] Database URL: Not Set"); // Should not happen due to checks above
+}
+console.log(`[Config] CORS Origin configured: ${corsConfig.allowedOrigins}`);
