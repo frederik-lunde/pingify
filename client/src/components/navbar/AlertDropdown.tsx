@@ -123,20 +123,20 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
             staleTime: (isMenuOpen && pollingInterval) ? pollingInterval : undefined,
         }
     );
-    const activeAlerts: Alert[] = fetchedAlerts ?? [];
 
-    // --- FIX IS HERE ---
-    // Destructure the correct property name returned by the hook
+    // Memoize the activeAlerts array itself
+    const activeAlerts: Alert[] = useMemo(() => fetchedAlerts ?? [], [fetchedAlerts]);
+
     const {
         dismissAlert,
-        isDismissingAlert, // Directly get isDismissingAlert
-        // errorDismissingAlert // You can uncomment this if you need to handle the mutation error
+        isDismissingAlert,
+        // errorDismissingAlert
     } = useAlertActions();
-    // --- END FIX ---
 
     const isLoading = isPending && !activeAlerts.length;
     const isPollingIndicator = isFetching && !isPending;
 
+    // Now these hooks depend on the memoized activeAlerts
     const badgeCount = useMemo(() => activeAlerts.length, [activeAlerts]);
     const displayedAlerts = useMemo(() => activeAlerts.slice(0, maxItems), [activeAlerts, maxItems]);
     const hasMoreAlerts = useMemo(() => activeAlerts.length > maxItems, [activeAlerts, maxItems]);
@@ -155,22 +155,24 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
             if (websiteId !== undefined) {
                 navigate(`/website/${websiteId}`);
             } else {
-                console.warn("Cannot navigate: Missing websiteId in alert data", alert);
+                // Find the alert associated with this action if needed for logging
+                // const clickedAlert = activeAlerts.find(a => a.website?.id === websiteId); // This won't work if websiteId is undefined
+                console.warn("Cannot navigate: Missing websiteId in alert data");
             }
         },
-        [navigate, handleCloseMenu]
+        [navigate, handleCloseMenu] // Removed activeAlerts dependency as it's not needed for the logic
     );
 
     const handleDismiss = useCallback(
         (event: React.MouseEvent, alertId: number | undefined) => {
             event.stopPropagation();
-            if (alertId !== undefined && !isDismissingAlert) { // Use the correctly destructured variable
+            if (alertId !== undefined && !isDismissingAlert) {
                 dismissAlert(alertId);
             } else if (alertId === undefined) {
                 console.error("Attempted to dismiss alert with undefined ID");
             }
         },
-        [dismissAlert, isDismissingAlert] // Use the correctly destructured variable
+        [dismissAlert, isDismissingAlert]
     );
 
     const handleViewAllAlerts = useCallback(() => {
@@ -220,7 +222,7 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
             <AlertItem
                 key={`alert-${alert.id}`}
                 alert={alert}
-                isDismissing={isDismissingAlert} // Use the correctly destructured variable
+                isDismissing={isDismissingAlert}
                 onNavigate={handleNavigateToWebsite}
                 onDismiss={handleDismiss}
                 isLastItem={index === displayedAlerts.length - 1 && !hasMoreAlerts}
@@ -230,8 +232,11 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
         if (hasMoreAlerts) {
              if (menuItems.length > 0) {
                  const lastItemIndex = menuItems.length - 1;
-                 if(React.isValidElement(menuItems[lastItemIndex])) {
-                    menuItems[lastItemIndex] = React.cloneElement(menuItems[lastItemIndex] as React.ReactElement<any>, { isLastItem: false });
+                 // Check if it's a valid element and cast to specify props type
+                 const lastElement = menuItems[lastItemIndex];
+                 if(React.isValidElement<AlertItemProps>(lastElement)) {
+                    // Clone with specific type
+                    menuItems[lastItemIndex] = React.cloneElement(lastElement, { isLastItem: false });
                  }
                 menuItems.push(<Divider key="view-all-divider" />);
             }

@@ -1,6 +1,6 @@
 // src/pages/AddWebsite.tsx
 import React, { useState, useCallback } from "react";
-import { useNavigate } from "react-router"; // Use react-router-dom
+import { useNavigate } from "react-router";
 import { Formik, Form, Field, FormikHelpers } from "formik";
 import * as Yup from "yup";
 import {
@@ -17,7 +17,7 @@ import {
     AddWebsiteUserDTO,
     Website,
     WebsiteUser,
-    ApiError
+    ApiError // ApiError now has data: unknown
 } from "../types";
 
 // --- Import Components ---
@@ -66,7 +66,7 @@ const AddWebsiteSchema = Yup.object().shape({
     .required("Check interval is required"),
   alertEnabled: Yup.boolean(),
   alertThreshold: Yup.number()
-    .when("alertEnabled", ([alertEnabled], schema) => { // Updated Yup v1+ syntax
+    .when("alertEnabled", ([alertEnabled], schema) => {
         return alertEnabled
             ? schema
                 .typeError("Threshold must be a number")
@@ -77,33 +77,50 @@ const AddWebsiteSchema = Yup.object().shape({
     }),
   notifyEmail: Yup.string()
     .email("Enter a valid email address")
-     .when("alertEnabled", ([alertEnabled], schema) => { // Updated Yup v1+ syntax
+     .when("alertEnabled", ([alertEnabled], schema) => {
          return alertEnabled
              ? schema.required("Email is required for alerts")
              : schema.optional().nullable();
      }),
 });
 
+// Helper function to safely extract error message
+const getErrorMessage = (error: unknown): string => {
+    const defaultMessage = "An unexpected error occurred.";
+    if (error instanceof Error) {
+        // Check if it's our specific ApiError structure with data
+        if ('name' in error && error.name === 'ApiError' && 'data' in error) {
+            const apiError = error as ApiError; // Safe cast after checks
+            // Check if data is an object and has a string message property
+            if (apiError.data && typeof apiError.data === 'object' && 'message' in apiError.data && typeof apiError.data.message === 'string') {
+                return apiError.data.message;
+            }
+        }
+        // Fallback to the main error message
+        return error.message || defaultMessage;
+    }
+    // Handle non-Error throws if necessary
+    return defaultMessage;
+};
+
+
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
-  // Use refactored hook names
   const {
       addWebsite,
       isAdding,
-    //   errorAdding, // Use setNotification instead of displaying this directly
       isTriggeringCheck
     } = useWebsiteMutations();
   const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
 
-  // Combined loading state for UI disabling
   const isProcessing = isAdding || isTriggeringCheck;
 
   const initialValues: AddWebsiteFormValues = {
     name: "",
     url: "",
-    interval: 300, // Default 5 minutes
+    interval: 300,
     alertEnabled: false,
-    alertThreshold: "", // Start empty for input flexibility
+    alertThreshold: "",
     notifyEmail: "",
   };
 
@@ -112,52 +129,46 @@ const AddWebsite: React.FC = () => {
     formikHelpers: FormikHelpers<AddWebsiteFormValues>
   ) => {
     const { setSubmitting, setStatus } = formikHelpers;
-    setStatus(null); // Clear previous status
-    setNotification(initialNotificationState); // Clear previous notification
+    setStatus(null);
+    setNotification(initialNotificationState);
+
+    const alertThresholdNumber = values.alertEnabled && values.alertThreshold !== "" ? Number(values.alertThreshold) : null;
 
     const websiteData: AddWebsiteUserDTO = {
       name: values.name.trim() || null,
       url: ensureUrlProtocol(values.url.trim()),
-      interval: Number(values.interval), // Convert string/number to number
+      interval: Number(values.interval),
       alertEnabled: values.alertEnabled,
-      alertThreshold: values.alertEnabled && values.alertThreshold !== ""
-          ? Number(values.alertThreshold)
-          : null,
+      alertThreshold: alertThresholdNumber,
       notifyEmail: values.alertEnabled && values.notifyEmail.trim() !== ""
           ? values.notifyEmail.trim()
           : null,
     };
 
-     // Pre-submit validation (redundant with Yup but provides immediate feedback via Snackbar)
      if (isNaN(websiteData.interval!) || websiteData.interval! < 30) {
-         //setStatus({ error: "Invalid interval value." }); // Not needed if using Snackbar
          setNotification({ open: true, message: "Error: Invalid check interval.", severity: "error" });
          setSubmitting(false);
          return;
      }
-     if (websiteData.alertEnabled && (websiteData.alertThreshold === null || isNaN(websiteData.alertThreshold!) || websiteData.alertThreshold! < 1 )) {
-         //setStatus({ error: "Invalid alert threshold value." }); // Not needed if using Snackbar
+     if (websiteData.alertEnabled && (alertThresholdNumber === null || isNaN(alertThresholdNumber) || alertThresholdNumber < 1 )) {
          setNotification({ open: true, message: "Error: Invalid alert threshold (must be >= 1ms).", severity: "error" });
          setSubmitting(false);
          return;
      }
 
-
     try {
       const newWebsiteUser: WebsiteUser = await addWebsite(websiteData);
       const successName = newWebsiteUser.name || newWebsiteUser.website?.url || 'Website';
       setNotification({ open: true, message: `Website "${successName}" added successfully! Initial check triggered.`, severity: "success" });
-      setTimeout(() => navigate("/"), 2000); // Redirect after delay
+      setTimeout(() => navigate("/"), 2000);
     } catch (err) {
-      const apiError = err as ApiError;
-      console.error("Failed to add website:", apiError);
-      const message = apiError?.data?.message || apiError?.message || "An unexpected error occurred.";
-      //setStatus({ error: message }); // Not needed if using Snackbar
+      console.error("Failed to add website:", err); // Log the raw error
+
+      // --- FIX: Use helper function to safely extract message ---
+      const message = getErrorMessage(err);
       setNotification({ open: true, message: `Error: ${message}`, severity: "error" });
-      // Ensure submitting is set to false on error *if* Formik doesn't do it automatically
       setSubmitting(false);
     }
-    // No finally needed for setSubmitting(false) if Formik handles it or if error case covers it.
   };
 
   const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
@@ -167,16 +178,18 @@ const AddWebsite: React.FC = () => {
     setNotification((prev) => ({ ...prev, open: false }));
   }, []);
 
-   const handleUrlSelect = useCallback((
+  const handleUrlSelect = useCallback((
         website: Website | null,
-        setFieldValue: FormikHelpers<AddWebsiteFormValues>['setFieldValue'], // Use Formik's type
+        setFieldValue: FormikHelpers<AddWebsiteFormValues>['setFieldValue'],
         currentName: string
     ) => {
         if (website?.url) {
              const formattedUrl = ensureUrlProtocol(website.url);
              setFieldValue("url", formattedUrl, true);
 
-             if (!currentName) {
+             if (!currentName && website.name) {
+                 setFieldValue("name", website.name, true);
+             } else if (!currentName) {
                 try {
                   const hostname = new URL(formattedUrl).hostname.replace(/^www\./, "");
                   setFieldValue("name", hostname, true);
@@ -185,11 +198,11 @@ const AddWebsite: React.FC = () => {
                 }
              }
         }
-    }, []); // Dependencies: none, uses args directly
+    }, []);
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 8 }}>
-      <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 } }}> {/* Added elevation */}
+      <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 } }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Add Website to Monitor
         </Typography>
@@ -202,20 +215,11 @@ const AddWebsite: React.FC = () => {
         >
           {({ errors, touched, values, isSubmitting, setFieldValue, dirty, isValid }) => (
             <Form noValidate>
-               {/* Removed redundant inline Alert for status.error and errorAdding */}
-               {/* {status?.error && (
-                 <Alert severity="error" sx={{ mb: 3 }}>{status.error}</Alert>
-               )}
-               {errorAdding && !status?.error && (
-                  <Alert severity="error" sx={{ mb: 3 }}>{ (errorAdding as ApiError).message || 'Failed to add website.' }</Alert>
-               )} */}
-
               <Box sx={{ mt: 3 }}>
-                {/* Grid v2 container */}
                 <Grid container spacing={3}>
 
                   {/* Website Name */}
-                  <Grid size={12}> {/* Grid v2 size prop */}
+                  <Grid size={12}>
                     <Field
                       as={TextField}
                       name="name"
@@ -230,24 +234,21 @@ const AddWebsite: React.FC = () => {
                   </Grid>
 
                   {/* Website URL Search Component */}
-                  <Grid size={12}> {/* Grid v2 size prop */}
+                  <Grid size={12}>
                     <WebsiteUrlSearch
-                      name="url" // Name matches Formik field
+                      name="url"
                       label="Website URL"
                       placeholder="https://example.com"
-                      helperText="Enter the full URL including https://"
+                      helperText="Enter the full URL or search existing sites"
                       searchLimit={10}
                       disabled={isSubmitting || isProcessing}
                       onSelect={(website) => handleUrlSelect(website, setFieldValue, values.name)}
-                      // Pass Formik state down for validation display
-                      error={touched.url && Boolean(errors.url)}
-                      errorMessage={touched.url && errors.url ? errors.url : undefined}
-                      required // Mark visually required
+                      required
                     />
                   </Grid>
 
                   {/* Check Interval */}
-                  <Grid size={{ xs: 12, sm: 6 }}> {/* Grid v2 responsive size prop */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Field
                       as={TextField}
                       name="interval"
@@ -263,7 +264,6 @@ const AddWebsite: React.FC = () => {
                     />
                   </Grid>
 
-                   {/* Empty Grid item for spacing if needed on smaller screens */}
                    <Grid size={{ xs: 0, sm: 6 }} />
 
                   {/* Alert Settings Section */}
@@ -274,6 +274,7 @@ const AddWebsite: React.FC = () => {
                         control={
                           <Field
                             as={Switch}
+                            type="checkbox"
                             name="alertEnabled"
                             color="primary"
                             disabled={isSubmitting || isProcessing}
@@ -290,7 +291,7 @@ const AddWebsite: React.FC = () => {
                   {/* Conditional Alert Fields */}
                   {values.alertEnabled && (
                     <>
-                      <Grid size={{ xs: 12, sm: 6 }}> {/* Grid v2 responsive size prop */}
+                      <Grid size={{ xs: 12, sm: 6 }}>
                         <Field
                           as={TextField}
                           name="alertThreshold"
@@ -306,7 +307,7 @@ const AddWebsite: React.FC = () => {
                         />
                       </Grid>
 
-                      <Grid size={{ xs: 12, sm: 6 }}> {/* Grid v2 responsive size prop */}
+                      <Grid size={{ xs: 12, sm: 6 }}>
                         <Field
                           as={TextField}
                           name="notifyEmail"
@@ -337,14 +338,13 @@ const AddWebsite: React.FC = () => {
                       {(isSubmitting || isAdding) ? "Adding..." : (isTriggeringCheck ? "Checking..." : "Add Website")}
                     </Button>
                   </Grid>
-                </Grid> {/* End container Grid */}
+                </Grid>
               </Box>
             </Form>
           )}
         </Formik>
       </Paper>
 
-      {/* Use FormNotification */}
       <FormNotification
         notification={notification}
         onClose={handleNotificationClose}

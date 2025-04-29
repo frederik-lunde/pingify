@@ -1,7 +1,7 @@
 /* src/components/incidents/IncidentListItem.tsx */
 import { memo } from 'react';
 import { Link as RouterLink } from 'react-router';
-import { ListItem, Typography, Tooltip, Divider, alpha, useTheme, Chip, Link, Box, Stack } from '@mui/material';
+import { ListItem, Typography, Tooltip, Divider, alpha, useTheme, Chip, Link} from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import {
     ErrorOutline as ErrorIcon,

@@ -17,13 +17,22 @@ const buildAlertQueryParams = (options: AlertQueryOptions): Record<string, strin
 
 /**
  * Helper to log API errors (interceptor already creates/rejects with ApiError).
+ * Accepts 'unknown' and performs type checks.
  */
-const logApiError = (error: any, context: string): void => {
-    if (error instanceof Error && 'status' in error && 'url' in error) {
-        const apiError = error as ApiError;
-         console.error(`API Error (${apiError.status ?? 'Unknown'}) ${context}: ${apiError.message} on ${apiError.method} ${apiError.url}`);
+const logApiError = (error: unknown, context: string): void => {
+    // Check if it looks like our custom ApiError or a standard Error
+    if (error instanceof Error) {
+        // Further check if it has properties specific to ApiError (duck typing)
+        if ('status' in error && 'url' in error && 'method' in error) {
+            const apiError = error as ApiError; // Safe cast after checks
+            console.error(`API Error (${apiError.status ?? 'Unknown'}) ${context}: ${apiError.message} on ${apiError.method} ${apiError.url}`);
+        } else {
+            // Standard Error (e.g., network error before reaching server)
+            console.error(`Error ${context}: ${error.message}`);
+        }
     } else {
-        console.error(`API Error (Unexpected Type) ${context}:`, error);
+        // Handle cases where the thrown value is not an Error object
+        console.error(`Non-Error Thrown ${context}:`, error);
     }
 };
 
@@ -38,8 +47,10 @@ export const fetchUserAlerts = async (options: AlertQueryOptions = {}): Promise<
         const params = buildAlertQueryParams(options);
         const data = await apiClient.get<Alert[]>(url, { params });
         return data ?? [];
-    } catch (error: any) {
+    } catch (error) { // Let TypeScript infer 'unknown'
         logApiError(error, 'fetching user alerts');
+        // Re-throw the original error after logging
+        // The interceptor likely already transformed it into an ApiError
         throw error;
     }
 };
@@ -50,6 +61,7 @@ export const fetchUserAlerts = async (options: AlertQueryOptions = {}): Promise<
  */
 export const fetchWebsiteAlerts = async (websiteId: number, options: AlertQueryOptions = {}): Promise<Alert[]> => {
     if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
+        // Throw a standard Error for invalid input before API call
         throw new Error("Valid Website ID is required for fetching website alerts.");
     }
     const url = `/alerts/website/${websiteId}`;
@@ -57,7 +69,7 @@ export const fetchWebsiteAlerts = async (websiteId: number, options: AlertQueryO
         const params = buildAlertQueryParams(options);
         const data = await apiClient.get<Alert[]>(url, { params });
         return data ?? [];
-    } catch (error: any) {
+    } catch (error) { // Let TypeScript infer 'unknown'
         logApiError(error, `fetching alerts for website ${websiteId}`);
         throw error;
     }
@@ -71,8 +83,9 @@ export const fetchAlertStats = async (days: number = 7): Promise<AlertStats> => 
     const url = "/alerts/user/stats";
     try {
         const data = await apiClient.get<AlertStats>(url, { params: { days } });
+        // Provide a default structure if API returns null/undefined unexpectedly
         return data ?? { totalAlerts: 0, byType: {}, byWebsite: [] };
-    } catch (error: any) {
+    } catch (error) { // Let TypeScript infer 'unknown'
         logApiError(error, 'fetching alert stats');
         throw error;
     }
@@ -84,12 +97,14 @@ export const fetchAlertStats = async (days: number = 7): Promise<AlertStats> => 
  */
 export const dismissAlert = async (alertId: number): Promise<void> => {
     if (!alertId || isNaN(alertId) || alertId <= 0) {
+        // Throw a standard Error for invalid input before API call
         throw new Error("Valid Alert ID is required for dismissing an alert.");
     }
     const url = `/alerts/${alertId}`;
     try {
+        // Assuming apiClient.delete correctly handles a void response
         await apiClient.delete<void>(url);
-    } catch (error: any) {
+    } catch (error) { // Let TypeScript infer 'unknown'
         logApiError(error, `dismissing alert ${alertId}`);
         throw error;
     }

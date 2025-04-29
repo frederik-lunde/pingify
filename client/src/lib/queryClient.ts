@@ -2,7 +2,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 // Assuming ApiError is defined and exported correctly, possibly from client.ts or a types file
-import { ApiError } from '../api/client'; // Adjust path if needed, e.g., '../types'
+import { ApiError } from '../types'; // Adjust path if needed, e.g., '../types'
 
 // Create a client
 const queryClient = new QueryClient({

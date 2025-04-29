@@ -62,7 +62,6 @@ export interface Website {
   globalInterval: number;
   createdAt?: string; // ISO 8601 date string
   updatedAt?: string; // ISO 8601 date string
-  // Note: User's custom name is typically in WebsiteUser, but API might denormalize
   name?: string | null;
 }
 
@@ -84,61 +83,55 @@ export interface Incident {
     initialResultId?: number | null;
     confirmingResultId?: number | null;
     resolvingResultId?: number | null;
-    // Optional nested data if the specific API endpoint includes it
     website?: {
-        id: number; // Included for consistency
+        id: number;
         url: string;
-        name?: string | null; // User's custom name might be included
+        name?: string | null;
     };
 }
 
 /** Represents the user's specific settings and aggregated data for a monitored website. */
 export interface WebsiteUser {
   id: number;
-  userId: string; // User ID is a string
+  userId: string;
   websiteId: number;
-  name: string | null; // User-defined alias
-  interval: number | null; // User-specific interval override (seconds)
+  name: string | null;
+  interval: number | null;
   alertEnabled: boolean;
-  alertThreshold: number | null; // Response time threshold (ms) for alerts
-  notifyEmail: string | null; // User preference for email alerts (email address or null)
-  createdAt: string; // ISO 8601 date string
-  isPinned: boolean; // User preference to pin the website
-
-  // --- Data Added by Backend Service/Controllers for specific views ---
-  website?: Website; // Nested core website data (e.g., in dashboard list)
-  latestResult?: MonitoringResult | null; // Last monitoring result (e.g., in dashboard list)
-  chartData?: ChartDataPoint[]; // Pre-calculated chart data (e.g., in dashboard list)
-  uptimePercent?: number; // Uptime percentage (e.g., in dashboard list)
-  currentIncident?: Incident | null; // Current open incident (e.g., in dashboard list)
+  alertThreshold: number | null;
+  notifyEmail: string | null;
+  createdAt: string;
+  isPinned: boolean;
+  website?: Website;
+  latestResult?: MonitoringResult | null;
+  chartData?: ChartDataPoint[];
+  uptimePercent?: number;
+  currentIncident?: Incident | null;
 }
 
 /** Represents an active alert notification record. */
 export interface Alert {
     id: number;
     websiteId: number;
-    userId: string; // User ID is a string
+    userId: string;
     type: AlertType;
     message: string;
-    createdAt: string; // ISO 8601 date string
-    incidentId?: number; // Link to the incident that triggered the alert
-    // Optional nested data included by backend controllers
+    createdAt: string;
+    incidentId?: number;
     website?: {
         id: number;
         url: string;
-        name?: string | null; // User's custom name for this website
+        name?: string | null;
     };
-    user?: { // Might be included if fetching alerts across users (admin view)
-        id: string; // User ID is string
+    user?: {
+        id: string;
         name: string | null;
     }
-    incident?: { // Basic incident info might be included
+    incident?: {
         id: number;
         startTime?: string;
         endTime?: string | null;
     }
-    // Note: 'status' (active/dismissed) is managed implicitly.
-    // Active alerts are fetched, dismissed alerts are deleted via API.
 }
 
 
@@ -146,7 +139,7 @@ export interface Alert {
 
 /** DTO for adding a website TO A USER's dashboard. */
 export interface AddWebsiteUserDTO {
-  url: string; // Required to find/create the website
+  url: string;
   name?: string | null;
   interval?: number | null;
   alertThreshold?: number | null;
@@ -160,7 +153,7 @@ export interface UpdateWebsiteUserDTO {
   name?: string | null;
   interval?: number | null;
   alertThreshold?: number | null;
-  alertEnabled?: boolean | null; // Use boolean | null if you need to unset
+  alertEnabled?: boolean | null;
   notifyEmail?: string | null;
   isPinned?: boolean;
 }
@@ -191,8 +184,8 @@ export interface UpdateUserProfileDTO {
 
 /** DTO for updating user password. */
 export interface UpdateUserPasswordDTO {
-    currentPassword?: string; // Make optional for type safety, but API requires it
-    newPassword?: string;     // Make optional for type safety, but API requires it
+    currentPassword?: string;
+    newPassword?: string;
 }
 
 
@@ -201,31 +194,26 @@ export interface UpdateUserPasswordDTO {
 /** Options for fetching monitoring results lists. */
 export interface ResultsQueryOptions {
   limit?: number;
-  from?: Date; // Frontend might use Date objects for selection
+  from?: Date;
   to?: Date;
   websiteId?: number;
-  // userId?: string; // Usually inferred from auth token on backend
 }
 
 /** Options for fetching active alerts list. */
 export interface AlertQueryOptions {
   limit?: number;
-  // offset?: number; // Add if API supports pagination
   type?: AlertType;
   from?: Date;
   to?: Date;
-  // userId?: string; // Usually inferred from auth token
-  websiteId?: number; // Optional: Filter user's alerts for a specific website
+  websiteId?: number;
 }
 
 /** Options for fetching incidents list. */
 export interface IncidentQueryOptions {
     limit?: number;
-    // offset?: number; // Add if API supports pagination
     type?: IncidentType;
     from?: Date;
     to?: Date;
-    // userId?: string; // Usually inferred from auth token
     websiteId?: number;
     status?: IncidentStatusFilter;
 }
@@ -244,13 +232,13 @@ export interface MonitoringResponse {
 /** Aggregated stats for a single website over a period. */
 export interface WebsiteStatsData {
   websiteId: number;
-  websiteName: string; // User's name or URL
+  websiteName: string;
   url: string;
-  uptime: number; // Percentage
-  averageResponseTime: number | null; // Milliseconds
+  uptime: number;
+  averageResponseTime: number | null;
   totalChecks: number;
-  lastCheck: string | null; // ISO string
-  incidentCount: number; // Total incidents started in period
+  lastCheck: string | null;
+  incidentCount: number;
   downIncidentCount: number;
   slowIncidentCount: number;
 }
@@ -259,49 +247,49 @@ export interface WebsiteStatsData {
 export interface OverallStats {
   totalWebsites: number;
   activeWebsites: number;
-  websiteStats: WebsiteStatsData[]; // Stats for each monitored website
-  overallUptime: number; // Avg uptime across websites for the period
-  overallResponseTime: number | null; // Avg response time for the period
-  incidentsLast24h: number; // Count of incidents started in last 24h
-  lastIncidentTimestamp: string | null; // Start time of the absolute most recent incident
-  lastIncidentWebsiteId?: number | null; // Website ID of the most recent incident
+  websiteStats: WebsiteStatsData[];
+  overallUptime: number;
+  overallResponseTime: number | null;
+  incidentsLast24h: number;
+  lastIncidentTimestamp: string | null;
+  lastIncidentWebsiteId?: number | null;
 }
 
 /** Represents a single data point formatted for chart display. */
 export interface ChartDataPoint {
-    label: string; // e.g., 'HH:mm', 'MMM d'
-    timestamp: number; // Unix timestamp (seconds) for sorting/reference
-    avgResponseTime: number | null; // Avg response time for this interval
-    uptimeRatio: number; // 0.0 to 1.0 uptime ratio for this interval
-    checkCount: number; // How many checks fall into this interval
+    label: string;
+    timestamp: number;
+    avgResponseTime: number | null;
+    uptimeRatio: number;
+    checkCount: number;
 }
 
 /** Detailed data structure for the single website details page. */
 export interface WebsiteDetailsData {
   websiteId: number;
-  name: string; // User's custom name or the URL
+  name: string;
   url: string;
   latestResult: MonitoringResult | null;
   chartData: ChartDataPoint[];
-  recentChecks: MonitoringResult[]; // Sorted/limited list of recent checks
-  uptimePercent: number; // Calculated uptime for the selected timeframe
-  currentIncident: Incident | null; // Details of the currently open incident, if any
-  recentIncidents: Incident[]; // List of recent incidents (e.g., last 10)
+  recentChecks: MonitoringResult[];
+  uptimePercent: number;
+  currentIncident: Incident | null;
+  recentIncidents: Incident[];
 }
 
 /** Standard response shape for authentication endpoints. */
 export interface AuthResponse {
     token: string;
-    user: User; // Contains id, email, name
+    user: User;
 }
 
 /** Aggregated statistics about the user's active alerts. */
 export interface AlertStats {
   totalAlerts: number;
-  byType: Partial<Record<AlertType, number>>; // Counts for 'down', 'slow'
+  byType: Partial<Record<AlertType, number>>;
   byWebsite: Array<{
     websiteId: number;
-    websiteName: string; // User's custom name or URL
+    websiteName: string;
     count: number;
   }>;
 }
@@ -318,23 +306,21 @@ export interface IncidentCountResponse {
 export interface AuthContextType {
   user: User | null;
   token: string | null;
-  loading: boolean; // Indicates if auth state is being determined
-  error: string | null; // Stores auth-related errors
-  logout: () => void;
+  loading: boolean;
+  error: string | null;
+  logout: () => void; // Assuming logout returns void or Promise<void>
 }
 
-/** Example combined type used for displaying website cards on the dashboard. */
-// Renamed from WebsiteCardData to avoid confusion, WebsiteUser now holds all necessary data.
-// export interface WebsiteCardData extends WebsiteUser { ... } // No longer needed
 
 /** Structure returned by the useWebsiteData hook */
 export interface WebsiteDataSummary {
-    websiteCards: WebsiteUser[]; // Uses WebsiteUser directly
+    websiteCards: WebsiteUser[];
     overallStats: OverallStats | null;
     isLoading: boolean;
     isFetching: boolean;
     error: ApiError | null;
-    refetch: () => Promise<any>;
+    // --- FIX: Use unknown instead of any ---
+    refetch: () => Promise<unknown>; // Use unknown for safer promise result handling
     totalWebsitesCount: number;
     upWebsitesCount: number;
     incidentsLast24h: number | null;
@@ -344,15 +330,13 @@ export interface WebsiteDataSummary {
 
 /** Standardized structure for API errors (as received/parsed by frontend). */
 export interface ApiError extends Error {
-  name: string; // Usually 'ApiError'
-  status?: number; // HTTP status code (e.g., 400, 401, 404, 500)
-  statusText?: string; // HTTP status text (e.g., 'Bad Request')
-  url?: string; // The URL that caused the error
-  method?: string; // HTTP method (e.g., 'GET', 'POST')
-  data?: any; // The response body from the server on error (could be { message: ... } or other structure)
-  isAuthError?: boolean; // True if status is 401
-  isNetworkError?: boolean; // True if the request failed to send/receive
+  name: string;
+  status?: number;
+  statusText?: string;
+  url?: string;
+  method?: string;
+  // --- FIX: Use unknown instead of any ---
+  data?: unknown; // Use unknown for the raw error response body
+  isAuthError?: boolean;
+  isNetworkError?: boolean;
 }
-
-// REMOVED WebsiteWithResults as it's no longer needed.
-// The WebsiteUser type now contains all necessary nested data.

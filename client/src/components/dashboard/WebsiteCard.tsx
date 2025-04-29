@@ -20,7 +20,8 @@ import {
     SsidChart as SlowIcon,
 } from "@mui/icons-material";
 import { Line } from 'react-chartjs-2';
-import { ChartOptions } from 'chart.js'; // Only need ChartOptions type now
+// Import ChartData along with ChartOptions
+import { ChartOptions, ChartData } from 'chart.js';
 import { format, formatDistanceToNowStrict, parseISO } from "date-fns";
 
 import {
@@ -30,13 +31,11 @@ import {
     formatUptime,
 } from "../../utils/statusUtils";
 import { useWebsiteMutations } from "../../hooks";
-import { getCardLineChartOptions, getCardLineChartData } from "../../config/chartConfig"; // Import new config/data functions
+import { getCardLineChartOptions, getCardLineChartData } from "../../config/chartConfig";
 import {
     WebsiteUser,
     TimeframeKey,
 } from "../../types";
-
-// ChartJS Registration is now centralized in main.tsx
 
 interface WebsiteCardProps {
     userWebsite: WebsiteUser;
@@ -52,10 +51,12 @@ const CHIPS_ROW_MIN_HEIGHT = '32px';
 
 // Simplified Chart Component (Memoized)
 const SimpleLineChart = React.memo(
-    ({ data, options }: { data: any; options: ChartOptions<'line'> }) => {
-        const hasPlottableData = data?.datasets?.[0]?.data?.some(
-            (d: number | null | undefined) => d !== null && d !== undefined && !isNaN(d)
-        );
+    ({ data, options }: { data: ChartData<'line'>; options: ChartOptions<'line'> }) => {
+        // Check if there's actually data to plot in the first dataset
+        const hasPlottableData = useMemo(() =>
+            data?.datasets?.[0]?.data?.some(
+                (d) => d !== null && d !== undefined && !isNaN(d as number) // Cast to number for isNaN check
+            ) ?? false, [data]);
 
         if (!hasPlottableData) {
             return (
@@ -74,7 +75,6 @@ const SimpleLineChart = React.memo(
 );
 SimpleLineChart.displayName = 'SimpleLineChart';
 
-// Function to format incident start time (remains the same)
 const formatIncidentStartTime = (isoDateString: string | null | undefined): string | null => {
     if (!isoDateString) return null;
     try { return formatDistanceToNowStrict(parseISO(isoDateString), { addSuffix: true }); }
@@ -99,7 +99,6 @@ const WebsiteCard = React.memo(
         const isPinned = userWebsite.isPinned;
         const currentIncident = userWebsite.currentIncident;
 
-        // Prepare chart data and options using centralized functions
         const limitedChartDataPoints = aggregatedChartDataProp?.length ? aggregatedChartDataProp : undefined;
         const validAggregatedPointsCount = useMemo(() => limitedChartDataPoints?.filter(p => p.avgResponseTime !== null && !isNaN(p.avgResponseTime)).length ?? 0, [limitedChartDataPoints]);
         const canShowAggregatedChart = validAggregatedPointsCount >= 2;
@@ -110,7 +109,7 @@ const WebsiteCard = React.memo(
         );
 
         const chartOptions = useMemo(() =>
-            getCardLineChartOptions({ theme, chartData: limitedChartDataPoints }), // Pass data needed for tooltip
+            getCardLineChartOptions({ theme, chartData: limitedChartDataPoints }),
             [theme, limitedChartDataPoints]
         );
 
@@ -256,7 +255,7 @@ const WebsiteCard = React.memo(
                     </Box>
                 </CardContent>
 
-                {/* Ticks Area (remains the same) */}
+                {/* Ticks Area */}
                 <Box sx={{
                     position: 'absolute',
                     bottom: theme.spacing(1),
