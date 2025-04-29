@@ -28,16 +28,13 @@ import {
 } from "../../types"; // Adjust path if needed
 import { useAuth } from '../../context/AuthContext'; // <--- ADJUST PATH AS NEEDED
 import { monitoringQueryKeys, useWebsiteCheckMutation } from './useMonitoring'; // <--- ADJUST PATH AS NEEDED
-// --- Import alert keys (assuming alertQueryKeys is defined elsewhere or imported correctly) ---
 import { alertQueryKeys } from './useAlerts'; // Example path, adjust if needed
 
 // Query Keys
 export const websiteQueryKeys = {
     all: ['websites'] as const,
-    // --- MODIFIED: userId type changed to string | undefined ---
     lists: (userId: string | undefined) => [...websiteQueryKeys.all, 'list', { userId }] as const,
     details: () => [...websiteQueryKeys.all, 'detail'] as const,
-    // --- MODIFIED: userId type changed to string | undefined ---
     detail: (id: number | undefined, userId: string | undefined) => [...websiteQueryKeys.details(), id, { userId }] as const,
     search: (query: string) => [...websiteQueryKeys.all, 'search', query] as const,
 };
@@ -50,10 +47,9 @@ type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
 
 // --- Query Hooks ---
 export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>) {
-    const { user } = useAuth();
-    const userId = user?.id; // This is string | undefined
+    const auth = useAuth(); // Get the auth object (might be null)
+    const userId = auth?.user?.id; // Use optional chaining
     return useQuery<WebsiteUser[], ApiError>({
-        // --- Now correctly passes string | undefined ---
         queryKey: websiteQueryKeys.lists(userId),
         queryFn: () => { if (!userId) return Promise.resolve([]); return fetchUserWebsites(); },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
@@ -64,10 +60,9 @@ export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>
 }
 
 export function useUserWebsiteQuery(websiteId: number | undefined, options?: CustomQueryOptions<WebsiteUser>) {
-    const { user } = useAuth();
-    const userId = user?.id; // This is string | undefined
+    const auth = useAuth(); // Get the auth object (might be null)
+    const userId = auth?.user?.id; // Use optional chaining
     return useQuery<WebsiteUser, ApiError>({
-        // --- Now correctly passes string | undefined ---
         queryKey: websiteQueryKeys.detail(websiteId, userId),
         queryFn: () => { if (!userId || !websiteId) return Promise.reject(new Error("Missing user or website ID for query")); return fetchUserWebsite(websiteId); },
         enabled: options?.enabled === undefined ? (!!userId && !!websiteId && websiteId > 0) : options.enabled,
@@ -91,8 +86,8 @@ export function useWebsiteSearch(limit: number = 10) {
  */
 export function useWebsiteMutations() {
     const queryClient = useQueryClient();
-    const { user } = useAuth();
-    const userId = user?.id; // This is string | undefined
+    const auth = useAuth(); // Get the auth object (might be null)
+    const userId = auth?.user?.id; // Use optional chaining
     const { mutateAsync: triggerCheck, isPending: isChecking } = useWebsiteCheckMutation();
 
     // --- Key Patterns for Invalidation (these key generators now accept string | undefined) ---
@@ -111,10 +106,9 @@ export function useWebsiteMutations() {
         onSuccess: async (newWebsiteUser) => {
             console.log('[Mutation Success] Website added for user:', newWebsiteUser);
             const websiteId = newWebsiteUser?.websiteId;
-            if (!userId) return;
+            if (!userId) return; // Guard against missing userId
             console.log(`Invalidating caches for user ${userId} after add...`);
 
-            // Invalidation uses the updated key generators implicitly
             queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
             console.log(`Invalidating user website list:`, userWebsiteListKey);
             queryClient.invalidateQueries({ queryKey: userMonitoringResultsKeyPattern });
@@ -152,7 +146,7 @@ export function useWebsiteMutations() {
         onSuccess: (updatedWebsiteUser, variables) => {
             console.log('[Mutation Success] User website settings updated:', updatedWebsiteUser);
             const websiteId = variables.websiteId;
-            if (!userId || !updatedWebsiteUser) return;
+            if (!userId || !updatedWebsiteUser) return; // Guard against missing userId or data
             console.log(`Updating/Invalidating caches for user ${userId}, website ${websiteId} after update...`);
 
             queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
@@ -190,7 +184,7 @@ export function useWebsiteMutations() {
         onSuccess: (updatedWebsiteUser, variables) => {
             const { websiteId, isPinned } = variables;
             console.log(`[Mutation Success] Pin status set to ${isPinned} for website ${websiteId}.`, updatedWebsiteUser);
-            if (!userId || !updatedWebsiteUser) return;
+            if (!userId || !updatedWebsiteUser) return; // Guard against missing userId or data
             console.log(`Updating/Invalidating caches for user ${userId}, website ${websiteId} after pin update...`);
 
             queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
@@ -213,7 +207,7 @@ export function useWebsiteMutations() {
         },
         onSuccess: (_, websiteId) => {
             console.log(`[Mutation Success] Website ${websiteId} removal initiated for user ${userId}.`);
-            if (!userId) return;
+            if (!userId) return; // Guard against missing userId
             console.log(`Invalidating/Removing caches for user ${userId}, website ${websiteId}...`);
 
             queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
@@ -254,7 +248,7 @@ export function useWebsiteMutations() {
              return apiUpdateUserWebsite({ websiteId, websiteData: { alertEnabled: !currentStatus } });
         },
          onSuccess: (updatedWebsiteUser, variables) => {
-             if (!userId || !updatedWebsiteUser) return;
+             if (!userId || !updatedWebsiteUser) return; // Guard against missing userId or data
              const websiteId = variables.websiteId;
              console.log(`[Mutation Success] Website ${websiteId} alert status toggled:`, updatedWebsiteUser.alertEnabled);
 

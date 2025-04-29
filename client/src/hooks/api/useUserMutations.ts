@@ -57,14 +57,14 @@ export function useUpdateUserPasswordMutation() {
  */
 export function useDeleteUserAccountMutation() {
  
-    const { logout } = useAuth(); // Get logout function from context
+    const auth = useAuth(); // Get auth context which might be null
 
     return useMutation<void, ApiError, void>({ // Takes void as input
         mutationFn: deleteUserAccountApi,
         onSuccess: () => {
             console.log("Account deletion successful.");
           
-            logout(); 
+            auth?.logout(); // Use optional chaining to safely call logout
            
         },
         onError: (error) => {

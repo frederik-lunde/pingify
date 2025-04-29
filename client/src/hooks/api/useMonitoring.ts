@@ -13,7 +13,6 @@ import {
     triggerWebsiteCheck,
     fetchUserStats,
     fetchWebsiteStats,
-    fetchAllUserMonitoringResults,
     FetchWebsiteDetailsParams,
 } from '../../api/monitoringApi';
 import {
@@ -32,16 +31,12 @@ import { websiteQueryKeys } from './useWebsites';
 // --- Query Keys ---
 export const monitoringQueryKeys = {
     all: ['monitoring'] as const,
-    // --- MODIFIED: userId type changed to string | undefined ---
     details: (params: FetchWebsiteDetailsParams, userId: string | undefined) =>
         [...monitoringQueryKeys.all, 'details', params.websiteId, { userId, ...params }] as const,
-    // --- MODIFIED: userId type changed to string | undefined ---
     userStats: (period: TimeframeKey | string, userId: string | undefined) =>
         [...monitoringQueryKeys.all, 'stats', 'user', { userId, period }] as const,
-    // --- MODIFIED: userId type changed to string | undefined ---
     websiteStats: (websiteId: number | undefined, period: TimeframeKey | string, userId: string | undefined) =>
         [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { userId, period }] as const,
-    // --- MODIFIED: userId type changed to string | undefined ---
     userResults: (limit: number | undefined, userId: string | undefined) =>
         [...monitoringQueryKeys.all, 'userResults', { userId, limit }] as const,
 };
@@ -56,15 +51,13 @@ type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
  * Hook to fetch detailed data for the Website Details page.
  */
 export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, options?: CustomQueryOptions<WebsiteDetailsData>) {
-    const { user } = useAuth();
-    const userId = user?.id; // This is string | undefined
-    // --- Now correctly passes string | undefined ---
+    const auth = useAuth(); // Get the auth object (might be null)
+    const userId = auth?.user?.id; // Use optional chaining
     const queryKey = monitoringQueryKeys.details(params, userId);
 
     return useQuery<WebsiteDetailsData, ApiError>({
         queryKey: queryKey,
         queryFn: () => {
-            // userId check remains valid
             if (!userId || !params.websiteId) return Promise.reject(new Error("Missing user or website ID for query"));
             return fetchWebsiteDetails(params);
         },
@@ -81,8 +74,8 @@ export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, option
  */
 export function useWebsiteCheckMutation() {
     const queryClient = useQueryClient();
-    const { user } = useAuth();
-    const userId = user?.id; // This is string | undefined
+    const auth = useAuth(); // Get the auth object (might be null)
+    const userId = auth?.user?.id; // Use optional chaining
 
     // Define patterns for invalidation (these key generators now accept string | undefined)
     const userIncidentListKeyPattern = incidentQueryKeys.list({}, userId);
@@ -99,35 +92,41 @@ export function useWebsiteCheckMutation() {
         },
         onSuccess: (websiteId) => {
             console.log(`[Mutation Success] Check completed for website ${websiteId}`);
-            console.log(`[Invalidation] Invalidating data related to website ${websiteId} for user ${userId} after check...`);
+            // Only log/invalidate user-specific data if userId exists
+            if (userId) {
+                 console.log(`[Invalidation] Invalidating data related to website ${websiteId} for user ${userId} after check...`);
 
-            // Invalidation logic uses the updated key generators implicitly
-            const detailsKeyPattern: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'details', websiteId];
-            queryClient.invalidateQueries({ queryKey: detailsKeyPattern, exact: false });
-            console.log(`Invalidating monitoring details:`, detailsKeyPattern);
+                // Invalidation logic uses the updated key generators implicitly
+                const detailsKeyPattern: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'details', websiteId];
+                queryClient.invalidateQueries({ queryKey: detailsKeyPattern, exact: false });
+                console.log(`Invalidating monitoring details:`, detailsKeyPattern);
 
-            const websiteStatsKeyPattern: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'stats', 'website', websiteId];
-            queryClient.invalidateQueries({ queryKey: websiteStatsKeyPattern, exact: false });
-            console.log(`Invalidating website stats:`, websiteStatsKeyPattern);
+                const websiteStatsKeyPattern: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'stats', 'website', websiteId];
+                queryClient.invalidateQueries({ queryKey: websiteStatsKeyPattern, exact: false });
+                console.log(`Invalidating website stats:`, websiteStatsKeyPattern);
 
-            queryClient.invalidateQueries({ queryKey: userStatsKeyPattern, exact: false });
-            console.log(`Invalidating user overall stats:`, userStatsKeyPattern);
+                queryClient.invalidateQueries({ queryKey: userStatsKeyPattern, exact: false });
+                console.log(`Invalidating user overall stats:`, userStatsKeyPattern);
 
-            queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId), exact: false });
-            console.log(`Invalidating user monitoring results list`);
+                queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId), exact: false });
+                console.log(`Invalidating user monitoring results list`);
 
-            queryClient.invalidateQueries({ queryKey: userWebsiteListKeyPattern });
-            console.log(`Invalidating user website list:`, userWebsiteListKeyPattern);
+                queryClient.invalidateQueries({ queryKey: userWebsiteListKeyPattern });
+                console.log(`Invalidating user website list:`, userWebsiteListKeyPattern);
 
-            queryClient.invalidateQueries({ queryKey: userIncidentListKeyPattern, exact: false });
-            queryClient.invalidateQueries({ queryKey: userIncidentCountKey });
-            console.log(`Invalidating user incidents list and count`);
+                queryClient.invalidateQueries({ queryKey: userIncidentListKeyPattern, exact: false });
+                queryClient.invalidateQueries({ queryKey: userIncidentCountKey });
+                console.log(`Invalidating user incidents list and count`);
 
-            queryClient.invalidateQueries({ queryKey: alertQueryKeys.lists(), exact: false });
-            queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats(), exact: false });
-            console.log(`Invalidating user alerts list and stats`);
+                queryClient.invalidateQueries({ queryKey: alertQueryKeys.lists(), exact: false });
+                queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats(), exact: false });
+                console.log(`Invalidating user alerts list and stats`);
 
-            console.log(`[Invalidation Complete]`);
+                console.log(`[Invalidation Complete]`);
+            } else {
+                console.warn("[Invalidation Skipped] User ID not available, cannot invalidate user-specific caches.");
+                 // Optionally invalidate non-user-specific caches if needed
+            }
         },
         onError: (error: ApiError, websiteId) => {
             console.error(`[Mutation Error] Failed to trigger check for website ${websiteId}:`, error.message || error);
@@ -139,11 +138,10 @@ export function useWebsiteCheckMutation() {
  * Hook to fetch overall statistics for the user dashboard.
  */
 export function useUserStatsQuery(period: TimeframeKey | string = 'week', options?: CustomQueryOptions<OverallStats>) {
-    const { user } = useAuth();
-    const userId = user?.id; // This is string | undefined
+    const auth = useAuth(); // Get the auth object (might be null)
+    const userId = auth?.user?.id; // Use optional chaining
 
     return useQuery<OverallStats, ApiError>({
-        // --- Now correctly passes string | undefined ---
         queryKey: monitoringQueryKeys.userStats(period, userId),
         queryFn: () => {
             if (!userId) return Promise.reject(new Error("User ID not found for user stats query"));
@@ -160,9 +158,8 @@ export function useUserStatsQuery(period: TimeframeKey | string = 'week', option
  * Hook to fetch statistics for a specific website.
  */
 export function useWebsiteStatsQuery(websiteId: number | undefined, period: TimeframeKey | string = 'week', options?: CustomQueryOptions<WebsiteStatsData>) {
-    const { user } = useAuth();
-    const userId = user?.id; // This is string | undefined
-    // --- Now correctly passes string | undefined ---
+    const auth = useAuth(); // Get the auth object (might be null)
+    const userId = auth?.user?.id; // Use optional chaining
     const queryKey = monitoringQueryKeys.websiteStats(websiteId, period, userId);
     const isQueryEnabled = (options?.enabled === undefined ? true : options.enabled) && (!!userId && !!websiteId && websiteId > 0);
 
