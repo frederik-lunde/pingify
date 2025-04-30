@@ -1,13 +1,9 @@
-// src/pages/Dashboard.tsx
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
-    Container, Box, CircularProgress, Paper, IconButton, Tooltip, Stack,
+    Box, CircularProgress, Paper,
 } from "@mui/material";
-import TvIcon from '@mui/icons-material/Tv';
 import WebsiteGrid from "../components/dashboard/WebsiteGrid";
-import DashboardSearchFilter from "../components/dashboard/DashboardSearchFilter";
 import StatsHeader from "../components/dashboard/StatsHeader";
-import DashboardSortControl from "../components/dashboard/SortControl";
 import TvModeView from "../components/dashboard/TvModeView";
 import EmptyFilterResults from "../components/dashboard/EmptyFilterResults";
 import NoWebsitesAdded from "../components/dashboard/NoWebsitesAdded";
@@ -28,15 +24,15 @@ const Dashboard: React.FC = () => {
         incidentsLast24h,
         lastIncidentTimestamp,
         lastIncidentWebsiteId,
-        isLoading: isLoadingData,
-        isFetching,
+        isLoading: isLoadingData, // Indicates initial data load
+        isFetching, // Indicates background refetching
         error: dataError,
         refetch,
         totalWebsitesCount,
         upWebsitesCount,
     } = useWebsiteData(
-        'week', // Default stats period
-        30000 // Refetch interval (e.g., 1 minute)
+        'week',
+        30000 // Refetch interval (e.g., 30 seconds)
     );
 
     const {
@@ -47,15 +43,19 @@ const Dashboard: React.FC = () => {
         setSortOption,
     } = useWebsiteListProcessor(allWebsites);
 
+    // isFetching indicates background data refetching
+    const isBackgroundActivity = isFetching;
+
     const handleFilterChangeInternal = useCallback((term: string) => {
         setFilterTerm(term);
-        if (term) setIsHighlightActive(false);
+        if (term) setIsHighlightActive(false); // Clear highlight on filter change
     }, [setFilterTerm]);
 
     const handleToggleHighlight = useCallback(() => {
         const shouldActivate = !isHighlightActive;
         setIsHighlightActive(shouldActivate);
         if (shouldActivate && lastIncidentWebsiteId) {
+            // Scroll to the highlighted card after a short delay
             setTimeout(() => {
                 const element = document.getElementById(`website-card-grid-${lastIncidentWebsiteId}`);
                 element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -63,10 +63,12 @@ const Dashboard: React.FC = () => {
         }
     }, [isHighlightActive, lastIncidentWebsiteId]);
 
+    // Effect to deactivate highlight if the last incident changes or filter is applied
     useEffect(() => {
         setIsHighlightActive(false);
     }, [lastIncidentWebsiteId, filterTerm]);
 
+    // Effect to handle TV Mode exit logic
     useEffect(() => {
         const handleExitTvMode = () => {
             if (isTvMode) toggleTvMode();
@@ -80,25 +82,27 @@ const Dashboard: React.FC = () => {
                 clearTimeout(timer);
                 document.removeEventListener('keydown', handleExitTvMode);
                 document.removeEventListener('mousedown', handleExitTvMode);
-                setShowTvExitMessage(false);
+                setShowTvExitMessage(false); // Ensure message is hidden on cleanup
             };
         } else {
-            setShowTvExitMessage(false);
+            setShowTvExitMessage(false); // Ensure message is hidden if not in TV mode
         }
     }, [isTvMode, toggleTvMode]);
 
     const headerUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
 
+    // Determine loading/empty states for the grid
     const showLoadingSkeleton = isLoadingData && processedWebsites.length === 0 && !dataError;
     const isListEmpty = !isLoadingData && processedWebsites.length === 0;
     const isEmptyDueToFilter = isListEmpty && !!filterTerm && allWebsites.length > 0;
     const isEmptyBecauseNoWebsites = isListEmpty && !filterTerm && !dataError;
 
-    // --- Initial Loading State ---
+    // --- Initial Loading State for the entire page ---
     if (isLoadingData && !dataError && !overallStats && allWebsites.length === 0) {
         return <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress data-testid="dashboard-initial-loading" /></Box>;
     }
 
+    // --- Error State ---
     if (dataError) {
         return (
             <DataFetchError
@@ -117,7 +121,8 @@ const Dashboard: React.FC = () => {
                 isLoading={showLoadingSkeleton}
                 lastIncidentWebsiteId={lastIncidentWebsiteId}
                 isHighlightActive={isHighlightActive}
-                isFetching={isFetching}
+                // Pass isFetching for the spinner in TV mode corner
+                isFetching={isBackgroundActivity}
                 isEmptyDueToFilter={isEmptyDueToFilter}
                 isEmptyBecauseNoWebsites={isEmptyBecauseNoWebsites}
                 showTvExitMessage={showTvExitMessage}
@@ -129,9 +134,10 @@ const Dashboard: React.FC = () => {
     return (
         <Box sx={{ px: { xs: 1, sm: 2, md: 3 }, mt: 2, mb: 4, width: '100%' }}>
 
-            <Paper elevation={1} sx={{ mb: 2 }}>
+            <Paper elevation={1} sx={{ mb: 1 }}>
                 <StatsHeader
-                    isLoading={isLoadingData && !overallStats}
+                    // Stats Props
+                    isLoading={isLoadingData && !overallStats} // Loading specifically for initial stats section rendering
                     upCount={upWebsitesCount}
                     totalCount={totalWebsitesCount}
                     uptime={headerUptime}
@@ -140,41 +146,31 @@ const Dashboard: React.FC = () => {
                     lastIncidentWebsiteId={lastIncidentWebsiteId}
                     onToggleHighlight={handleToggleHighlight}
                     isHighlightActive={isHighlightActive}
-                    center={false}
+                    layoutMode="dashboard" // Explicitly set layout mode
+
+                    // Control Props
+                    filterTerm={filterTerm}
+                    onFilterChange={handleFilterChangeInternal}
+                    sortOption={sortOption}
+                    onSortChange={setSortOption}
+                    onToggleTvMode={toggleTvMode}
+                    // Pass the background fetching state for the subtle indicator
+                    // Show indicator only during background refetch, not initial load
+                    isRefetching={isBackgroundActivity && !isLoadingData}
                 />
             </Paper>
 
-            <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1}
-                alignItems={{ xs: 'stretch', sm: 'center' }}
-                mb={2}
-            >
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ width: 'auto' }}>
-                    <Tooltip title={"TV Mode (Show only grid)"}>
-                        <IconButton onClick={toggleTvMode} color="default" aria-label="toggle tv mode">
-                             <TvIcon />
-                        </IconButton>
-                    </Tooltip>
-                </Stack>
-                <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', width: { xs: '100%', sm: 'auto' }, px: { sm: 2 } }}>
-                    <DashboardSearchFilter onFilterChange={handleFilterChangeInternal} sx={{ width: { xs: '100%', sm: 300, md: 450 } }} />
-                </Box>
-                <DashboardSortControl
-                    sortOption={sortOption}
-                    onSortChange={setSortOption}
-                    isFetching={isFetching && !isLoadingData}
-                />
-            </Stack>
-
             <WebsiteGrid
                 websiteCards={processedWebsites}
-                isLoading={showLoadingSkeleton}
+                isLoading={showLoadingSkeleton} // For skeleton cards on initial load
                 lastIncidentWebsiteId={lastIncidentWebsiteId}
                 isHighlightActive={isHighlightActive}
                 isTvMode={false}
+                // Optionally pass isRefetching here if you want grid dimming (Option 2)
+                // isRefetching={isBackgroundActivity && !isLoadingData}
             />
 
+            {/* Empty state messages */}
             {isEmptyDueToFilter && <EmptyFilterResults />}
             {isEmptyBecauseNoWebsites && <NoWebsitesAdded isTvMode={false} />}
         </Box>

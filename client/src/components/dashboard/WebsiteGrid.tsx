@@ -1,41 +1,38 @@
-/*
-src/components/dashboard/WebsiteGrid.tsx
-*/
+// src/components/dashboard/WebsiteGrid.tsx
 import React from "react";
 import Grid from "@mui/material/Grid2";
 import { Box } from "@mui/material";
 import WebsiteCard from "./WebsiteCard";
-// --- MODIFIED: Remove WebsiteWithResults ---
-import { WebsiteUser } from "../../types";
+import { WebsiteUser } from "../../types"; // Ensure correct path
 
 interface WebsiteGridProps {
-  // --- MODIFIED: Changed prop name and type ---
   websiteCards: WebsiteUser[];
   lastIncidentWebsiteId?: number | null | undefined;
   isHighlightActive?: boolean;
-  isLoading?: boolean;
+  isLoading?: boolean; // For skeleton cards on initial load
   isTvMode: boolean;
+  // isRefetching prop is NOT included here as per Option 1 implementation
 }
 
 const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
   ({
-      // --- MODIFIED: Use websiteCards ---
       websiteCards,
       lastIncidentWebsiteId,
       isHighlightActive = false,
-      isLoading = false,
+      isLoading = false, // Corresponds to initial load state
       isTvMode,
+      // isRefetching prop is NOT included here
   }) => {
 
-    const gridItemSize = { xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 };
+    const gridItemSize = { xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 }; // Example sizes
 
+    // Skeleton generation logic
     const renderSkeletonCards = (count = 10) => {
-       // Skeleton generation logic remains the same
        const dummyWebsiteUser: WebsiteUser = {
-          id: -1, userId: "-1", websiteId: -1, name: 'Loading website...', // userId as string
+          id: -1, userId: "-1", websiteId: -1, name: 'Loading website...',
           interval: 300, alertEnabled: false, alertThreshold: null,
           notifyEmail: null, createdAt: new Date().toISOString(), isPinned: false,
-          latestResult: null, chartData: [], uptimePercent: 100, currentIncident: null, // Added currentIncident
+          latestResult: null, chartData: [], uptimePercent: 100, currentIncident: null,
           website: {
             id: -1, url: 'http://loading.com', isActive: true, lastChecked: null,
             globalInterval: 300, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -43,10 +40,13 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
       };
       return Array(count).fill(0).map((_, i) => (
         <Grid key={`skeleton-${i}`} size={gridItemSize}>
+          {/* Pass skeleton state if WebsiteCard supports it, otherwise render basic structure */}
           <WebsiteCard
               userWebsite={dummyWebsiteUser}
               shouldHighlightThisCard={false}
               isTvMode={false}
+              // You might add an explicit isLoading prop to WebsiteCard if needed
+              // isLoading={true}
           />
         </Grid>
       ));
@@ -54,44 +54,59 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
 
 
     // --- Render Logic ---
-    // --- MODIFIED: Check websiteCards.length ---
+    // Show skeletons only during the initial load when the list is empty
     if (isLoading && websiteCards.length === 0) {
-      return <Grid container spacing={2} sx={{ pt: 2 }}>{renderSkeletonCards()}</Grid>;
+      return (
+            <Box
+                sx={{
+                  display: 'grid',
+                  gap: 2,
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 1fr))',
+                  pt: 2, // Keep padding top
+                }}
+            >
+               {renderSkeletonCards()}
+            </Box>
+       );
     }
 
-    // --- MODIFIED: Check websiteCards.length ---
     if (!isLoading && websiteCards.length === 0) {
-        return null; // Or render an empty state component if preferred
+      
+        return null;
     }
 
+    // Render the actual grid of website cards
     return (
       <Box
-    sx={{
-      display: 'grid',
-      gap: 2,
-      gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-      pt: 2,
-    }}
-  >
-    {websiteCards.map((item) => {
-      if (!item) return null;
-      const shouldHighlight = isHighlightActive && item.websiteId === lastIncidentWebsiteId;
+        sx={{
+          display: 'grid',
+          gap: 2, // Spacing between cards
+          gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 1fr))', // Responsive columns
+          pt: 2, // Padding top for spacing below header
+          // No opacity or pointer-events changes needed here for Option 1
+        }}
+      >
+        {websiteCards.map((item) => {
+          // Ensure item is valid before rendering
+          if (!item) return null;
+          const shouldHighlight = isHighlightActive && item.websiteId === lastIncidentWebsiteId;
 
-      return (
-        <Box
-          key={`website-${item.websiteId}`}
-          id={`website-card-grid-${item.websiteId}`}
-          sx={{ width: '100%' }}
-        >
-          <WebsiteCard
-            userWebsite={item}
-            shouldHighlightThisCard={shouldHighlight}
-            isTvMode={isTvMode}
-          />
-        </Box>
-      );
-    })}
-  </Box>
+          return (
+            // Each card is wrapped in a Box to be a grid item
+            <Box
+              key={`website-${item.websiteId}`}
+              id={`website-card-grid-${item.websiteId}`} // ID for scrolling/highlighting
+              sx={{ width: '100%' }} // Ensure card takes full width of grid cell
+            >
+              <WebsiteCard
+                userWebsite={item}
+                shouldHighlightThisCard={shouldHighlight}
+                isTvMode={isTvMode}
+              />
+            </Box>
+          );
+        })}
+      </Box>
     );
   },
 );

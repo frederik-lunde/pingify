@@ -17,8 +17,8 @@ import AddIcon from "@mui/icons-material/Add";
 import { useAuth } from "../context/AuthContext";
 import { useWebsiteData } from "../hooks";
 import AlertsDropdown from "./navbar/AlertDropdown";
-import StatsHeader from "../components/dashboard/StatsHeader";
-import { AuthContextType, User } from "../types"; // Keep import
+import StatsHeader from "./dashboard/StatsHeader"; // Corrected path
+import { AuthContextType, User } from "../types";
 
 const pages = [
   { name: "Add Website", path: "/add-website", icon: <AddIcon fontSize="small" />, ariaLabel: "Add new website to monitor" },
@@ -26,32 +26,29 @@ const pages = [
 
 const settings = ["Profile", "Logout"];
 
-// Helper type guard remains the same
 function isUser(user: User | null): user is User {
   return user !== null;
 }
 
 function Navbar() {
-  // --- Call ALL Hooks Unconditionally at the Top ---
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
-  const auth = useAuth() as AuthContextType | null; // Cast might still be needed depending on useAuth exact type
+  const auth = useAuth() as AuthContextType | null;
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Fetch data needed for StatsHeader (using a longer interval for Navbar potentially)
   const {
       overallStats,
       incidentsLast24h,
       lastIncidentTimestamp,
-      isLoading: isLoadingData,
+      isLoading: isLoadingStats, // Use a distinct name if needed
       totalWebsitesCount,
       upWebsitesCount,
-  } = useWebsiteData('week', 60000);
+  } = useWebsiteData('week', 60000); // Example: 60 second interval for navbar stats
 
   const headerUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
 
-  // Memoize handlers - these can be defined even if auth is null initially
-  // They will capture the current 'auth' value when they are eventually called
   const handleCloseNavMenu = useCallback(() => setAnchorElNav(null), []);
   const handleCloseUserMenu = useCallback(() => setAnchorElUser(null), []);
 
@@ -62,16 +59,15 @@ function Navbar() {
 
   const handleSettingClick = useCallback(async (setting: string) => {
     handleCloseUserMenu();
-    // Check auth status *inside* the handler where it's needed
     if (!auth || !auth.logout) {
          console.error("Auth context or logout function not available.");
-         navigate('/login'); // Redirect if auth is missing when trying to interact
+         navigate('/login');
          return;
     }
 
     if (setting === "Logout") {
       try {
-        await auth.logout(); // Call logout from the captured auth context
+        await auth.logout();
         navigate('/login');
       } catch (error) {
         console.error("Failed to logout:", error);
@@ -79,36 +75,30 @@ function Navbar() {
     } else if (setting === "Profile") {
       navigate("/profile");
     }
-  }, [auth, navigate, handleCloseUserMenu]); // Add `auth` to dependency list
+  }, [auth, navigate, handleCloseUserMenu]);
 
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorElNav(event.currentTarget);
   const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorElUser(event.currentTarget);
 
   // --- Conditional Rendering Logic ---
-  // Check authentication status AFTER all hooks have been called
   if (!auth || !isUser(auth.user)) {
-    // Optional: Render a loading state if auth.loading exists and is true
-    // if (auth?.loading) { return <AppBar position="static">...</AppBar>; }
-
-    // Return null (or redirect) if not authenticated
-    // Consider adding a useEffect here for a one-time redirect check if needed
+    // Return null or a minimal loading bar if auth.loading
     return null;
   }
 
-  // --- Destructure and Prepare Data (Now Safe) ---
-  // We know auth and auth.user are valid here
-  const { user } = auth; // No need for logout here as it's accessed via `auth.logout` in handler
+  const { user } = auth;
+  // Determine if the current page IS the dashboard ('/')
   const isDashboard = location.pathname === '/';
   const userInitial = user.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || "?";
 
-  // --- Return JSX ---
   return (
     <AppBar position="static">
+      {/* Use maxWidth={false} for full width */}
       <Container maxWidth={false} sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
         <Toolbar disableGutters>
 
-          {/* --- Left Section --- */}
-          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: { xs: 0, md: 1 } }}>
+          {/* --- Left Section: Logo & Nav --- */}
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: { xs: 1, md: 0 } }}>
             {/* Desktop Logo */}
             <Box onClick={() => navigate("/")} sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", cursor: "pointer", mr: 1 }}>
               <AdbIcon sx={{ mr: 1 }}/>
@@ -140,22 +130,24 @@ function Navbar() {
               </Menu>
             </Box>
 
-            {/* Mobile Logo (Centered) */}
-            <Box onClick={() => navigate("/")} sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", cursor: "pointer", flexGrow: 1, justifyContent: 'center' }}>
-              <AdbIcon sx={{ mr: 1 }}/>
-              <Typography variant="h5" noWrap component="div" sx={{ fontFamily: "monospace", fontWeight: 700, letterSpacing: ".3rem" }}>PINGIFY</Typography>
-            </Box>
+             {/* Mobile Logo (Centered when nav button is present) */}
+             <Box onClick={() => navigate("/")} sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", cursor: "pointer", flexGrow: 1, justifyContent: 'center', pr: { xs: '48px', sm: 0 } /* Offset for menu icon */ }}>
+                <AdbIcon sx={{ mr: 1 }}/>
+                <Typography variant="h5" noWrap component="div" sx={{ fontFamily: "monospace", fontWeight: 700, letterSpacing: ".3rem" }}>PINGIFY</Typography>
+             </Box>
 
             {/* Desktop Nav Links (Icons) */}
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1, ml: 2 }}>
               {pages.map((page) => (
                 <Tooltip key={page.name} title={page.ariaLabel || page.name} arrow>
+                  {/* Wrap IconButton in span for Tooltip when disabled */}
                   <span>
                     <IconButton
                       aria-label={page.ariaLabel || page.name}
                       onClick={() => handlePageClick(page.path)}
                       color="inherit"
                       size="medium"
+                      // Example: disable if needed: disabled={someCondition}
                     >
                       {page.icon}
                     </IconButton>
@@ -166,23 +158,34 @@ function Navbar() {
           </Box>
 
           {/* --- Center Section: Stats Header --- */}
+          {/* Conditionally render StatsHeader if NOT on the dashboard page */}
           {!isDashboard && (
-            <StatsHeader
-              isLoading={isLoadingData && !overallStats}
-              upCount={upWebsitesCount}
-              totalCount={totalWebsitesCount}
-              uptime={headerUptime}
-              incidentsLast24h={incidentsLast24h ?? 0}
-              lastIncidentTimestamp={lastIncidentTimestamp}
-              center={true}
-            />
+            <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' }, justifyContent: 'center', px: 2 }}>
+              <StatsHeader
+                // Use isLoadingStats from the specific useWebsiteData call for the navbar
+                isLoading={isLoadingStats && !overallStats}
+                upCount={upWebsitesCount}
+                totalCount={totalWebsitesCount}
+                uptime={headerUptime}
+                incidentsLast24h={incidentsLast24h} // Pass null/undefined if that's the value
+                lastIncidentTimestamp={lastIncidentTimestamp}
+                // *** Use layoutMode instead of center ***
+                layoutMode="navbar"
+                // No control props (filter, sort, tv mode) needed for navbar layout
+              />
+            </Box>
           )}
+
+          {/* If on Dashboard, add a flexible space to push user controls right */}
+          {isDashboard && <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'block' } }} />}
+
 
           {/* --- Right Section: Controls --- */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexGrow: 0, gap: { xs: 0.5, sm: 1 } }}>
             <AlertsDropdown
-                apiFilters={{ limit: 10 }}
-                pollingInterval={60000}
+                // Pass necessary props for AlertsDropdown
+                apiFilters={{ limit: 10 }} // Example filters
+                pollingInterval={60000} // Example interval
               />
 
             <Tooltip title="Open settings">
@@ -194,7 +197,7 @@ function Navbar() {
                         height: { xs: 32, sm: 40 },
                         bgcolor: "secondary.main",
                         color: (theme) => theme.palette.getContrastText(theme.palette.secondary.main),
-                        fontSize: "1rem"
+                        fontSize: "1rem" // Adjust font size if needed
                     }}
                   >
                     {userInitial}
@@ -205,7 +208,7 @@ function Navbar() {
             {/* User Menu Dropdown */}
             <Menu
                 id="menu-appbar-user"
-                sx={{ mt: "45px" }}
+                sx={{ mt: "45px" }} // Adjust margin top if needed
                 anchorEl={anchorElUser}
                 anchorOrigin={{ vertical: "top", horizontal: "right" }}
                 keepMounted

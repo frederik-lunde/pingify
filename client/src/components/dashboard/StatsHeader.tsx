@@ -1,7 +1,6 @@
-// src/components/dashboard/StatsHeader.tsx
 import React from 'react';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid2'; // Use Grid2 for better spacing control
+import Grid from '@mui/material/Grid2';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -10,62 +9,78 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined';
 import HistoryIcon from '@mui/icons-material/History';
-import { useTheme, Theme, alpha } from '@mui/material/styles';
+import TvIcon from '@mui/icons-material/Tv';
+import { useTheme, Theme, alpha, SxProps } from '@mui/material/styles';
 import CircularProgress from '@mui/material/CircularProgress';
-import { getStatusColor, formatUptime } from '../../utils/statusUtils'; // Adjust path if needed
-import { useTimeSince } from '../../hooks'; // Adjust path if needed
+import Stack from '@mui/material/Stack';
+import IconButton from '@mui/material/IconButton';
+import Divider from '@mui/material/Divider';
+import { getStatusColor, formatUptime } from '../../utils/statusUtils';
+import { useTimeSince } from '../../hooks';
 import { useNavigate } from 'react-router';
+import DashboardSearchFilter from './DashboardSearchFilter';
+import DashboardSortControl from './SortControl';
+import { SortOption } from '../../types';
 
 type StatusColorKey = 'success' | 'warning' | 'error' | 'default';
+type LayoutMode = 'navbar' | 'dashboard';
 
 interface StatsHeaderProps {
-    isLoading: boolean; // Still needed to show loading state for stats
+    isLoading: boolean; // Initial loading of stats/component
     upCount: number;
     totalCount: number;
     uptime: number | null | undefined;
     incidentsLast24h: number | null | undefined;
     lastIncidentTimestamp: string | null | undefined;
-    center?: boolean; // Layout mode (true for navbar, false for dashboard header)
-    lastIncidentWebsiteId?: number | null | undefined; // ID of website with the last incident
-    onToggleHighlight?: () => void; // Callback to toggle highlight on the dashboard
-    isHighlightActive?: boolean; // Whether the highlight is currently active
+    layoutMode?: LayoutMode;
+    lastIncidentWebsiteId?: number | null | undefined;
+    onToggleHighlight?: () => void;
+    isHighlightActive?: boolean;
+    filterTerm?: string;
+    onFilterChange?: (term: string) => void;
+    sortOption?: SortOption;
+    onSortChange?: (option: SortOption) => void;
+    onToggleTvMode?: () => void;
+    isRefetching?: boolean; // Prop for background data refresh indicator
 }
 
-// Helper to get text color based on theme, status, and layout
 const getTextColor = (theme: Theme, colorKey: StatusColorKey, isNavbar: boolean): string => {
     if (isNavbar) {
-        // Use white for colored statuses in navbar, inherit (usually white) for default
         return colorKey === 'default' ? 'inherit' : theme.palette.common.white;
     }
-    // Use theme colors for dashboard header
     if (colorKey === 'default') {
         return theme.palette.text.secondary;
     }
-    // Ensure the color key exists before accessing it
     return theme.palette[colorKey]?.main || theme.palette.text.primary;
 };
 
-// Helper to render icons (or null if in navbar layout)
 const getIcon = (IconComponent: React.ElementType, color: string, isNavbar: boolean, iconSize: string) => {
-    if (isNavbar) return null; // No icons in the compact navbar version
+    if (isNavbar) return null;
     return <IconComponent fontSize="inherit" sx={{ color, fontSize: iconSize, lineHeight: 1, mb: 0.5 }} />;
 };
 
 const StatsHeader: React.FC<StatsHeaderProps> = ({
-    isLoading,
+    isLoading, // Represents initial loading of stats
     upCount,
     totalCount,
     uptime,
     incidentsLast24h,
     lastIncidentTimestamp,
-    center = false,
+    layoutMode = 'dashboard',
     lastIncidentWebsiteId,
     onToggleHighlight,
     isHighlightActive = false,
+    filterTerm,
+    onFilterChange,
+    sortOption,
+    onSortChange,
+    onToggleTvMode,
+    isRefetching = false, // Default to false
 }) => {
     const theme = useTheme();
     const navigate = useNavigate();
-    const isNavbarLayout = center;
+    const isNavbarLayout = layoutMode === 'navbar';
+    const showControls = layoutMode === 'dashboard' && onFilterChange && onSortChange && onToggleTvMode && sortOption !== undefined;
 
     const timeSinceLastIncident = useTimeSince(lastIncidentTimestamp, {
         noIncidentText: isNavbarLayout ? 'None' : 'No recent incidents',
@@ -76,13 +91,13 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
     const uptimeColorKey = getStatusColor(uptime);
     const formattedUptimeValue = formatUptime(uptime);
 
-    // Status Props - simplified loading check
     const statusProps = React.useMemo(() => {
         let iconType: React.ElementType | null = null;
         let valueColorKey: StatusColorKey = 'default';
         let text: string;
         let tooltip: string;
 
+        // Show placeholders only during initial isLoading, not isRefetching
         if (isLoading) {
              iconType = null; valueColorKey = 'default'; text = "- / -"; tooltip = 'Loading status...';
         } else if (totalCount === 0) {
@@ -94,16 +109,15 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
         }
         const valueColor = getTextColor(theme, valueColorKey, isNavbarLayout);
         return { iconType, valueColor, text, tooltip };
-    }, [totalCount, upCount, isLoading, theme, isNavbarLayout]);
+    }, [totalCount, upCount, isLoading, theme, isNavbarLayout]); // Depend on isLoading for initial state
 
-    // Incident Props - simplified loading check
     const incidentProps = React.useMemo(() => {
         let iconType: React.ElementType | null = null;
         let valueColorKey: StatusColorKey = 'default';
         let text: string;
         let tooltip: string;
 
-        // Check isLoading OR if incidentsLast24h is null/undefined (initial state before load)
+        // Show placeholders only during initial isLoading
         if (isLoading || incidentsLast24h === null || incidentsLast24h === undefined) {
             iconType = null; valueColorKey = 'default'; text = '-'; tooltip = 'Loading incident count...';
         } else if (incidentsLast24h > 0) {
@@ -113,43 +127,38 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
         }
         const valueColor = getTextColor(theme, valueColorKey, isNavbarLayout);
         return { iconType, valueColor, text, tooltip };
-    }, [incidentsLast24h, isLoading, theme, isNavbarLayout]);
+    }, [incidentsLast24h, isLoading, theme, isNavbarLayout]); // Depend on isLoading for initial state
 
-    // --- Define Container Styles based on layout ---
-    const containerSx = isNavbarLayout
+    const containerSx: SxProps<Theme> = isNavbarLayout
         ? { display: { xs: 'none', md: 'flex' }, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', px: 1, minHeight: 'auto', overflow: 'hidden' }
-        : { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', py: 2.25, px: { xs: 1, sm: 2, md: 3 }, minHeight: '76px' };
+        : {
+            position: 'relative', // Needed for absolute positioning of the spinner
+            display: 'flex',
+            flexDirection: 'column',
+            width: '100%',
+            py: { xs: 1.5, sm: 2 },
+            px: { xs: 1, sm: 2, md: 3 },
+            minHeight: '76px'
+          };
 
-    // --- Define Responsive Styles based on layout ---
     const valueVariant = isNavbarLayout ? 'body2' : 'h6';
     const labelVariant = isNavbarLayout ? 'caption' : 'body2';
-    const iconSize = isNavbarLayout ? '0.9rem' : '1.4rem'; // Icons only shown in dashboard header
+    const iconSize = isNavbarLayout ? '0.9rem' : '1.4rem';
     const gridSpacing = isNavbarLayout ? 1.2 : { xs: 1.5, sm: 2 };
     const valueLabelMargin = isNavbarLayout ? 0.2 : 0.5;
 
-    // --- Loading State ---
-    // Show loading spinner if data is loading (specific to stats header context)
-    if (isLoading && isNavbarLayout) { // Simpler loading for navbar
+    // Show spinner in navbar only during initial load
+    if (isLoading && isNavbarLayout) {
         return <Box sx={containerSx}><CircularProgress size={20} color="inherit" /></Box>;
     }
-    if (isLoading && !isNavbarLayout) { // Loading for dashboard header
-        return (
-            <Box sx={{ ...containerSx, justifyContent: 'center', alignItems: 'center' }}>
-                <CircularProgress size={24} color='primary' />
-            </Box>
-        );
-    }
+    // Dim stats section only during initial dashboard load
+    const showDashboardLoading = isLoading && layoutMode === 'dashboard';
 
-    // --- Define Responsive Grid Item Size ---
     const gridItemSize = isNavbarLayout ? 3 : { xs: 6, sm: 6, md: 3 };
-
-    // Determine if highlight/click actions are enabled (only for dashboard header)
     const canHighlightLastIncident = !isNavbarLayout && !!lastIncidentWebsiteId && !!onToggleHighlight;
-    // Determine if clicking incidents navigates (only for dashboard header)
     const canClickIncidents = !isNavbarLayout;
 
-    // --- Base styles for the content box inside each grid item ---
-    const gridItemContentSx = {
+    const gridItemContentSx: SxProps<Theme> = {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -159,35 +168,57 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
         p: isNavbarLayout ? 0.5 : 0,
         borderRadius: isNavbarLayout ? 1 : 0,
         minHeight: isNavbarLayout ? 'auto' : 50,
+        opacity: showDashboardLoading ? 0.5 : 1,
+        transition: theme.transitions.create('opacity'),
     };
 
-    // --- Styles for clickable boxes, applying hover/active states ---
-    const clickableBoxSx = (isClickable: boolean, isActiveState: boolean = false) => ({
+    const clickableBoxSx = (isClickable: boolean, isActiveState: boolean = false): SxProps<Theme> => ({
         ...gridItemContentSx,
         cursor: isClickable ? 'pointer' : 'default',
         '&:hover': isClickable ? { bgcolor: alpha(theme.palette.action.hover, 0.1) } : {},
-        // Use warning color for highlight active state
         bgcolor: !isNavbarLayout && isActiveState ? alpha(theme.palette.warning.light, 0.15) : 'transparent',
-        transition: theme.transitions.create('background-color'),
+        transition: theme.transitions.create(['background-color', 'opacity']),
+        opacity: showDashboardLoading ? 0.5 : 1,
     });
 
-    // --- Navigation Handler for Incidents ---
     const handleIncidentsClick = () => {
         if (canClickIncidents) {
-            navigate('/incidents'); // Navigate to the incidents page (ensure this route exists)
+            navigate('/incidents');
         }
     };
 
-    // --- Render the Stats Header ---
     return (
         <Box sx={containerSx}>
+            {/* Top Right Refetch Indicator (Only in Dashboard Mode during refetch) */}
+            {layoutMode === 'dashboard' && isRefetching && (
+                <CircularProgress
+                    size={20}
+                    thickness={4}
+                    sx={{
+                        position: 'absolute',
+                        top: theme.spacing(1.5), // Adjust as needed
+                        right: theme.spacing(1.5), // Adjust as needed
+                        zIndex: 2,
+                    }}
+                    data-testid="stats-header-refetch-indicator"
+                 />
+            )}
+
+            {/* Stats Row */}
             <Grid
                 container
                 spacing={gridSpacing}
                 justifyContent="space-around"
                 alignItems="stretch"
-                sx={isNavbarLayout ? { maxWidth: 420, width: '100%' } : { width: '100%' }}
+                sx={isNavbarLayout ? { maxWidth: 420, width: '100%' } : { width: '100%', position: 'relative' }}
             >
+                 {/* Loading overlay for dashboard INITIAL stats load */}
+                 {showDashboardLoading && (
+                    <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1 }}>
+                        <CircularProgress size={24} color='primary' />
+                    </Box>
+                 )}
+
                 {/* Stat 1: Status (Up/Total) */}
                 <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
                     <Tooltip title={statusProps.tooltip} placement="top">
@@ -198,7 +229,7 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                           </Typography>
                         </Box>
                     </Tooltip>
-                    <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : 1 }}>
+                    <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : showDashboardLoading ? 0.5 : 1 }}>
                         Status
                     </Typography>
                 </Grid>
@@ -213,7 +244,7 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                        </Typography>
                      </Box>
                    </Tooltip>
-                   <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : 1 }}>
+                   <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : showDashboardLoading ? 0.5 : 1 }}>
                        Uptime (7d)
                    </Typography>
                 </Grid>
@@ -221,10 +252,9 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                 {/* Stat 3: Incidents Last 24 Hours */}
                 <Grid size={gridItemSize} display="flex" flexDirection="column" alignItems="center">
                    <Tooltip title={incidentProps.tooltip} placement="top">
-                     {/* Clickable box for incidents */}
                      <Box
-                         onClick={handleIncidentsClick} // Navigate on click in dashboard
-                         sx={clickableBoxSx(canClickIncidents)} // Apply clickable style in dashboard
+                         onClick={handleIncidentsClick}
+                         sx={clickableBoxSx(canClickIncidents)}
                      >
                          {incidentProps.iconType && getIcon(incidentProps.iconType, incidentProps.valueColor, isNavbarLayout, iconSize)}
                        <Typography variant={valueVariant} component="div" fontWeight="medium" sx={{ color: incidentProps.valueColor, lineHeight: 1.2 }}>
@@ -232,7 +262,7 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                        </Typography>
                      </Box>
                    </Tooltip>
-                   <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : 1 }}>
+                   <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : showDashboardLoading ? 0.5 : 1 }}>
                         Incidents (24h)
                    </Typography>
                 </Grid>
@@ -243,15 +273,14 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                        title={
                            isNavbarLayout ? `Last Incident: ${timeSinceLastIncident}` :
                            canHighlightLastIncident ? (isHighlightActive ? "Click to remove highlight" : "Click to highlight affected website") :
-                           `Time since last incident started` // Updated tooltip text
+                           `Time since last incident started`
                        }
                        placement="top"
                        arrow={!isNavbarLayout}
                     >
-                     {/* Clickable box for highlight action */}
                      <Box
                          onClick={canHighlightLastIncident ? onToggleHighlight : undefined}
-                         sx={clickableBoxSx(canHighlightLastIncident, canHighlightLastIncident && isHighlightActive)} // Apply clickable and active styles
+                         sx={clickableBoxSx(canHighlightLastIncident, canHighlightLastIncident && isHighlightActive)}
                      >
                          {getIcon(HistoryIcon, theme.palette.text.secondary, isNavbarLayout, iconSize)}
                        <Typography
@@ -262,11 +291,92 @@ const StatsHeader: React.FC<StatsHeaderProps> = ({
                        </Typography>
                      </Box>
                    </Tooltip>
-                   <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : 1 }}>
+                   <Typography variant={labelVariant} color={isNavbarLayout ? 'inherit' : 'text.secondary'} sx={{ mt: valueLabelMargin, opacity: isNavbarLayout ? 0.8 : showDashboardLoading ? 0.5 : 1 }}>
                        Last Incident
                    </Typography>
                 </Grid>
             </Grid>
+
+            {/* Controls Section (Only in Dashboard Mode) */}
+            {showControls && (
+                <>
+                    <Divider sx={{ my: { xs: 1.5, sm: 2 } }} />
+
+                    {/* --- Desktop Layout (sm and up) --- */}
+                    <Stack
+                        direction="row"
+                        spacing={2}
+                        alignItems="center"
+                        justifyContent="space-between"
+                        sx={{ display: { xs: 'none', sm: 'flex' }, width: '100%' }}
+                    >
+                         <Tooltip title={"TV Mode (Show only grid)"}>
+                            <span>
+                                <IconButton
+                                    onClick={onToggleTvMode}
+                                    color="default"
+                                    aria-label="toggle tv mode"
+                                    disabled={isLoading} // Disable only during initial load
+                                >
+                                    <TvIcon />
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+
+                        <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', px: 2 }}>
+                            <DashboardSearchFilter
+                                onFilterChange={onFilterChange}
+                                sx={{ width: '100%', maxWidth: { sm: 350, md: 450 } }}
+                                initialValue={filterTerm}
+                            />
+                        </Box>
+
+                        <DashboardSortControl
+                            sortOption={sortOption}
+                            onSortChange={onSortChange}
+                            // isFetching prop removed
+                        />
+                    </Stack>
+
+                    {/* --- Mobile Layout (xs) --- */}
+                    <Box sx={{ display: { xs: 'block', sm: 'none' }, width: '100%' }}>
+                        <Box sx={{ mb: 1.5 }}>
+                           <DashboardSearchFilter
+                                onFilterChange={onFilterChange}
+                                sx={{ width: '100%', maxWidth: '100%' }}
+                                initialValue={filterTerm}
+                            />
+                        </Box>
+
+                        <Stack
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="center"
+                            spacing={1}
+                        >
+                             <Tooltip title={"TV Mode (Show only grid)"}>
+                                <span>
+                                    <IconButton
+                                        onClick={onToggleTvMode}
+                                        color="default"
+                                        aria-label="toggle tv mode"
+                                        disabled={isLoading} // Disable only during initial load
+                                        size="medium"
+                                    >
+                                        <TvIcon />
+                                    </IconButton>
+                                </span>
+                            </Tooltip>
+
+                             <DashboardSortControl
+                                sortOption={sortOption}
+                                onSortChange={onSortChange}
+                                // isFetching prop removed
+                            />
+                        </Stack>
+                    </Box>
+                </>
+            )}
         </Box>
     );
 };

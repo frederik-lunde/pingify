@@ -6,7 +6,6 @@ import Navbar from '../Navbar'; // Adjust path as needed
 import { useAuth } from '../../context/AuthContext'; // Adjust path
 import { useTvMode } from '../../context/TvModeContext'; // Adjust path
 import LoadingScreen from '../common/LoadingScreen'; // Import the LoadingScreen component
-// Import Auth types if you need stricter type checking or casting
 import { AuthContextType } from '../../types';
 
 const MainLayout: React.FC = () => {
@@ -32,8 +31,7 @@ const MainLayout: React.FC = () => {
             {showNavbar && <Navbar />}
             <Box
                 component="main"
-                // Adjust padding top based on whether the Navbar is rendered
-                sx={{ pt: showNavbar ? { xs: 2, sm: 3, md: 4 } : 0, flexGrow: 1 }} // Example padding values
+                sx={{flexGrow: 1 }} // Example padding values
             >
                 {/* The rest of the routed components will render here */}
                 <Outlet />

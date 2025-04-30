@@ -1,13 +1,13 @@
-// src/components/dashboard/DashboardSortControl.tsx (NEW FILE)
+// src/components/dashboard/DashboardSortControl.tsx
 import React, { useState, useCallback } from 'react';
 import {
-    IconButton, Menu, MenuItem, Tooltip, ListItemIcon, ListItemText, CircularProgress, Stack
+    IconButton, Menu, MenuItem, Tooltip, ListItemIcon, ListItemText, Stack // Removed CircularProgress
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import SortByAlphaIcon from '@mui/icons-material/SortByAlpha';
-import { SortOption } from '../../types'; // Adjust path
+import { SortOption } from '../../types';
 
 interface SortOptionConfig {
     value: SortOption;
@@ -15,7 +15,6 @@ interface SortOptionConfig {
     icon: React.ReactElement;
 }
 
-// Keep this config here as it's directly tied to this component's UI
 const sortOptionsConfig: SortOptionConfig[] = [
     { value: 'name-asc', label: 'Name (A-Z)', icon: <SortByAlphaIcon fontSize="small" /> },
     { value: 'name-desc', label: 'Name (Z-A)', icon: <SortByAlphaIcon fontSize="small" sx={{ transform: 'scaleY(-1)'}}/> },
@@ -26,13 +25,13 @@ const sortOptionsConfig: SortOptionConfig[] = [
 interface DashboardSortControlProps {
     sortOption: SortOption;
     onSortChange: (option: SortOption) => void;
-    isFetching: boolean; // To show spinner next to button
+    // isFetching prop is no longer needed here as the indicator is moved
 }
 
 const DashboardSortControl: React.FC<DashboardSortControlProps> = ({
     sortOption,
     onSortChange,
-    isFetching,
+    // isFetching prop removed
 }) => {
     const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null);
     const openSortMenu = Boolean(sortAnchorEl);
@@ -51,7 +50,8 @@ const DashboardSortControl: React.FC<DashboardSortControlProps> = ({
     }, [onSortChange, handleSortMenuClose]);
 
     return (
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ width: 'auto' }}>
+        // Stack is no longer strictly necessary just for the button, but can keep for consistency
+        <Stack direction="row" spacing={0.5} alignItems="center">
             <Tooltip title="Sort websites">
                 <IconButton
                     id="sort-button"
@@ -60,11 +60,12 @@ const DashboardSortControl: React.FC<DashboardSortControlProps> = ({
                     aria-expanded={openSortMenu ? 'true' : undefined}
                     onClick={handleSortMenuClick}
                     color="primary"
+                    size="medium"
                 >
                     <FilterListIcon />
                 </IconButton>
             </Tooltip>
-            {isFetching && <CircularProgress size={20} sx={{ ml: 1 }} />} {/* Spinner logic remains */}
+            {/* Removed the CircularProgress component */}
 
             <Menu
                 id="sort-menu"
