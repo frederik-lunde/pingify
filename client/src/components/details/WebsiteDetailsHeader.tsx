@@ -1,31 +1,30 @@
-/*
-src/components/details/WebsiteDetailsHeader.tsx
-*/
+/* src/components/details/WebsiteDetailsHeader.tsx */
 import { useMemo, memo } from 'react';
-import { Paper, Typography, Stack, Chip, IconButton, Tooltip, Box, CircularProgress } from '@mui/material'; // Removed Button, added CircularProgress back for refetch indicator
+import { Paper, Typography, Stack, Chip, IconButton, Tooltip, Box, CircularProgress } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import {
     CheckCircleOutline as CheckIcon, ErrorOutline as ErrorIcon,
-    Settings as SettingsIcon, Timer as TimerIcon
-} from '@mui/icons-material'; // Removed NetworkCheckIcon
+    Settings as SettingsIcon, Timer as TimerIcon,
+    ArrowBack as ArrowBackIcon // Import ArrowBackIcon
+} from '@mui/icons-material';
 import { MonitoringResult } from '../../types';
 
 interface WebsiteDetailsHeaderProps {
     name: string;
     url: string;
     latestResult: MonitoringResult | null;
-    // isChecking is no longer needed here as the button is removed
-    isRefetching: boolean; // Background query refetching (keep for indicator)
-    // onCheckNow is no longer needed here
+    isRefetching: boolean;
     onSettingsClick: () => void;
+    onBackClick: () => void; // Add prop for back navigation
 }
 
 const WebsiteDetailsHeader = memo(({
     name,
     url,
     latestResult,
-    isRefetching, // Removed isChecking
-    onSettingsClick, // Removed onCheckNow
+    isRefetching,
+    onSettingsClick,
+    onBackClick, // Destructure the new prop
 }: WebsiteDetailsHeaderProps) => {
 
     const isOnline = useMemo(() => latestResult?.isAvailable ?? false, [latestResult]);
@@ -37,58 +36,68 @@ const WebsiteDetailsHeader = memo(({
 
     return (
         <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, mb: 3, position: 'relative', overflow: 'hidden' }}>
-            {/* Settings Icon Button */}
+            {/* Settings Icon Button (kept in top right) */}
             <Tooltip title="Website Settings">
                 <IconButton size="medium" onClick={onSettingsClick} sx={{ position: 'absolute', top: 8, right: 8, color: 'text.secondary' }} aria-label="Website Settings">
                     <SettingsIcon />
                 </IconButton>
             </Tooltip>
 
-            {/* Main Content Grid - Align items center for vertical centering */}
-            <Grid container spacing={{ xs: 2, sm: 3 }} alignItems="center">
-                {/* Left Column: Name and URL */}
-                <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 1, pr: { md: 4 }, minWidth: 0 }}>
-                    <Stack spacing={0.5}>
-                        <Typography variant="h5" component="h1" fontWeight={600} noWrap title={name}>{name}</Typography>
-                        <Typography variant="body2" color="text.secondary" noWrap title={url}>{url}</Typography>
-                    </Stack>
-                </Grid>
+            {/* Use a Stack for main layout to easily add the back button */}
+            <Stack direction="row" spacing={2} alignItems="center">
+                {/* Back Button */}
+                <Tooltip title="Back to Dashboard">
+                     {/* Wrap in Box to prevent Stack spacing issues if needed, or adjust Stack spacing */}
+                    <Box>
+                        <IconButton onClick={onBackClick} aria-label="Back to dashboard" sx={{ p: 0.5 /* Adjust padding if needed */ }}>
+                            <ArrowBackIcon fontSize="large" /> {/* Slightly larger icon */}
+                        </IconButton>
+                    </Box>
+                </Tooltip>
 
-                {/* Right Column: Status Info Only */}
-                {/* Size auto, content dictates width */}
-                <Grid size={{ xs: 12, md: 'auto' }}>
-                    <Stack
-                        direction="row" // Always row now
-                        spacing={1}
-                        alignItems="center"
-                        flexWrap="wrap" // Allow chips to wrap
-                        useFlexGap // Better spacing for wrapped items
-                        sx={{ justifyContent: { xs: 'flex-start', sm: 'flex-end' } }} // Align chips right on sm+
-                    >
-                        <Chip icon={isOnline ? <CheckIcon /> : <ErrorIcon />} label={statusText} color={statusColor} size="small" sx={{ fontWeight: "bold" }} />
-                        <Chip label={`HTTP ${currentStatusCode ?? "N/A"}`} variant="outlined" size="small" />
-                        {lastCheckedDate && (
-                            <Tooltip title={`Last checked: ${lastCheckedDate.toLocaleString()}`} arrow>
-                                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                                    <TimerIcon sx={{ fontSize: '1rem' }} />
-                                    <Typography variant="caption">
-                                        {lastCheckedTimeString}
-                                    </Typography>
-                                </Stack>
-                            </Tooltip>
-                        )}
-                        {/* Refetch Indicator (moved slightly for better spacing without button) */}
-                        {isRefetching && (
-                            <Tooltip title="Refreshing data...">
-                                <Box sx={{ display: 'flex', alignItems: 'center', ml: 1 }}> {/* Added margin left */}
-                                    <CircularProgress size={20} sx={{ opacity: 0.7 }} /> {/* Slightly smaller */}
-                                </Box>
-                            </Tooltip>
-                        )}
-                    </Stack>
-                    {/* Removed Actions Group Stack */}
+                {/* Main Content Grid (nested inside the Stack) */}
+                <Grid container spacing={{ xs: 1, sm: 2 }} alignItems="center" sx={{ flexGrow: 1, minWidth: 0 /* Prevent overflow */ }}>
+                    {/* Left Column: Name and URL */}
+                    <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 1, pr: { md: 2 }, minWidth: 0 }}>
+                        <Stack spacing={0.5}>
+                            <Typography variant="h5" component="h1" fontWeight={600} noWrap title={name}>{name}</Typography>
+                            <Typography variant="body2" color="text.secondary" noWrap title={url}>{url}</Typography>
+                        </Stack>
+                    </Grid>
+
+                    {/* Right Column: Status Info Only */}
+                    <Grid size={{ xs: 12, md: 'auto' }}>
+                        <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                            flexWrap="wrap"
+                            useFlexGap
+                            sx={{ justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}
+                        >
+                            <Chip icon={isOnline ? <CheckIcon /> : <ErrorIcon />} label={statusText} color={statusColor} size="small" sx={{ fontWeight: "bold" }} />
+                            <Chip label={`HTTP ${currentStatusCode ?? "N/A"}`} variant="outlined" size="small" />
+                            {lastCheckedDate && (
+                                <Tooltip title={`Last checked: ${lastCheckedDate.toLocaleString()}`} arrow>
+                                    <Stack direction="row" alignItems="center" spacing={0.5} sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                                        <TimerIcon sx={{ fontSize: '1rem' }} />
+                                        <Typography variant="caption">
+                                            {lastCheckedTimeString}
+                                        </Typography>
+                                    </Stack>
+                                </Tooltip>
+                            )}
+                            {isRefetching && (
+                                <Tooltip title="Refreshing data...">
+                                    <Box sx={{ display: 'flex', alignItems: 'center', ml: 1 }}>
+                                        <CircularProgress size={20} sx={{ opacity: 0.7 }} />
+                                    </Box>
+                                </Tooltip>
+                            )}
+                        </Stack>
+                    </Grid>
                 </Grid>
-            </Grid>
+             </Stack>
         </Paper>
     );
 });

@@ -36,7 +36,7 @@ const TvModeView: React.FC<TvModeViewProps> = ({
                 cursor: 'default',
                 minHeight: '100vh',
                 width: '100%',
-                p: { xs: 1, sm: 2, md: 3 },
+                p: { xs: 1, sm: 2, md: 0 },
                 boxSizing: 'border-box',
                 bgcolor: 'background.default',
                 outline: 'none',

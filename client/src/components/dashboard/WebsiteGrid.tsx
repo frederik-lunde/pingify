@@ -24,10 +24,10 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
       // isRefetching prop is NOT included here
   }) => {
 
-    const gridItemSize = { xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 }; // Example sizes
+    const gridItemSize = { xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 };
 
     // Skeleton generation logic
-    const renderSkeletonCards = (count = 10) => {
+    const renderSkeletonCards = (count = 12) => {
        const dummyWebsiteUser: WebsiteUser = {
           id: -1, userId: "-1", websiteId: -1, name: 'Loading website...',
           interval: 300, alertEnabled: false, alertThreshold: null,
@@ -40,13 +40,10 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
       };
       return Array(count).fill(0).map((_, i) => (
         <Grid key={`skeleton-${i}`} size={gridItemSize}>
-          {/* Pass skeleton state if WebsiteCard supports it, otherwise render basic structure */}
           <WebsiteCard
               userWebsite={dummyWebsiteUser}
               shouldHighlightThisCard={false}
               isTvMode={false}
-              // You might add an explicit isLoading prop to WebsiteCard if needed
-              // isLoading={true}
           />
         </Grid>
       ));
@@ -54,7 +51,6 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
 
 
     // --- Render Logic ---
-    // Show skeletons only during the initial load when the list is empty
     if (isLoading && websiteCards.length === 0) {
       return (
             <Box
@@ -62,7 +58,7 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
                   display: 'grid',
                   gap: 2,
                   gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 1fr))',
-                  pt: 2, // Keep padding top
+                  pt: 2,
                 }}
             >
                {renderSkeletonCards()}
@@ -83,7 +79,6 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
           gap: 2, // Spacing between cards
           gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 1fr))', // Responsive columns
           pt: 2, // Padding top for spacing below header
-          // No opacity or pointer-events changes needed here for Option 1
         }}
       >
         {websiteCards.map((item) => {

@@ -47,8 +47,7 @@ const DashboardSearchFilter: React.FC<DashboardSearchFilterProps> = ({
     // Handler to clear the search input
     const handleClear = useCallback(() => {
         setSearchTerm('');
-        // The useEffect above will trigger onFilterChange('') after debounce
-    }, []); // No dependencies needed as setSearchTerm is stable
+    }, []); 
 
     return (
         <Box sx={{ width: '100%', maxWidth: 400, ...sx }}>

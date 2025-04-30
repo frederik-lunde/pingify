@@ -52,7 +52,6 @@ const CHIPS_ROW_MIN_HEIGHT = '32px';
 // Simplified Chart Component (Memoized)
 const SimpleLineChart = React.memo(
     ({ data, options }: { data: ChartData<'line'>; options: ChartOptions<'line'> }) => {
-        // Check if there's actually data to plot in the first dataset
         const hasPlottableData = useMemo(() =>
             data?.datasets?.[0]?.data?.some(
                 (d) => d !== null && d !== undefined && !isNaN(d as number) // Cast to number for isNaN check
