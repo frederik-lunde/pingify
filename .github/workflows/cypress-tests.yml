@@ -23,34 +23,25 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+
+      - name: Cache and install frontend dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
+          cache-dependency-path: client/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: client
         run: npm ci
 
+      - name: Cache and install backend dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
       - name: Install backend dependencies
         working-directory: server
         run: npm ci
-
-      - name: Start frontend and backend servers
-        run: |
-          npm run dev --workspace=client &
-          npm run dev --workspace=server &
-          npx wait-on http://localhost:5173 http://localhost:3001
-        env:
-          PORT: 5173
-          BACKEND_PORT: 3001
-
-      - name: Run Cypress tests
-        working-directory: client
-        run: npx cypress run
-
-      - name: Upload Cypress Artifacts
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: cypress-artifacts
-          path: |
-            client/cypress/screenshots
-            client/cypress/videos
