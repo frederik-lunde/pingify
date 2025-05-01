@@ -1,60 +1,56 @@
-name: Cypress Tests # Name of the workflow displayed on GitHub
+name: Cypress Tests
 
-on: # Triggers for the workflow
+on:
   push:
-    branches: [ main ] # Run on pushes to these branches
+    branches: [ main ]
   pull_request:
-    branches: [ main ] # Run on pull requests targeting these branches
+    branches: [ main ]
 
 jobs:
   cypress-run:
     name: Run Cypress Tests
-    runs-on: ubuntu-latest # Use a standard Linux runner
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        node-version: [18.x] # Specify Node.js versions to test on
+        node-version: [22.x]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Action to get your repository code
+        uses: actions/checkout@v4
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4 # Action to set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm' # Enable caching for npm dependencies
+          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci # Use 'npm ci' for cleaner installs in CI
+      - name: Install frontend dependencies
+        working-directory: client
+        run: npm ci
 
-      # --- Add Build Step IF NEEDED ---
-      # If your frontend needs a build step before serving
-      # - name: Build Frontend
-      #   run: npm run build # Adjust command if necessary
+      - name: Install backend dependencies
+        working-directory: server
+        run: npm ci
 
-      # --- Start Servers in Background & Wait ---
-      - name: Start Servers and Wait
-        # Assuming you have scripts like 'npm run start:frontend' and 'npm run start:backend'
-        # The '&' runs them in the background.
-        # Replace 5173 and 3000 with your actual frontend and backend ports.
+      - name: Start frontend and backend servers
         run: |
-          npm run dev:frontend &
-          npm run dev:backend &
-          npx wait-on http://localhost:5173 http://localhost:3001 # Waits until both URLs are responding
+          npm run dev --workspace=client &
+          npm run dev --workspace=server &
+          npx wait-on http://localhost:5173 http://localhost:3001
+        env:
+          PORT: 5173
+          BACKEND_PORT: 3001
 
-      # --- Run Cypress Tests ---
       - name: Run Cypress tests
+        working-directory: client
         run: npx cypress run
 
-
-      # --- Upload Artifacts ---
       - name: Upload Cypress Artifacts
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: cypress-artifacts
           path: |
-            cypress/screenshots
-            cypress/videos
-            # Add other paths if needed
+            client/cypress/screenshots
+            client/cypress/videos
