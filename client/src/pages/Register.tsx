@@ -159,7 +159,7 @@ const Register: React.FC = () => {
                 </Grid>
 
                 <Grid size={12} sx={{ mt: 2, textAlign: "center" }}>
-                  <Typography variant="body2" color="textSecondary">Already have an account? <Link to="/login" style={{ textDecoration: "none", color: "primary.main" }}>Sign in</Link></Typography>
+                  <Typography variant="body2" color="textSecondary">Already have an account? <Link to="/login" style={{ textDecoration: "none", color: "white" }}>Sign in</Link></Typography>
                 </Grid>
               </Grid>
             </Form>
