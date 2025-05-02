@@ -105,7 +105,7 @@ export interface WebsiteUser {
   website?: Website;
   latestResult?: MonitoringResult | null;
   chartData?: ChartDataPoint[];
-  uptimePercent?: number;
+  uptimePercent?: number | null
   currentIncident?: Incident | null;
 }
 
