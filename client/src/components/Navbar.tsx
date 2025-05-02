@@ -12,12 +12,14 @@ import Container from "@mui/material/Container";
 import Avatar from "@mui/material/Avatar";
 import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
-import AdbIcon from "@mui/icons-material/Adb";
+// Remove AdbIcon import if no longer needed elsewhere
+// import AdbIcon from "@mui/icons-material/Adb";
+import logo from "../assets/logo.png"; // <- Your logo import
 import AddIcon from "@mui/icons-material/Add";
 import { useAuth } from "../context/AuthContext";
 import { useWebsiteData } from "../hooks";
 import AlertsDropdown from "./navbar/AlertDropdown";
-import StatsHeader from "./dashboard/StatsHeader"; // Corrected path
+import StatsHeader from "./dashboard/StatsHeader";
 import { AuthContextType, User } from "../types";
 
 const pages = [
@@ -101,8 +103,15 @@ function Navbar() {
           <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: { xs: 1, md: 0 } }}>
             {/* Desktop Logo */}
             <Box onClick={() => navigate("/")} sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", cursor: "pointer", mr: 1 }}>
-              <AdbIcon sx={{ mr: 1 }}/>
-              <Typography variant="h6" noWrap component="div" sx={{ mr: 2, fontFamily: "monospace", fontWeight: 700, letterSpacing: ".3rem" }}>PINGIFY</Typography>
+              {/* === REPLACED ICON WITH LOGO IMAGE === */}
+              <Box
+                component="img"
+                src={logo}
+                alt="Pingify Logo"
+                sx={{ height: 28, mr: 2.5 }} // Adjust height as needed
+              />
+              {/* ==================================== */}
+              <Typography variant="h6" noWrap component="div" sx={{ mr: 2, fontFamily: "sans-serif", fontWeight: 700, letterSpacing: ".3rem" }}>PINGIFY</Typography>
             </Box>
 
             {/* Mobile Nav Menu Button */}
@@ -132,8 +141,15 @@ function Navbar() {
 
              {/* Mobile Logo (Centered when nav button is present) */}
              <Box onClick={() => navigate("/")} sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", cursor: "pointer", flexGrow: 1, justifyContent: 'center', pr: { xs: '48px', sm: 0 } /* Offset for menu icon */ }}>
-                <AdbIcon sx={{ mr: 1 }}/>
-                <Typography variant="h5" noWrap component="div" sx={{ fontFamily: "monospace", fontWeight: 700, letterSpacing: ".3rem" }}>PINGIFY</Typography>
+                {/* === REPLACED ICON WITH LOGO IMAGE === */}
+                <Box
+                  component="img"
+                  src={logo}
+                  alt="Pingify Logo"
+                  sx={{ height: 30, mr: 3 }} // Adjust height as needed
+                />
+                {/* ==================================== */}
+                <Typography variant="h5" noWrap component="div" sx={{ fontFamily: "monospace", fontWeight: 700, letterSpacing: ".5rem"}}>PINGIFY</Typography>
              </Box>
 
             {/* Desktop Nav Links (Icons) */}

@@ -52,7 +52,6 @@ const websiteUrlRegex = /^(https?:\/\/)((([a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.
 
 // Validation schema using Yup
 const AddWebsiteSchema = Yup.object().shape({
-  name: Yup.string().trim().required("Website name is required"),
   url: Yup.string()
     .trim()
     .transform(value => ensureUrlProtocol(value))
@@ -225,7 +224,6 @@ const AddWebsite: React.FC = () => {
                       name="name"
                       label="Website Name"
                       fullWidth
-                      required
                       variant="outlined"
                       error={touched.name && Boolean(errors.name)}
                       helperText={touched.name && errors.name ? errors.name : "A name for your dashboard (e.g., My Blog)"}
