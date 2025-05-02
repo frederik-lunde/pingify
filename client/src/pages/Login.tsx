@@ -142,7 +142,6 @@ const Login: React.FC = () => {
                  <Grid size={12}>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <Field as={FormControlLabel} control={<Checkbox name="rememberMe" color="primary"/>} label="Remember me"/>
-                    <Typography variant="body2" color="primary" sx={{ cursor: "pointer" }}>Forgot password?</Typography>
                   </Box>
                 </Grid>
 
@@ -160,9 +159,9 @@ const Login: React.FC = () => {
                   </Button>
                 </Grid>
 
-                {/* Sign Up Link - unchanged */}
+                {/* Sign Up Link */}
                 <Grid size={12} sx={{ mt: 2, textAlign: "center" }}>
-                  <Typography variant="body2" color="textSecondary">Don't have an account? <Link to="/register" style={{ textDecoration: "none", color: "primary.main" }}>Create account</Link></Typography>
+                  <Typography variant="body2" color="textSecondary">Don't have an account? <Link to="/register" style={{ textDecoration: "none", color: "white" }}>Create account</Link></Typography>
                 </Grid>
               </Grid>
             </Form>
