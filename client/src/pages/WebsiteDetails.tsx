@@ -4,10 +4,8 @@ import { useParams, useNavigate } from 'react-router';
 import {
     Container, Box, Alert, Button, Skeleton, Paper, SelectChangeEvent, CircularProgress,
 } from '@mui/material';
-// ArrowBackIcon import is no longer needed here
 import Grid from '@mui/material/Grid2';
 import { keepPreviousData } from '@tanstack/react-query';
-
 import { useWebsiteDetailsQuery, useWebsiteCheckMutation } from '../hooks';
 import { TimeframeKey, ApiError, MonitoringResultSortBy } from '../types';
 import WebsiteDetailsHeader from '../components/details/WebsiteDetailsHeader';
