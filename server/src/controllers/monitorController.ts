@@ -1,30 +1,21 @@
-import { PrismaClient, Prisma, Website as PrismaWebsite, MonitoringResult as PrismaMonitoringResult } from '@prisma/client';
+import { Prisma, MonitoringResult as PrismaMonitoringResult } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
-
-// --- Import Services ---
 import { ResultsManager, WebsiteMonitor, StatsCalculator } from '../services/monitoringService';
 import * as websiteService from '../services/websiteService';
 import * as IncidentService from '../services/incidentService';
-
-// --- Import SHARED Types ---
 import {
     WebsiteDetailsData,
     TimeframeKey,
     MonitoringResult as SharedMonitoringResult,
-    ChartDataPoint,
     WebsiteStatsData,
     OverallStats,
-    Incident,
     SortDirection,
     MonitoringResultSortBy,
-    VALID_TIMEFRAMES // Assuming VALID_TIMEFRAMES is exported from types
-} from '../types'; // Adjust path if needed
-
-// --- Import Backend-Specific Helpers/Clients ---
+    VALID_TIMEFRAMES 
+} from '../types'; 
 import prisma from '../prisma/prismaClient';
 import { subHours, subDays, subYears, subMonths } from 'date-fns';
 
-// Helper function to get start date based on timeframe
 const getStartDateForTimeframe = (timeframe: TimeframeKey): Date => {
     const now = new Date();
     switch (timeframe) {
@@ -55,28 +46,6 @@ const mapPrismaResultToSharedCore = (
     return coreData as SharedMonitoringResult;
 };
 
-// --- Controller Functions ---
-
-/**
- * GET /api/monitoring/admin/results - Get all results (admin).
- */
-export const getAllResults = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
-  try {
-    const { limit, from, to } = req.query;
-    const results = await ResultsManager.getAllResults({
-        limit: limit ? parseInt(limit as string, 10) : undefined,
-        from: from ? new Date(from as string) : undefined,
-        to: to ? new Date(to as string) : undefined
-    });
-
-    const responseData: SharedMonitoringResult[] = results.map((r: any): SharedMonitoringResult | null => {
-        const coreData = mapPrismaResultToSharedCore(r);
-        if (!coreData) return null;
-        return { ...coreData, website: r.website ? { url: r.website.url } : undefined };
-    }).filter((r): r is SharedMonitoringResult => r !== null);
-    res.json(responseData);
-  } catch (error) { next(error); }
-};
 
 /**
  * GET /api/monitoring/user/results - Get results for the authenticated user.
@@ -157,33 +126,16 @@ export const triggerWebsiteCheck = async ( req: Request<{ websiteId: string }>, 
      } catch (error) { next(error); }
 };
 
-/**
- * GET /api/monitoring/admin/stats - Get overall stats (admin).
- * (Ensures full breakdown is requested)
- */
-export const getOverallStats = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
-    try {
-      // Add validation/default for period if desired
-      const period = (req.query.period as string) ?? 'week';
-      // Explicitly request the website breakdown for the admin view
-      const stats: OverallStats = await StatsCalculator.getOverallStats(undefined, period, true );
-      res.json(stats);
-    } catch (error) {
-      next(error);
-    }
-};
+
 
 /**
  * GET /api/monitoring/user/stats - Get stats for the authenticated user's dashboard.
- * (No changes needed - calls the correct lean service function)
  */
 export const getUserStats = async ( req: Request, res: Response, next: NextFunction ): Promise<void> => {
     try {
       if (!req.user?.id) { res.status(401).json({ message: 'Authentication required.' }); return; }
       const userId = req.user.id;
-      // Add validation/default for period if desired
       const period = (req.query.period as string) ?? 'week';
-      // Calls the service function that explicitly requests NO breakdown
       const stats: OverallStats = await StatsCalculator.getUserDashboardStats(userId, period );
       res.json(stats);
     } catch (error) {
@@ -200,7 +152,6 @@ export const getWebsiteStats = async ( req: Request<{ websiteId: string }>, res:
       const userId = req.user.id;
       const websiteId = parseInt(req.params.websiteId, 10);
       if (isNaN(websiteId)) { res.status(400).json({ message: 'Invalid Website ID.' }); return; }
-      // Add validation/default for period if desired
       const period = (req.query.period as string) ?? 'week';
 
       const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);

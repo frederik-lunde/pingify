@@ -1,12 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { performance } from 'perf_hooks';
 import {
-    Website as PrismaWebsite,
-    MonitoringResult as PrismaMonitoringResult,
-    PrismaClient,
     Prisma,
-    Incident as PrismaIncident,
-    WebsiteUser as PrismaWebsiteUser
 } from '@prisma/client';
 import { monitoringConfig } from '../config/config';
 import { handleResultProcessing } from './alertService';
@@ -14,7 +9,7 @@ import * as IncidentService from './incidentService';
 import prisma from '../prisma/prismaClient';
 import {
     subHours, subDays, subYears, subMonths,
-    startOfDay, endOfDay, startOfMonth, endOfMonth,
+    startOfDay, endOfDay, startOfMonth,
     eachDayOfInterval, eachMonthOfInterval, format, getUnixTime,
     sub
 } from 'date-fns';
@@ -26,25 +21,24 @@ import {
     OverallStats,
     TimeframeKey,
     ChartDataPoint,
-    Incident,
-    IncidentType,
-    // Assuming your backend types file exports these directly
-    // If not, import from the source file where they are defined
     WebsitePrisma,
     MonitoringResultPrisma,
-    AlertPrisma,
-    UserPrisma,
-    WebsiteUserPrisma,
     IncidentPrisma
-} from '../types'; // Ensure this path is correct
+} from '../types';
 
 const REQUEST_TIMEOUT_MS = monitoringConfig.requestTimeoutMs;
 const MONITOR_USER_AGENT = monitoringConfig.monitorUserAgent;
 
-// ============================================================================
-// WebsiteMonitor Class (No changes needed here)
-// ============================================================================
+
+/**
+ * Handles website monitoring checks.
+ */
 export class WebsiteMonitor {
+    /**
+     * Performs an HTTP GET request to the given URL and measures its availability and response time.
+     * @param url - The URL of the website to check.
+     * @returns A promise that resolves to a MonitoringResponse object.
+     */
     static async performWebsiteCheck(url: string): Promise<MonitoringResponse> {
         const start = performance.now();
         let responseTime: number | null = null;
@@ -60,7 +54,7 @@ export class WebsiteMonitor {
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                     'Accept-Encoding': 'gzip, deflate, br',
                 },
-                validateStatus: () => true, // Handle all status codes without throwing error
+                validateStatus: () => true, // Handle all status codes without throwing errors
             });
 
             responseTime = Math.round(performance.now() - start);
@@ -84,6 +78,11 @@ export class WebsiteMonitor {
         return { responseTime, isAvailable, statusCode, errorMessage };
     }
 
+    /**
+     * Parses an AxiosError to generate a human-readable error message.
+     * @param error - The AxiosError object.
+     * @returns A string describing the error.
+     */
     private static parseAxiosErrorMessage(error: AxiosError): string {
         if (error.response) return `HTTP Error ${error.response.status}`;
         if (error.request) {
@@ -98,6 +97,12 @@ export class WebsiteMonitor {
         return `Request setup error: ${error.message}`;
     }
 
+    /**
+     * Checks a website, saves the result, and triggers post-check processing (alerts, incidents).
+     * @param website - The Prisma Website object to check.
+     * @returns A promise that resolves to the saved MonitoringResultPrisma object.
+     * @throws Will throw an error if the check or saving process fails critically.
+     */
     static async checkWebsite(website: WebsitePrisma): Promise<MonitoringResultPrisma> {
         const logPrefix = `[Monitor W:${website.id} ${website.url}]`;
         console.log(`${logPrefix} Starting check.`);
@@ -112,32 +117,36 @@ export class WebsiteMonitor {
                 handleResultProcessing(website, savedResult).catch(procError => {
                     console.error(`${logPrefix} Error during post-check result processing for R:${savedResult?.id}:`, procError);
                 });
-            } else {
-                console.error(`${logPrefix} Saved result was unexpectedly null after save attempt.`);
-                throw new Error("Failed to obtain saved result after check.");
             }
             return savedResult;
 
         } catch (error: any) {
             console.error(`${logPrefix} Critical failure during checkWebsite process: ${error.message}`, error.stack);
             try {
-                if (!savedResult) {
+                if (!savedResult) { 
                     await prisma.website.update({ where: { id: website.id }, data: { lastChecked: new Date() } });
                     console.warn(`${logPrefix} Updated lastChecked after error during check/processing.`);
                 }
             } catch (updateError) {
                 console.error(`${logPrefix} Failed to update lastChecked after error:`, updateError);
             }
-            throw error;
+            throw error; 
         }
     }
 }
 
-// ============================================================================
-// ResultsManager Class (No changes needed here)
-// ============================================================================
+
+/**
+ * Manages the storage and retrieval of monitoring results.
+ */
 export class ResultsManager {
 
+    /**
+     * Saves a monitoring result to the database and updates the website's lastChecked timestamp.
+     * @param websiteId - The ID of the website the result belongs to.
+     * @param result - The MonitoringResponse data to save.
+     * @returns A promise that resolves to the saved MonitoringResultPrisma object.
+     */
     static async saveResult(websiteId: number, result: MonitoringResponse): Promise<MonitoringResultPrisma> {
         const { responseTime, isAvailable, statusCode, errorMessage } = result;
         const checkedAt = new Date();
@@ -155,29 +164,32 @@ export class ResultsManager {
         }
     }
 
+    /**
+     * Retrieves the ID of the latest monitoring result for a given website.
+     * @param websiteId - The ID of the website.
+     * @returns A promise that resolves to the latest result ID, or 0 if no results exist.
+     */
     static async getLatestResultId(websiteId: number): Promise<number> {
         const result = await prisma.monitoringResult.findFirst({ where: { websiteId }, orderBy: { checkedAt: 'desc' }, select: { id: true } });
         return result?.id || 0;
     }
 
+    /**
+     * Retrieves the most recent monitoring results for a website.
+     * @param websiteId - The ID of the website.
+     * @param limit - The maximum number of results to return. Defaults to 100.
+     * @returns A promise that resolves to an array of MonitoringResultPrisma objects.
+     */
     static async getResultsForWebsite(websiteId: number, limit = 100): Promise<MonitoringResultPrisma[]> {
         return prisma.monitoringResult.findMany({ where: { websiteId }, orderBy: { checkedAt: 'desc' }, take: limit });
     }
 
-    static async getAllResults(options: ResultsQueryOptions = {}): Promise<(MonitoringResultPrisma & { website: { url: string } | null })[]> {
-        const { limit = 100, from, to } = options;
-        const whereClause: Prisma.MonitoringResultWhereInput = {};
-        if (from || to) {
-            whereClause.checkedAt = {};
-            if (from) whereClause.checkedAt.gte = from;
-            if (to) whereClause.checkedAt.lte = to;
-        }
-        return prisma.monitoringResult.findMany({
-            where: whereClause, orderBy: { checkedAt: 'desc' }, take: limit,
-            include: { website: { select: { url: true } } }
-        });
-    }
-
+    /**
+     * Retrieves monitoring results for a website, filtered by date range and limit.
+     * @param websiteId - The ID of the website.
+     * @param options - Optional query parameters including limit, from date, and to date.
+     * @returns A promise that resolves to an array of MonitoringResultPrisma objects.
+     */
     static async getFilteredResultsByWebsite(websiteId: number, options: ResultsQueryOptions = {}): Promise<MonitoringResultPrisma[]> {
         const { limit = 100, from, to } = options;
         const whereClause: Prisma.MonitoringResultWhereInput = { websiteId };
@@ -189,6 +201,13 @@ export class ResultsManager {
         return prisma.monitoringResult.findMany({ where: whereClause, orderBy: { checkedAt: 'desc' }, take: limit });
     }
 
+    /**
+     * Retrieves monitoring results for all websites associated with a specific user.
+     * Includes website URL and user-specific website name.
+     * @param userId - The ID of the user.
+     * @param options - Optional query parameters including limit, from date, and to date.
+     * @returns A promise that resolves to an array of MonitoringResultPrisma objects, augmented with website details.
+     */
     static async getResultsForUser(userId: string, options: ResultsQueryOptions = {}): Promise<(MonitoringResultPrisma & { website: { url: string; websiteUsers: { name: string | null }[] } | null })[]> {
         const { limit = 100, from, to } = options;
         const whereClause: Prisma.MonitoringResultWhereInput = {
@@ -215,7 +234,7 @@ export class ResultsManager {
                 website: {
                     select: {
                         url: true,
-                        websiteUsers: {
+                        websiteUsers: { 
                             where: { userId: userId },
                             select: { name: true }
                         }
@@ -227,64 +246,93 @@ export class ResultsManager {
 }
 
 
-// ============================================================================
-// StatsCalculator Class (MODIFIED)
-// ============================================================================
+/**
+ * Calculates various statistics based on monitoring results.
+ */
 export class StatsCalculator {
 
-    // --- Recommendation 1: Optimize Uptime Calculation ---
+
+    /**
+     * Calculates the uptime percentage for a website between two dates.
+     * @param websiteId - The ID of the website.
+     * @param startDate - The start date of the period.
+     * @param endDate - The end date of the period. Defaults to the current date.
+     * @returns A promise that resolves to the uptime percentage (0-100).
+     */
     static async calculateUptimeBetweenDates(websiteId: number, startDate: Date, endDate: Date = new Date()): Promise<number> {
-        // *** OPTIMIZED USING groupBy ***
+        // Aggregate counts of available and unavailable checks
         const resultsAggregate = await prisma.monitoringResult.groupBy({
-            by: ['isAvailable'], // Group by the boolean field
+            by: ['isAvailable'],
             where: {
                 websiteId: websiteId,
                 checkedAt: { gte: startDate, lte: endDate }
             },
             _count: {
-                isAvailable: true // Count occurrences within each group (can use any field here, like 'id')
-                // id: true // Alternative: count by primary key
+                isAvailable: true
             }
         });
 
         let successfulChecks = 0;
         let failedChecks = 0;
 
-        // Parse the aggregation result
         resultsAggregate.forEach(group => {
-            // isAvailable from Prisma is boolean | null, handle null if necessary though unlikely for results
             if (group.isAvailable === true) {
-                // successfulChecks = group._count.id; // if counting by id
                  successfulChecks = group._count.isAvailable;
             } else if (group.isAvailable === false) {
-                // failedChecks = group._count.id; // if counting by id
                  failedChecks = group._count.isAvailable;
             }
-            // Ignore null isAvailable if that's possible in your schema
         });
 
         const totalChecks = successfulChecks + failedChecks;
 
-        if (totalChecks === 0) return 100; // Keep the default for no checks
+        if (totalChecks === 0) return 100; 
 
         const uptimePercentage = (successfulChecks / totalChecks) * 100;
         return parseFloat(uptimePercentage.toFixed(2));
     }
 
+    /**
+     * Calculates the average response time for a website between two dates, considering only available checks.
+     * @param websiteId - The ID of the website.
+     * @param startDate - The start date of the period.
+     * @param endDate - The end date of the period. Defaults to the current date.
+     * @returns A promise that resolves to the average response time in milliseconds, or null if no valid data.
+     */
     static async getAverageResponseTimeBetweenDates(websiteId: number, startDate: Date, endDate: Date = new Date()): Promise<number | null> {
-        const result = await prisma.monitoringResult.aggregate({ _avg: { responseTime: true }, where: { websiteId, checkedAt: { gte: startDate, lte: endDate }, isAvailable: true, responseTime: { not: null } } });
+        const result = await prisma.monitoringResult.aggregate({
+            _avg: { responseTime: true },
+            where: {
+                websiteId,
+                checkedAt: { gte: startDate, lte: endDate },
+                isAvailable: true, 
+                responseTime: { not: null }
+            }
+        });
         return result._avg.responseTime !== null ? Math.round(result._avg.responseTime) : null;
     }
 
+    /**
+     * Converts a timeframe key or number of days into a number of days.
+     * @param period - The timeframe key ('hour', 'day', 'week', 'month', 'year'), a number of days, or a string representing days.
+     * @returns The number of days. Defaults to 7 if input is invalid.
+     */
     private static periodToDays(period: TimeframeKey | string | number): number {
         switch (period) {
             case 'hour': return 1 / 24; case 'day': return 1; case 'week': return 7; case 'month': return 30; case 'year': return 365;
         }
-        if (typeof period === 'number') return period > 0 ? period : 7;
+        if (typeof period === 'number') return period > 0 ? period : 7; // Default to 7 if number is not positive
         if (typeof period === 'string') { const value = parseInt(period); if (!isNaN(value) && value > 0) return value; }
-        return 7; // Default to 7 days (week) if invalid
+        return 7; 
     }
 
+    /**
+     * Retrieves detailed statistics for a specific website over a given period.
+     * @param websiteId - The ID of the website.
+     * @param userId - Optional. The ID of the user to fetch user-specific website name.
+     * @param period - The time period for which to calculate stats. Defaults to 'week'.
+     * @returns A promise that resolves to a WebsiteStatsData object.
+     * @throws Error if the website is not found.
+     */
     static async getWebsiteStats(websiteId: number, userId?: string, period: TimeframeKey | string | number = 'week'): Promise<WebsiteStatsData> {
         const days = this.periodToDays(period);
         const startDate = sub(new Date(), { days: days });
@@ -293,24 +341,24 @@ export class StatsCalculator {
         const website = await prisma.website.findUnique({ where: { id: websiteId }, select: { url: true } });
         if (!website) throw new Error(`Website with ID ${websiteId} not found`);
 
-        let websiteName = website.url;
+        let websiteName = website.url; 
         if (userId) {
             const userWebsite = await prisma.websiteUser.findUnique({
                 where: { userId_websiteId: { userId: userId, websiteId: websiteId } }, select: { name: true }
             });
-            if (userWebsite?.name) websiteName = userWebsite.name;
+            if (userWebsite?.name) websiteName = userWebsite.name; 
         }
 
         const [uptime, averageResponseTime, totalChecksData, lastResultData] = await Promise.all([
-            this.calculateUptimeBetweenDates(websiteId, startDate, endDate), // Uses optimized version
+            this.calculateUptimeBetweenDates(websiteId, startDate, endDate),
             this.getAverageResponseTimeBetweenDates(websiteId, startDate, endDate),
-            // Use count for total checks - more efficient than fetching all results
             prisma.monitoringResult.count({ where: { websiteId, checkedAt: { gte: startDate, lte: endDate } } }),
             prisma.monitoringResult.findFirst({ where: { websiteId }, orderBy: { checkedAt: 'desc' }, select: { checkedAt: true } })
         ]);
 
-        const totalChecks = totalChecksData; // Use the count result
+        const totalChecks = totalChecksData;
 
+        // Count incidents within the period
         const incidentCounts = await prisma.incident.groupBy({
             by: ['type'],
             where: { websiteId: websiteId, startTime: { gte: startDate, lte: endDate } },
@@ -327,14 +375,14 @@ export class StatsCalculator {
         return { websiteId, websiteName, url: website.url, uptime, averageResponseTime, totalChecks, lastCheck: lastResultData?.checkedAt?.toISOString() ?? null, incidentCount: totalIncidentCount, downIncidentCount, slowIncidentCount };
     }
 
-    // --- Recommendation 2: Modify getOverallStats & getUserDashboardStats ---
+
     /**
      * Calculates overall statistics for all websites or a specific user's websites.
      * Can optionally include a detailed breakdown per website.
-     *
-     * @param userId Optional user ID to filter stats for.
-     * @param period Time period for stats calculation.
-     * @param includeWebsiteBreakdown If true, calculates and includes the full `websiteStats` array. Defaults to false.
+     * @param userId - Optional user ID to filter stats for. If not provided, stats are for all websites.
+     * @param period - Time period for stats calculation (e.g., 'day', 'week', 7). Defaults to 'week'.
+     * @param includeWebsiteBreakdown - If true, calculates and includes the full `websiteStats` array. Defaults to false for performance.
+     * @returns A promise that resolves to an OverallStats object.
      */
     static async getOverallStats(userId?: string, period: TimeframeKey | string | number = 'week', includeWebsiteBreakdown = false): Promise<OverallStats> {
         const days = this.periodToDays(period);
@@ -342,29 +390,29 @@ export class StatsCalculator {
         const twentyFourHoursAgo = sub(new Date(), { hours: 24 });
         const websiteWhere: Prisma.WebsiteWhereInput = userId ? { websiteUsers: { some: { userId: userId } } } : {};
 
-        // Get total and active website counts
+
         const [totalWebsites, activeWebsitesCount] = await Promise.all([
             prisma.website.count({ where: websiteWhere }),
             prisma.website.count({ where: { ...websiteWhere, isActive: true } })
         ]);
 
-        // Get IDs of active websites for further processing
+
         const activeWebsitesList = await prisma.website.findMany({ where: { ...websiteWhere, isActive: true }, select: { id: true } });
         const activeWebsiteIds = activeWebsitesList.map(w => w.id);
 
-        let websiteStats: WebsiteStatsData[] = []; // Initialize empty
-        let overallUptime = 100; // Default
-        let overallResponseTime = null; // Default
+        let websiteStats: WebsiteStatsData[] = [];
+        let overallUptime = 100; // Default to 100%
+        let overallResponseTime = null;
 
-        // *** MODIFICATION START: Conditional Calculation ***
+
         if (activeWebsiteIds.length === 0) {
-             // No active websites, return defaults
+            // No active websites, so stats remain at their defaults
         } else if (includeWebsiteBreakdown) {
-            // Calculate full breakdown if requested
+            // Fetch detailed stats for each active website
             const websiteStatsPromises = activeWebsiteIds.map(websiteId => this.getWebsiteStats(websiteId, userId, period));
             websiteStats = await Promise.all(websiteStatsPromises);
 
-            // Calculate averages from the breakdown
+            // Calculate overall uptime and response time from the breakdown
             const validUptimeStats = websiteStats.filter(stat => stat.totalChecks > 0);
             overallUptime = validUptimeStats.length > 0 ? validUptimeStats.reduce((sum, stat) => sum + stat.uptime, 0) / validUptimeStats.length : 100;
 
@@ -372,28 +420,27 @@ export class StatsCalculator {
             overallResponseTime = validResponseStats.length > 0 ? Math.round(validResponseStats.reduce((sum, stat) => sum + stat.averageResponseTime!, 0) / validResponseStats.length) : null;
 
         } else {
-            // Calculate only the aggregates needed for the header (more efficient)
+            // Calculate overall stats more efficiently without individual breakdowns
 
-            // 1. Calculate Overall Uptime (Average of individual uptimes)
-            //    NOTE: This is simpler than a single complex aggregate query across all checks.
-            //    It leverages the optimized `calculateUptimeBetweenDates`.
+            // Calculate overall uptime
             const avgUptimePromises = activeWebsiteIds.map(id => this.calculateUptimeBetweenDates(id, periodStartDate, new Date()));
             const avgUptimes = await Promise.all(avgUptimePromises);
-            // Filter out the default 100% for websites with no checks in the period to avoid skewing the average
-            const validAvgUptimes = avgUptimes.filter(u => u !== 100);
-            const websitesWithChecksCount = validAvgUptimes.length;
-            const websitesAssumedUpCount = activeWebsiteIds.length - websitesWithChecksCount; // Count those returning 100% due to no checks
 
-            if (activeWebsiteIds.length > 0) {
-                // Calculate average: sum of valid uptimes + 100 for each site with no checks, divided by total sites
-                const totalUptimeSum = validAvgUptimes.reduce((s, u) => s + u, 0) + (websitesAssumedUpCount * 100);
-                overallUptime = totalUptimeSum / activeWebsiteIds.length;
-            } else {
-                overallUptime = 100; // Default if no active websites
+            // Filter out websites that had no checks (uptime is 100 by default from calculateUptimeBetweenDates)
+            // and average the rest.
+            const websitesWithActualChecks = avgUptimes.filter(u => u !== 100 || // Had some downtime
+                (u === 100 && (async () => await prisma.monitoringResult.count({ where: { websiteId: activeWebsiteIds[avgUptimes.indexOf(u)], checkedAt: { gte: periodStartDate } } }) > 0)()) // Was 100% and had checks
+            );
+
+            if (websitesWithActualChecks.length > 0) {
+                overallUptime = websitesWithActualChecks.reduce((s, u) => s + u, 0) / websitesWithActualChecks.length;
+            } else if (activeWebsiteIds.length > 0) {
+                // All active websites had no checks in the period, so assume 100%
+                overallUptime = 100;
             }
 
 
-            // 2. Calculate Overall Average Response Time (Direct DB Aggregate)
+            // Calculate overall average response time
             const avgRespResult = await prisma.monitoringResult.aggregate({
                  _avg: { responseTime: true },
                  where: {
@@ -405,9 +452,9 @@ export class StatsCalculator {
             });
             overallResponseTime = avgRespResult._avg.responseTime !== null ? Math.round(avgRespResult._avg.responseTime) : null;
         }
-        // *** MODIFICATION END ***
 
-        // Get incident data (remains the same)
+
+        // Fetch incident data
         let incidentsLast24h = 0;
         let lastIncident: IncidentPrisma | null = null;
         if (activeWebsiteIds.length > 0) {
@@ -417,8 +464,8 @@ export class StatsCalculator {
 
         return {
             totalWebsites, activeWebsites: activeWebsitesCount,
-            websiteStats: websiteStats, // Return the calculated (or empty) array
-            overallUptime: parseFloat(overallUptime.toFixed(2)), // Format consistently
+            websiteStats: websiteStats, 
+            overallUptime: parseFloat(overallUptime.toFixed(2)),
             overallResponseTime,
             incidentsLast24h, lastIncidentTimestamp: lastIncident?.startTime.toISOString() ?? null,
             lastIncidentWebsiteId: lastIncident?.websiteId ?? null,
@@ -428,24 +475,34 @@ export class StatsCalculator {
     /**
      * Gets overall stats specifically tailored for the user dashboard header,
      * omitting the detailed website breakdown for efficiency.
+     * @param userId - The ID of the user.
+     * @param period - The time period for which to calculate stats. Defaults to 'week'.
+     * @returns A promise that resolves to an OverallStats object without detailed website breakdown.
      */
     static async getUserDashboardStats(userId: string, period: TimeframeKey | string | number = 'week'): Promise<OverallStats> {
-        // Explicitly call getOverallStats requesting NO breakdown
+        // Calls getOverallStats with includeWebsiteBreakdown set to false
         return this.getOverallStats(userId, period, false);
     }
-    // --- End Recommendation 2 ---
 
 
-    // --- getChartDataForWebsite (No changes needed based on request) ---
+
+    /**
+     * Generates chart data (uptime and average response time) for a website over a specified timeframe.
+     * Data points are aggregated based on the timeframe.
+     * @param websiteId - The ID of the website.
+     * @param timeframe - The timeframe for the chart data ('hour', 'day', 'week', 'month', 'year').
+     * @returns A promise that resolves to an array of ChartDataPoint objects.
+     */
     static async getChartDataForWebsite(websiteId: number, timeframe: TimeframeKey): Promise<ChartDataPoint[]> {
         const endDate = new Date();
         let chartData: ChartDataPoint[] = [];
         let startDate: Date;
         let intervalStart: Date, intervalEnd: Date;
 
+        // Helper function to calculate stats for a period's results
         const calculatePeriodStats = (resultsInPeriod: MonitoringResultPrisma[]): { avgResponseTime: number | null, uptimeRatio: number, checkCount: number } => {
             const totalChecks = resultsInPeriod.length;
-            if (totalChecks === 0) return { avgResponseTime: null, uptimeRatio: 1.0, checkCount: 0 };
+            if (totalChecks === 0) return { avgResponseTime: null, uptimeRatio: 1.0, checkCount: 0 }; // Assume 100% uptime if no checks
 
             const successfulChecks = resultsInPeriod.filter(r => r.isAvailable).length;
             const validResponseTimes = resultsInPeriod.filter(r => r.isAvailable && r.responseTime !== null).map(r => r.responseTime!);
@@ -461,11 +518,11 @@ export class StatsCalculator {
             switch (timeframe) {
                  case 'hour':
                     startDate = subHours(endDate, 1);
-                    // Limit results fetched for very short intervals if checks are frequent
+                    // For 'hour', show individual checks if not too many, or aggregate slightly if needed
                     const hourResults = await prisma.monitoringResult.findMany({
                         where: { websiteId, checkedAt: { gte: startDate, lte: endDate } },
                         orderBy: { checkedAt: 'asc' },
-                        take: 200 // Example limit
+                        take: 200 // Limit to avoid overly dense charts
                     });
                     chartData = hourResults.map(r => ({
                         label: format(new Date(r.checkedAt), 'HH:mm'),
@@ -476,10 +533,11 @@ export class StatsCalculator {
                     }));
                     break;
                 case 'day':
-                    startDate = subDays(endDate, 1);
-                    intervalStart = startOfDay(startDate);
-                    intervalEnd = endOfDay(endDate);
+                    startDate = subDays(endDate, 1); // Last 24 hours
+                    intervalStart = startOfDay(startDate); // Start of yesterday
+                    intervalEnd = endOfDay(endDate);     // End of today
                     const dayResults = await prisma.monitoringResult.findMany({ where: { websiteId, checkedAt: { gte: intervalStart, lte: intervalEnd } }, orderBy: { checkedAt: 'asc' } });
+                    // Aggregate by 30-minute intervals for 'day' view
                     const intervalMinutesDay = 30;
                     const intervalsDay = new Map<number, MonitoringResultPrisma[]>();
                     dayResults.forEach(r => {
@@ -500,6 +558,7 @@ export class StatsCalculator {
                     intervalEnd = endOfDay(endDate);
                     const daysInPeriod = eachDayOfInterval({ start: intervalStart, end: intervalEnd });
                     const periodResultsWkMo = await prisma.monitoringResult.findMany({ where: { websiteId, checkedAt: { gte: intervalStart, lte: intervalEnd } }, orderBy: { checkedAt: 'asc' } });
+                    // Group results by day
                     const resultsByDay = new Map<string, MonitoringResultPrisma[]>();
                     periodResultsWkMo.forEach(r => {
                         const dayKey = format(new Date(r.checkedAt), 'yyyy-MM-dd');
@@ -516,10 +575,11 @@ export class StatsCalculator {
                     break;
                 case 'year':
                     startDate = subYears(endDate, 1);
-                    intervalStart = startOfMonth(startDate);
-                    intervalEnd = endOfDay(endDate);
+                    intervalStart = startOfMonth(startDate); // Start of the month, 1 year ago
+                    intervalEnd = endOfDay(endDate);         // End of today
                     const monthsInPeriod = eachMonthOfInterval({ start: intervalStart, end: intervalEnd });
                     const yearResults = await prisma.monitoringResult.findMany({ where: { websiteId, checkedAt: { gte: intervalStart, lte: intervalEnd } }, orderBy: { checkedAt: 'asc' } });
+                    // Group results by month
                     const resultsByMonth = new Map<string, MonitoringResultPrisma[]>();
                     yearResults.forEach(r => {
                         const monthKey = format(new Date(r.checkedAt), 'yyyy-MM');
@@ -536,12 +596,12 @@ export class StatsCalculator {
                     break;
                 default:
                     console.warn(`[StatsCalculator] Unsupported timeframe for chart data: ${timeframe}. Defaulting to 'week'.`);
-                    return this.getChartDataForWebsite(websiteId, 'week');
+                    return this.getChartDataForWebsite(websiteId, 'week'); // Recursive call with default
             }
-            chartData.sort((a, b) => a.timestamp - b.timestamp);
+            chartData.sort((a, b) => a.timestamp - b.timestamp); // Ensure chronological order
         } catch (error) {
             console.error(`[StatsCalculator] Error generating chart data for website ${websiteId}, timeframe ${timeframe}:`, error);
-            return [];
+            return []; // Return empty array on error
         }
         return chartData;
     }

@@ -1,9 +1,9 @@
-// src/middleware/validators/userValidator.ts
+
 import { body, oneOf } from 'express-validator';
 
-// Validation rules for PATCH /api/users/me
+
 export const updateMyProfileValidationRules = () => [
-    oneOf([ // Ensure at least one field is present
+    oneOf([ 
         body('name').exists(),
         body('email').exists(),
     ], { message: 'Either name or email must be provided for update.' }),
@@ -21,7 +21,7 @@ export const updateMyProfileValidationRules = () => [
         .normalizeEmail(),
 ];
 
-// Validation rules for PATCH /api/users/me/password
+
 export const updateMyPasswordValidationRules = () => [
     body('currentPassword')
         .notEmpty()

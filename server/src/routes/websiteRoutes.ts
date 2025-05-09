@@ -1,16 +1,12 @@
-// server/src/routes/websiteRoutes.ts
 import { Router } from 'express';
 import * as websiteController from '../controllers/websiteController';
 import { authenticate } from '../middleware/authMiddleware';
-import { handleValidationErrors } from '../middleware/validators/authValidator'; // Reuse this
+import { handleValidationErrors } from '../middleware/validators/authValidator';
 import {
     getWebsiteByIdValidationRules,
-    createWebsiteValidationRules,
-    updateWebsiteValidationRules,
     updateUserWebsiteValidationRules,
     setPinStatusValidationRules,
     deleteWebsiteValidationRules,
-    toggleWebsiteStatusValidationRules,
     addWebsiteToUserValidationRules,
     searchWebsitesValidationRules,
 } from '../middleware/validators/websiteValidator';
@@ -20,39 +16,8 @@ const router = Router();
 
 router.use(authenticate);
 
-// --- Admin Routes ---
-// Optional: Add isAdmin middleware if needed
-router.get('/admin/all', websiteController.getAllWebsites); // No input validation
 
-router.post(
-    '/admin/create',
-    createWebsiteValidationRules(),
-    handleValidationErrors,
-    websiteController.createWebsite
-);
 
-router.put(
-    '/admin/:id',
-    updateWebsiteValidationRules(),
-    handleValidationErrors,
-    websiteController.updateWebsite
-);
-
-router.delete(
-    '/admin/:id',
-    deleteWebsiteValidationRules(), // Only validates ID param
-    handleValidationErrors,
-    websiteController.deleteWebsite
-);
-
-router.patch(
-    '/admin/:id/toggle',
-    toggleWebsiteStatusValidationRules(), // Only validates ID param
-    handleValidationErrors,
-    websiteController.toggleWebsiteStatus
-);
-
-// --- Core website routes ---
 router.get(
     '/search',
     searchWebsitesValidationRules(),
@@ -60,19 +25,13 @@ router.get(
     websiteController.searchWebsites
 );
 
-router.get(
-    '/:id',
-    getWebsiteByIdValidationRules(), // Only validates ID param
-    handleValidationErrors,
-    websiteController.getWebsiteById
-);
 
-// --- User dashboard routes ---
-router.get('/user/dashboard', websiteController.getUserWebsites); // No input validation
+
+router.get('/user/dashboard', websiteController.getUserWebsites);
 
 router.get(
     '/user/dashboard/:id',
-    getWebsiteByIdValidationRules(), // Only validates ID param
+    getWebsiteByIdValidationRules(),
     handleValidationErrors,
     websiteController.getUserWebsiteById
 );
@@ -93,7 +52,7 @@ router.put(
 
 router.delete(
     '/user/dashboard/:id',
-    deleteWebsiteValidationRules(), // Only validates ID param
+    deleteWebsiteValidationRules(),
     handleValidationErrors,
     websiteController.removeWebsiteFromUser
 );

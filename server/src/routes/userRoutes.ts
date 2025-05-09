@@ -1,8 +1,8 @@
-// src/routes/userRoutes.ts
+
 import { Router } from 'express';
 import * as userController from '../controllers/userController';
 import { authenticate } from '../middleware/authMiddleware';
-import { handleValidationErrors } from '../middleware/validators/authValidator'; // Reuse this
+import { handleValidationErrors } from '../middleware/validators/authValidator'; 
 import {
     updateMyProfileValidationRules,
     updateMyPasswordValidationRules,
@@ -10,9 +10,9 @@ import {
 
 const router = Router();
 
-router.use(authenticate); // Apply authentication middleware to all routes below
+router.use(authenticate); 
 
-router.get('/me', userController.getMyProfile); // No input validation needed
+router.get('/me', userController.getMyProfile); 
 
 router.patch(
     '/me',
@@ -28,6 +28,6 @@ router.patch(
     userController.updateMyPassword
 );
 
-router.delete('/me', userController.deleteMyAccount); // No input validation needed
+router.delete('/me', userController.deleteMyAccount); 
 
 export default router;

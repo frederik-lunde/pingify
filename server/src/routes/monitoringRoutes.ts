@@ -16,21 +16,6 @@ const router = Router();
 
 router.use(authenticate);
 
-// --- Admin Routes ---
-// Optional: Add isAdmin middleware if needed
-router.get(
-    '/admin/results',
-    getResultsValidationRules(),
-    handleValidationErrors,
-    monitoringController.getAllResults
-);
-router.get(
-    '/admin/stats',
-    getStatsValidationRules(),
-    handleValidationErrors,
-    monitoringController.getOverallStats
-);
-
 // --- User Routes ---
 router.get(
     '/user/results',
