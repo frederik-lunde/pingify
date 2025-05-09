@@ -1,7 +1,6 @@
-// server/src/controllers/incidentController.ts
 import { Request, Response, NextFunction } from "express";
 import * as IncidentService from "../services/incidentService";
-import * as WebsiteService from "../services/websiteService"; // For access checks
+import * as WebsiteService from "../services/websiteService";
 import {
   IncidentQueryOptions,
   Incident,
@@ -11,11 +10,10 @@ import {
 } from "../types";
 import { subHours } from "date-fns";
 
-// --- Controller Functions ---
 
 /**
- * GET /api/incidents/user - Get incidents for websites monitored by the authenticated user.
- * Validation handled by middleware.
+ * Handles the request to get incidents for the authenticated user.
+ * Parses query parameters to filter incidents.
  */
 export const getUserIncidents = async (
   req: Request,
@@ -29,7 +27,7 @@ export const getUserIncidents = async (
     }
     const userId = req.user.id;
 
-    // Access validated query parameters
+
     const { limit, type, from, to, websiteId, status } = req.query;
 
     const options: IncidentQueryOptions = {
@@ -37,12 +35,12 @@ export const getUserIncidents = async (
       type: type as IncidentType | undefined,
       from: from as Date | undefined,
       to: to as Date | undefined,
-      userId: userId, // Add authenticated user ID
+      userId: userId,
       websiteId: websiteId as number | undefined,
       status: status as IncidentStatusFilter | undefined,
     };
 
-    // Pass userId again for potential name mapping in the service
+
     const incidents: Incident[] = await IncidentService.getIncidents(
       options,
       userId,
@@ -54,8 +52,8 @@ export const getUserIncidents = async (
 };
 
 /**
- * GET /api/incidents/website/:websiteId - Get incidents for a specific website.
- * Validation handled by middleware.
+ * Handles the request to get incidents for a specific website.
+ * Ensures the authenticated user has access to the website before fetching incidents.
  */
 export const getWebsiteIncidents = async (
   req: Request<{ websiteId: string }>,
@@ -69,11 +67,11 @@ export const getWebsiteIncidents = async (
     }
     const userId = req.user.id;
 
-    // Access validated params and query
+
     const websiteId = req.params.websiteId as unknown as number;
     const { limit, type, from, to, status } = req.query;
 
-    // Access Check
+
     const hasAccess = await WebsiteService.hasUserWebsite(userId, websiteId);
     if (!hasAccess) {
       res.status(404).json({ message: "Website not found or access denied." });
@@ -89,7 +87,7 @@ export const getWebsiteIncidents = async (
       status: status as IncidentStatusFilter | undefined,
     };
 
-    // Pass userId for potential name mapping in the service
+
     const incidents: Incident[] = await IncidentService.getIncidents(
       options,
       userId,
@@ -101,8 +99,8 @@ export const getWebsiteIncidents = async (
 };
 
 /**
- * GET /api/incidents/user/count/last24h - Get count of incidents started in last 24h for user.
- * No specific input validation needed beyond authentication.
+ * Handles the request to get the count of incidents for the authenticated user
+ * that occurred in the last 24 hours.
  */
 export const getUserIncidentCountLast24h = async (
   req: Request,

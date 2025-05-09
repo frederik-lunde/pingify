@@ -1,7 +1,7 @@
-// server/src/controllers/authController.ts
+
 import { Request, Response, NextFunction } from "express";
 import * as authService from "../services/authService";
-import prisma from "../prisma/prismaClient"; // Adjust the path if needed
+import prisma from "../prisma/prismaClient"; 
 
 export const register = async (
   req: Request,
@@ -41,7 +41,7 @@ export const getCurrentUser = async (
     const userId = req.user!.id;
 
     const user = await prisma.user.findUnique({
-      where: { id: userId }, // userId is string
+      where: { id: userId }, 
       select: {
         id: true,
         email: true,

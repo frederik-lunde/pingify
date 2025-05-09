@@ -9,7 +9,6 @@ const errorMiddleware = (
   err: CustomError,
   req: Request,
   res: Response,
-  next: NextFunction,
 ): void => {
   const prismaMeta =
     err instanceof Prisma.PrismaClientKnownRequestError ? err.meta : undefined;

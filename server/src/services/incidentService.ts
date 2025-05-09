@@ -1,40 +1,37 @@
-// server/src/services/incidentService.ts
 import {
-  PrismaClient,
+  
   Incident as PrismaIncident,
-  MonitoringResult as PrismaMonitoringResult,
-  Website as PrismaWebsite,
   Prisma,
-  WebsiteUser as PrismaWebsiteUser, // Import WebsiteUser if needed for types
+
 } from "@prisma/client";
 import prisma from "../prisma/prismaClient";
-import { subHours, differenceInSeconds } from "date-fns";
-// Assume these types are updated: Incident should reflect userId: string if it includes user details directly
+import {  differenceInSeconds } from "date-fns";
+
 import {
   Incident,
   IncidentType,
   IncidentQueryOptions,
   VALID_INCIDENT_TYPES,
-  MonitoringResult,
-  WebsiteUser, // This type should have userId: string
 } from "../types";
 
-// Helper Type Definition for Included Relation
+
 type IncidentWithIncludedWebsite = PrismaIncident & {
   website?: {
     url: string;
     websiteUsers?: {
       name: string | null;
-      userId: string; // Ensure this reflects the schema change
+      userId: string;
     }[];
   } | null;
 };
 
-// Helper: Map Prisma Incident to Shared Type
-// Changed userId parameter to string.
+
+/**
+ * Maps a Prisma Incident object to a shared Incident DTO. It prioritizes the user-specific website name if available.
+ */
 const mapPrismaIncidentToShared = (
   incident: IncidentWithIncludedWebsite | null,
-  userId?: string, // Optional: User requesting the data (string ID)
+  userId?: string,
 ): Incident | null => {
   if (!incident) return null;
 
@@ -45,7 +42,7 @@ const mapPrismaIncidentToShared = (
     incident.website?.websiteUsers &&
     incident.website.websiteUsers.length > 0
   ) {
-    // Compare string IDs
+
     const userWebsite = incident.website.websiteUsers.find(
       (wu) => wu.userId === userId,
     );
@@ -74,10 +71,11 @@ const mapPrismaIncidentToShared = (
   };
 };
 
-// --- Incident Management Functions ---
 
-// No userId changes needed in getOpenIncident, createIncident, resolveIncident
-
+/**
+ * Retrieves an open incident of a specific type for a given website.
+ * An open incident is one that does not have an endTime.
+ */
 export async function getOpenIncident(
   websiteId: number,
   type: IncidentType,
@@ -92,6 +90,10 @@ export async function getOpenIncident(
   });
 }
 
+/**
+ * Creates a new incident or returns an existing open one of the same type for the website.
+ * This prevents duplicate open incidents.
+ */
 export async function createIncident(
   websiteId: number,
   type: IncidentType,
@@ -147,6 +149,10 @@ export async function createIncident(
   }
 }
 
+/**
+ * Resolves an open incident by setting its end time, duration, and resolving result ID.
+ * If the incident is already resolved or not found, it takes no action or returns null.
+ */
 export async function resolveIncident(
   incidentId: number,
   resolvedAt: Date,
@@ -196,18 +202,17 @@ export async function resolveIncident(
   }
 }
 
-// --- Incident Querying Functions ---
 
 /**
- * Retrieves incidents based on query options, mapping to shared type.
- * Changed requestingUserId and options.userId to string.
+ * Retrieves a list of incidents based on various filter options.
+ * It can filter by user, website, type, date range, and status (open/closed).
  */
 export async function getIncidents(
   options: IncidentQueryOptions = {},
-  requestingUserId?: string, // Changed to string
+  requestingUserId?: string,
 ): Promise<Incident[]> {
   const logPrefix = `[IncidentService.getIncidents] User: ${requestingUserId ?? "N/A"}`;
-  // Ensure options.userId is treated as string if present
+
   const {
     limit = 50,
     type,
@@ -217,7 +222,7 @@ export async function getIncidents(
     websiteId,
     status,
   } = options;
-  const userId = optionsUserId as string | undefined; // Cast options.userId to string
+  const userId = optionsUserId as string | undefined;
 
   console.log(
     `${logPrefix} Received options:`,
@@ -229,7 +234,7 @@ export async function getIncidents(
   if (websiteId !== undefined) {
     whereClause.websiteId = websiteId;
   } else if (userId !== undefined) {
-    // Filter by string userId
+
     whereClause.website = {
       websiteUsers: { some: { userId: userId } },
     };
@@ -245,7 +250,7 @@ export async function getIncidents(
   else if (status === "closed") whereClause.endTime = { not: null };
 
   const needsWebsiteUsers = !!(userId || requestingUserId);
-  const targetUserIdForName = userId ?? requestingUserId; // This will be a string or undefined
+  const targetUserIdForName = userId ?? requestingUserId;
 
   console.log(
     `${logPrefix} Constructed Prisma Where Clause:`,
@@ -264,8 +269,8 @@ export async function getIncidents(
             ...(needsWebsiteUsers &&
               targetUserIdForName && {
                 websiteUsers: {
-                  where: { userId: targetUserIdForName }, // Use string ID
-                  select: { name: true, userId: true }, // userId selected is string
+                  where: { userId: targetUserIdForName },
+                  select: { name: true, userId: true },
                 },
               }),
           },
@@ -276,7 +281,7 @@ export async function getIncidents(
       `${logPrefix} Prisma findMany returned ${incidentsPrisma.length} raw records.`,
     );
 
-    // Pass string userId for name mapping
+
     const mappedIncidents = incidentsPrisma
       .map((inc) =>
         mapPrismaIncidentToShared(
@@ -296,21 +301,20 @@ export async function getIncidents(
 }
 
 /**
- * Counts incidents based on query options.
- * Changed options.userId to string.
+ * Counts the number of incidents based on various filter options.
  */
 export async function countIncidents(
   options: IncidentQueryOptions = {},
 ): Promise<number> {
-  // Ensure options.userId is treated as string if present
+
   const { type, from, to, userId: optionsUserId, websiteId, status } = options;
-  const userId = optionsUserId as string | undefined; // Cast to string
+  const userId = optionsUserId as string | undefined;
 
   const whereClause: Prisma.IncidentWhereInput = {};
 
   if (websiteId !== undefined) whereClause.websiteId = websiteId;
   else if (userId !== undefined)
-    whereClause.website = { websiteUsers: { some: { userId: userId } } }; // Use string ID
+    whereClause.website = { websiteUsers: { some: { userId: userId } } };
 
   if (type && VALID_INCIDENT_TYPES.includes(type)) whereClause.type = type;
   if (from || to) {
@@ -325,15 +329,14 @@ export async function countIncidents(
 }
 
 /**
- * Gets the most recent incident overall, or for a specific user.
- * Changed userId type to string.
+ * Retrieves the most recent incident, optionally filtered by user ID.
  */
 export async function getMostRecentIncident(
   userId?: string,
 ): Promise<PrismaIncident | null> {
   const whereClause: Prisma.IncidentWhereInput = {};
   if (userId) {
-    whereClause.website = { websiteUsers: { some: { userId: userId } } }; // Use string ID
+    whereClause.website = { websiteUsers: { some: { userId: userId } } };
   }
 
   return prisma.incident.findFirst({
@@ -353,7 +356,9 @@ export async function getMostRecentIncident(
   });
 }
 
-// No userId changes needed in getCurrentOpenIncidentForWebsite
+/**
+ * Retrieves the current open incident for a specific website, if one exists.
+ */
 export async function getCurrentOpenIncidentForWebsite(
   websiteId: number,
 ): Promise<Incident | null> {
@@ -367,7 +372,7 @@ export async function getCurrentOpenIncidentForWebsite(
       website: { select: { url: true } },
     },
   });
-  // Pass undefined userId for mapping (defaults to URL)
+
   return mapPrismaIncidentToShared(
     openIncidentPrisma as IncidentWithIncludedWebsite,
   );
