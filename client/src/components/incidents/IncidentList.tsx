@@ -1,18 +1,16 @@
-/* src/components/incidents/IncidentList.tsx */
 import { memo } from 'react';
 import {
     Paper, Box, Typography, Stack, List, Tooltip, ButtonBase, alpha, useTheme, ListItem, CircularProgress
 } from '@mui/material';
-import Grid from '@mui/material/Grid2'; // Use Grid v2
+import Grid from '@mui/material/Grid2';
 import {
     InfoOutlined as InfoOutlinedIcon, Link as LinkIcon,
     CalendarToday as CalendarTodayIcon, AccessTime as DurationIcon,
     ArrowUpward as ArrowUpwardIcon, ArrowDownward as ArrowDownwardIcon, SwapVert as SwapVertIcon,
 } from '@mui/icons-material';
-import { Incident } from '../../types'; // Adjust path
-import IncidentListItem from './IncidentListItem'; // Adjust path
+import { Incident } from '../../types';
+import IncidentListItem from './IncidentListItem';
 
-// --- Add 'status' to the sortable columns ---
 export type IncidentSortableColumn = 'startTime' | 'endTime' | 'durationSeconds' | 'websiteName' | 'type' | 'status';
 export type SortDirection = 'asc' | 'desc';
 
@@ -24,7 +22,9 @@ interface IncidentListProps {
     onSort: (column: IncidentSortableColumn) => void;
 }
 
-// Helper to render sort icon (no changes needed here)
+/**
+ * Renders the appropriate sort icon based on current sort state.
+ */
 const renderSortIcon = (column: IncidentSortableColumn, sortBy: IncidentSortableColumn, sortDir: SortDirection) => {
     const isActive = sortBy === column;
     const IconComponent = isActive ? (sortDir === 'asc' ? ArrowUpwardIcon : ArrowDownwardIcon) : SwapVertIcon;
@@ -33,6 +33,9 @@ const renderSortIcon = (column: IncidentSortableColumn, sortBy: IncidentSortable
     return <IconComponent fontSize="inherit" sx={{ ml: 0.5, color, opacity, verticalAlign: 'middle' }} />;
 };
 
+/**
+ * Displays a sortable list of incidents with loading and empty states.
+ */
 const IncidentList = memo(({
     incidents,
     isLoading,
@@ -42,7 +45,6 @@ const IncidentList = memo(({
 }: IncidentListProps) => {
     const theme = useTheme();
     const hasIncidents = incidents && incidents.length > 0;
-
     const headerCellStyle = {
         display: 'inline-flex',
         alignItems: 'center',
@@ -50,30 +52,28 @@ const IncidentList = memo(({
         borderRadius: 1,
         p: 0.5,
         width: '100%',
-        justifyContent: 'flex-start', // Keep content aligned left
+        justifyContent: 'flex-start',
         '&:hover': { bgcolor: alpha(theme.palette.action.selected, 0.08) }
     };
-
     return (
         <Paper sx={{ p: 2, overflow: 'hidden', mt: 3 }}>
-            {/* Column Headers - Use Grid v2 */}
+            {}
              <Grid container spacing={1} sx={{
                     borderBottom: 1, borderColor: 'divider', pb: 1, mb: 1,
                     display: { xs: 'none', sm: 'flex' }, alignItems: 'center',
                     background: alpha(theme.palette.action.hover, 0.04),
                     borderRadius: 1, px: 1
                 }}>
-                {/* Status Icon Col - NOW SORTABLE */}
+                {}
                 <Grid size={1} display="flex" justifyContent="center" alignItems="center">
                     <Tooltip title="Sort by Status">
-                        {/* --- Wrap icon in ButtonBase --- */}
+                        {}
                         <ButtonBase onClick={() => onSort('status')} sx={headerCellStyle} aria-label="Sort by Status">
                         <Typography variant="caption" color="textSecondary" fontWeight="bold">Status</Typography>{renderSortIcon('status', sortBy, sortDir)}
-
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
-                {/* Type Col */}
+                {}
                  <Grid size={2}>
                     <Tooltip title="Sort by Type">
                         <ButtonBase onClick={() => onSort('type')} sx={headerCellStyle} aria-label="Sort by Type">
@@ -81,7 +81,7 @@ const IncidentList = memo(({
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
-                {/* Website Col */}
+                {}
                  <Grid size={3}>
                     <Tooltip title="Sort by Website Name">
                         <ButtonBase onClick={() => onSort('websiteName')} sx={headerCellStyle} aria-label="Sort by Website Name">
@@ -90,7 +90,7 @@ const IncidentList = memo(({
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
-                {/* Start Time Col */}
+                {}
                  <Grid size={2}>
                     <Tooltip title="Sort by Start Time">
                         <ButtonBase onClick={() => onSort('startTime')} sx={headerCellStyle} aria-label="Sort by Start Time">
@@ -99,7 +99,7 @@ const IncidentList = memo(({
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
-                {/* End Time Col */}
+                {}
                  <Grid size={2}>
                     <Tooltip title="Sort by End Time">
                         <ButtonBase onClick={() => onSort('endTime')} sx={headerCellStyle} aria-label="Sort by End Time">
@@ -108,7 +108,7 @@ const IncidentList = memo(({
                         </ButtonBase>
                     </Tooltip>
                 </Grid>
-                {/* Duration Col */}
+                {}
                 <Grid size={2}>
                     <Tooltip title="Sort by Duration">
                         <ButtonBase onClick={() => onSort('durationSeconds')} sx={headerCellStyle} aria-label="Sort by Duration">
@@ -118,9 +118,8 @@ const IncidentList = memo(({
                     </Tooltip>
                 </Grid>
             </Grid>
-
-            {/* Incident List Items */}
-            <Box sx={{ maxHeight: { xs: '60vh', sm: '70vh' }, overflowY: 'auto' }}> {/* Adjusted height */}
+            {}
+            <Box sx={{ maxHeight: { xs: '60vh', sm: '70vh' }, overflowY: 'auto' }}> {}
                 <List dense disablePadding>
                     {isLoading ? (
                         <ListItem>
@@ -150,7 +149,5 @@ const IncidentList = memo(({
         </Paper>
     );
 });
-
 IncidentList.displayName = 'IncidentList';
-
 export default IncidentList;

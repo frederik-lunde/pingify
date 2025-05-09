@@ -1,12 +1,13 @@
-// src/components/details/CurrentIncidentAlert.tsx
 import React from 'react';
 import { Alert, AlertTitle, Stack, Tooltip, Typography, Box } from '@mui/material';
 import { ErrorOutline as ErrorIcon, WarningAmber as SlowIcon } from '@mui/icons-material';
-import { Incident, IncidentType } from '../../types'; // Adjust path
-import { formatIncidentDuration } from '../../utils/statusUtils'; // Adjust path
-import { useTimeSince } from '../../hooks'; // Adjust path
+import { Incident, IncidentType } from '../../types';
+import { formatIncidentDuration } from '../../utils/statusUtils';
+import { useTimeSince } from '../../hooks';
 
-// Helper moved inside or kept separate if used elsewhere
+/**
+ * Returns alert properties (severity, icon, title) based on incident type.
+ */
 const getIncidentAlertProps = (type: IncidentType): { severity: 'error' | 'warning', icon: React.ReactNode, title: string } => {
     switch (type) {
         case 'down': return { severity: 'error', icon: <ErrorIcon fontSize="inherit" />, title: "Website is Currently Down" };
@@ -19,15 +20,16 @@ interface WebsiteCurrentIncidentAlertProps {
     incident: Incident | null;
 }
 
+/**
+ * Displays an alert for the current active incident of a website.
+ */
 const WebsiteCurrentIncidentAlert: React.FC<WebsiteCurrentIncidentAlertProps> = ({ incident }) => {
-    // Calculate derived data inside this component
     const duration = formatIncidentDuration(incident);
     const startTimeRelative = useTimeSince(incident?.startTime, { addSuffix: false });
 
     if (!incident) {
-        return null; // Render nothing if there's no current incident
+        return null;
     }
-
     const alertProps = getIncidentAlertProps(incident.type);
 
     return (
@@ -51,5 +53,4 @@ const WebsiteCurrentIncidentAlert: React.FC<WebsiteCurrentIncidentAlertProps> = 
         </Alert>
     );
 };
-
 export default WebsiteCurrentIncidentAlert;

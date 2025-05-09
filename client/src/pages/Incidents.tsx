@@ -1,8 +1,7 @@
-/* src/pages/IncidentsPage.tsx */
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router';
-import { Container, Typography, Box, Paper, CircularProgress, Stack, IconButton, Tooltip } from '@mui/material'; // Added IconButton, Tooltip
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material'; // Added ArrowBackIcon
+import { Container, Typography, Box, Paper, CircularProgress, Stack, IconButton, Tooltip } from '@mui/material';
+import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import { useUserIncidentsQuery } from '../hooks';
 import { IncidentQueryOptions, ApiError } from '../types';
 import IncidentFilters, { IncidentFilterValues } from '../components/incidents/IncidentFilters';
@@ -13,8 +12,11 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const DEFAULT_LIMIT = 50;
 
+/**
+ * Page component for displaying and filtering user incidents.
+ */
 const IncidentsPage: React.FC = () => {
-    const navigate = useNavigate(); // Initialize navigate
+    const navigate = useNavigate();
     const [filters, setFilters] = useState<IncidentFilterValues>({
         status: 'all',
         type: 'all',
@@ -23,13 +25,15 @@ const IncidentsPage: React.FC = () => {
     const [sortBy, setSortBy] = useState<IncidentSortableColumn>('startTime');
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
+    /**
+     * Memoizes query options based on current filters.
+     */
     const queryOptions = useMemo((): IncidentQueryOptions => {
         const options: IncidentQueryOptions = {
             limit: DEFAULT_LIMIT,
             status: filters.status === 'all' ? undefined : filters.status,
             type: filters.type === 'all' ? undefined : filters.type,
         };
-
         const now = new Date();
         switch (filters.timeframe) {
             case '24h': options.from = subDays(now, 1); options.to = now; break;
@@ -51,22 +55,37 @@ const IncidentsPage: React.FC = () => {
         refetchOnWindowFocus: true,
     });
 
+    /**
+     * Updates filter state when filter values change.
+     */
     const handleFilterChange = useCallback((newFilters: IncidentFilterValues) => {
         setFilters(newFilters);
     }, []);
 
+    /**
+     * Handles sorting of the incident list.
+     */
     const handleSort = useCallback((column: IncidentSortableColumn) => {
         setSortDir(currentDir => (column === sortBy && currentDir === 'desc' ? 'asc' : 'desc'));
         setSortBy(column);
     }, [sortBy]);
 
+    /**
+     * Navigates back to the previous page (dashboard).
+     */
     const handleBackClick = useCallback(() => {
-        navigate('/'); // Navigate to root
+        navigate('/');
     }, [navigate]);
 
+    /**
+     * Memoizes and sorts incidents based on current sort options.
+     */
     const sortedIncidents = useMemo(() => {
         if (!incidentsData) return [];
         const listToSort = [...incidentsData];
+        /**
+         * Sorts two incident items.
+         */
         return listToSort.sort((a, b) => {
              let valA: number | string; let valB: number | string;
              switch (sortBy) {
@@ -86,9 +105,9 @@ const IncidentsPage: React.FC = () => {
 
     const isSuccessfullyLoadedAndEmpty = status === 'success' && !isLoading && !isFetching && !error && sortedIncidents.length === 0;
 
-    // --- Render Logic ---
-
-    // Shared Header Structure
+    /**
+     * Renders the page header with back button and title.
+     */
     const renderHeader = () => (
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
             <Tooltip title="Back to Dashboard">
@@ -96,17 +115,16 @@ const IncidentsPage: React.FC = () => {
                     <ArrowBackIcon />
                 </IconButton>
             </Tooltip>
-            <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 0 /* Remove default gutterBottom from Typography */ }}>
+            <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 0  }}>
                 Incidents
             </Typography>
         </Stack>
     );
 
-    // Initial Loading State
     if (isLoading) {
         return (
             <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-                {renderHeader()} {/* Use shared header */}
+                {renderHeader()} {}
                 <Box display="flex" justifyContent="center" alignItems="center" sx={{ p: 4, minHeight: '50vh' }}>
                     <CircularProgress />
                     <Typography sx={{ ml: 2 }} color="text.secondary">Loading incidents...</Typography>
@@ -115,11 +133,10 @@ const IncidentsPage: React.FC = () => {
         );
     }
 
-    // Error State - Use DataFetchError
     if (error) {
          return (
             <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-                {renderHeader()} {/* Use shared header */}
+                {renderHeader()} {}
                 <DataFetchError
                     error={error as ApiError}
                     onRetry={refetch}
@@ -129,17 +146,14 @@ const IncidentsPage: React.FC = () => {
         );
     }
 
-    // Success State (Data Loaded)
     return (
         <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-            {renderHeader()} {/* Use shared header */}
-
+            {renderHeader()} {}
             <IncidentFilters
                 initialFilters={filters}
                 onFilterChange={handleFilterChange}
                 isLoading={isFetching}
             />
-
             <>
                 {sortedIncidents.length > 0 && (
                      <IncidentList
@@ -165,5 +179,4 @@ const IncidentsPage: React.FC = () => {
         </Container>
     );
 };
-
 export default IncidentsPage;

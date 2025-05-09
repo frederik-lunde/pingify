@@ -1,4 +1,3 @@
-// src/components/dashboard/AddWebsiteCard.tsx
 import React from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -10,18 +9,24 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 
+/**
+ * A card component that allows users to navigate to the "add website" page.
+ */
 const AddWebsiteCard: React.FC = () => {
     const navigate = useNavigate();
     const theme = useTheme();
 
+    /**
+     * Navigates to the add website page.
+     */
     const handleClick = () => {
         navigate('/add-website');
     };
 
     const cardStyles = {
         width: '100%',
-        height: '100%', // Make card fill the grid item height
-        minHeight: '240px', // Match WebsiteCard's minHeight for consistency
+        height: '100%',
+        minHeight: '240px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -47,7 +52,7 @@ const AddWebsiteCard: React.FC = () => {
                 onClick={handleClick}
                 sx={{
                     width: '100%',
-                    height: '100%', // Action area should also fill the card
+                    height: '100%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

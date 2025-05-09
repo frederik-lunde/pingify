@@ -1,17 +1,19 @@
-// src/components/details/WebsiteDetailsControls.tsx (NEW FILE)
 import React from 'react';
 import { Box, Button, FormControl, InputLabel, Select, MenuItem, CircularProgress, SelectChangeEvent } from '@mui/material';
 import { NetworkCheck as NetworkCheckIcon } from '@mui/icons-material';
-import { TimeframeKey } from '../../types'; // Adjust path
+import { TimeframeKey } from '../../types';
 
 interface WebsiteDetailsControlsProps {
     timeframeKey: TimeframeKey;
     onTimeframeChange: (event: SelectChangeEvent<TimeframeKey>) => void;
     onCheckNow: () => void;
-    isChecking: boolean; // Manual check mutation pending state
-    isProcessingData: boolean; // General loading/refetching state for disabling select
+    isChecking: boolean;
+    isProcessingData: boolean;
 }
 
+/**
+ * Renders controls for the website details page, including "Check Now" button and timeframe selector.
+ */
 const WebsiteDetailsControls: React.FC<WebsiteDetailsControlsProps> = ({
     timeframeKey,
     onTimeframeChange,
@@ -26,14 +28,13 @@ const WebsiteDetailsControls: React.FC<WebsiteDetailsControlsProps> = ({
                 color="primary"
                 startIcon={isChecking ? <CircularProgress size={20} color="inherit" /> : <NetworkCheckIcon />}
                 onClick={onCheckNow}
-                disabled={isChecking} // Only disabled by the manual check itself
+                disabled={isChecking}
                 size="medium"
                 sx={{ borderRadius: 2, whiteSpace: 'nowrap', minWidth: { xs: 'auto', sm: 110 } }}
                 title={isChecking ? "Check in progress..." : "Trigger an immediate check"}
             >
                 {isChecking ? "Checking..." : "Check Now"}
             </Button>
-
             <FormControl size="small" sx={{ minWidth: 150 }}>
                 <InputLabel id="timeframe-select-label">Chart Timeframe</InputLabel>
                 <Select
@@ -42,7 +43,7 @@ const WebsiteDetailsControls: React.FC<WebsiteDetailsControlsProps> = ({
                     value={timeframeKey}
                     label="Chart Timeframe"
                     onChange={onTimeframeChange}
-                    disabled={isProcessingData} // Disabled during any data processing
+                    disabled={isProcessingData}
                 >
                     <MenuItem value={'hour'}>Last Hour</MenuItem>
                     <MenuItem value={'day'}>Last 24 Hours</MenuItem>
@@ -54,5 +55,4 @@ const WebsiteDetailsControls: React.FC<WebsiteDetailsControlsProps> = ({
         </Box>
     );
 };
-
 export default WebsiteDetailsControls;

@@ -1,12 +1,9 @@
-/*
-client/src/hooks/api/useMonitoring.ts
-*/
 import {
     useQuery,
     useMutation,
     useQueryClient,
     UseQueryOptions,
-    QueryFilters // Keep QueryFilters import
+    QueryFilters
 } from '@tanstack/react-query';
 import {
     fetchWebsiteDetails,
@@ -23,12 +20,14 @@ import {
     ApiError,
     TimeframeKey,
 } from '../../types';
-import { useAuth } from '../../context/AuthContext'; // Adjust path if needed
+import { useAuth } from '../../context/AuthContext';
 import { incidentQueryKeys } from './useIncidents';
 import { alertQueryKeys } from './useAlerts';
 import { websiteQueryKeys } from './useWebsites';
 
-// --- Query Keys ---
+/**
+ * Defines query keys for monitoring-related data.
+ */
 export const monitoringQueryKeys = {
     all: ['monitoring'] as const,
     details: (params: FetchWebsiteDetailsParams, userId: string | undefined) =>
@@ -41,18 +40,17 @@ export const monitoringQueryKeys = {
         [...monitoringQueryKeys.all, 'userResults', { userId, limit }] as const,
 };
 
-// --- Helper type ---
 type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
     UseQueryOptions<TQueryFnData, TError>,
     'queryKey' | 'queryFn'
 >;
 
 /**
- * Hook to fetch detailed data for the Website Details page.
+ * Custom hook to fetch detailed information for a specific website.
  */
 export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, options?: CustomQueryOptions<WebsiteDetailsData>) {
-    const auth = useAuth(); // Get the auth object (might be null)
-    const userId = auth?.user?.id; // Use optional chaining
+    const auth = useAuth();
+    const userId = auth?.user?.id;
     const queryKey = monitoringQueryKeys.details(params, userId);
 
     return useQuery<WebsiteDetailsData, ApiError>({
@@ -68,19 +66,17 @@ export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, option
     });
 }
 
-
 /**
- * Hook for triggering an immediate website check (mutation).
+ * Custom hook for triggering an on-demand check for a website.
  */
 export function useWebsiteCheckMutation() {
     const queryClient = useQueryClient();
-    const auth = useAuth(); // Get the auth object (might be null)
-    const userId = auth?.user?.id; // Use optional chaining
+    const auth = useAuth();
+    const userId = auth?.user?.id;
 
-    // Define patterns for invalidation (these key generators now accept string | undefined)
     const userIncidentListKeyPattern = incidentQueryKeys.list({}, userId);
     const userIncidentCountKey = incidentQueryKeys.countLast24h(userId);
-    const userStatsKeyPattern = monitoringQueryKeys.userStats('', userId); // Match any period
+    const userStatsKeyPattern = monitoringQueryKeys.userStats('', userId);
     const userWebsiteListKeyPattern = websiteQueryKeys.lists(userId);
 
     return useMutation<MonitoringResult, ApiError, number>({
@@ -91,41 +87,20 @@ export function useWebsiteCheckMutation() {
             return triggerWebsiteCheck(websiteId);
         },
         onSuccess: (websiteId) => {
-            console.log(`[Mutation Success] Check completed for website ${websiteId}`);
-            // Only log/invalidate user-specific data if userId exists
             if (userId) {
-                 console.log(`[Invalidation] Invalidating data related to website ${websiteId} for user ${userId} after check...`);
-
-                // Invalidation logic uses the updated key generators implicitly
                 const detailsKeyPattern: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'details', websiteId];
                 queryClient.invalidateQueries({ queryKey: detailsKeyPattern, exact: false });
-                console.log(`Invalidating monitoring details:`, detailsKeyPattern);
-
                 const websiteStatsKeyPattern: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'stats', 'website', websiteId];
                 queryClient.invalidateQueries({ queryKey: websiteStatsKeyPattern, exact: false });
-                console.log(`Invalidating website stats:`, websiteStatsKeyPattern);
-
                 queryClient.invalidateQueries({ queryKey: userStatsKeyPattern, exact: false });
-                console.log(`Invalidating user overall stats:`, userStatsKeyPattern);
-
                 queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId), exact: false });
-                console.log(`Invalidating user monitoring results list`);
-
                 queryClient.invalidateQueries({ queryKey: userWebsiteListKeyPattern });
-                console.log(`Invalidating user website list:`, userWebsiteListKeyPattern);
-
                 queryClient.invalidateQueries({ queryKey: userIncidentListKeyPattern, exact: false });
                 queryClient.invalidateQueries({ queryKey: userIncidentCountKey });
-                console.log(`Invalidating user incidents list and count`);
-
                 queryClient.invalidateQueries({ queryKey: alertQueryKeys.lists(), exact: false });
                 queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats(), exact: false });
-                console.log(`Invalidating user alerts list and stats`);
-
-                console.log(`[Invalidation Complete]`);
             } else {
                 console.warn("[Invalidation Skipped] User ID not available, cannot invalidate user-specific caches.");
-                 // Optionally invalidate non-user-specific caches if needed
             }
         },
         onError: (error: ApiError, websiteId) => {
@@ -135,11 +110,11 @@ export function useWebsiteCheckMutation() {
 }
 
 /**
- * Hook to fetch overall statistics for the user dashboard.
+ * Custom hook to fetch overall monitoring statistics for the user.
  */
 export function useUserStatsQuery(period: TimeframeKey | string = 'week', options?: CustomQueryOptions<OverallStats>) {
-    const auth = useAuth(); // Get the auth object (might be null)
-    const userId = auth?.user?.id; // Use optional chaining
+    const auth = useAuth();
+    const userId = auth?.user?.id;
 
     return useQuery<OverallStats, ApiError>({
         queryKey: monitoringQueryKeys.userStats(period, userId),
@@ -155,11 +130,11 @@ export function useUserStatsQuery(period: TimeframeKey | string = 'week', option
 }
 
 /**
- * Hook to fetch statistics for a specific website.
+ * Custom hook to fetch monitoring statistics for a specific website.
  */
 export function useWebsiteStatsQuery(websiteId: number | undefined, period: TimeframeKey | string = 'week', options?: CustomQueryOptions<WebsiteStatsData>) {
-    const auth = useAuth(); // Get the auth object (might be null)
-    const userId = auth?.user?.id; // Use optional chaining
+    const auth = useAuth();
+    const userId = auth?.user?.id;
     const queryKey = monitoringQueryKeys.websiteStats(websiteId, period, userId);
     const isQueryEnabled = (options?.enabled === undefined ? true : options.enabled) && (!!userId && !!websiteId && websiteId > 0);
 

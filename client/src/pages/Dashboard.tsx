@@ -1,4 +1,3 @@
-// src/pages/Dashboard.tsx
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
     Box, CircularProgress, Paper,
@@ -14,11 +13,13 @@ import { useTvMode } from "../context/TvModeContext";
 import { useWebsiteListProcessor } from "../hooks/";
 import { ApiError } from "../types";
 
+/**
+ * Main dashboard component displaying website statistics and cards.
+ */
 const Dashboard: React.FC = () => {
-    // --- Hooks remain the same ---
     const { isTvMode, toggleTvMode } = useTvMode();
     const [isHighlightActive, setIsHighlightActive] = useState(false);
-    const [showTvExitMessage, setShowTvExitMessage] = useState(false); // Keep for TvModeView
+    const [showTvExitMessage, setShowTvExitMessage] = useState(false);
 
     const {
         websiteCards: allWebsites,
@@ -44,12 +45,17 @@ const Dashboard: React.FC = () => {
 
     const isBackgroundActivity = isFetching;
 
-    // --- Callbacks and Effects remain largely the same ---
+    /**
+     * Handles changes to the website filter term.
+     */
     const handleFilterChangeInternal = useCallback((term: string) => {
         setFilterTerm(term);
         if (term) setIsHighlightActive(false);
     }, [setFilterTerm]);
 
+    /**
+     * Toggles highlighting of the last incident website.
+     */
     const handleToggleHighlight = useCallback(() => {
         const shouldActivate = !isHighlightActive;
         setIsHighlightActive(shouldActivate);
@@ -65,14 +71,14 @@ const Dashboard: React.FC = () => {
         setIsHighlightActive(false);
     }, [lastIncidentWebsiteId, filterTerm]);
 
-     // Effect for TV mode exit (using listeners directly in TvModeContext is often better)
-     // Keep this one if TvModeView needs the showTvExitMessage prop specifically
     useEffect(() => {
+        /**
+         * Exits TV mode on keydown or mousedown.
+         */
         const handleExitTvMode = () => { if (isTvMode) toggleTvMode(); };
         if (isTvMode) {
             setShowTvExitMessage(true);
             const timer = setTimeout(() => setShowTvExitMessage(false), 5000);
-            // Consider if listeners in Context are sufficient and remove these if redundant
             document.addEventListener('keydown', handleExitTvMode);
             document.addEventListener('mousedown', handleExitTvMode);
             return () => {
@@ -86,32 +92,27 @@ const Dashboard: React.FC = () => {
         }
     }, [isTvMode, toggleTvMode]);
 
-
     const headerUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
-
     const showLoadingSkeleton = isLoadingData && processedWebsites.length === 0 && !dataError;
     const isListEmpty = !isLoadingData && processedWebsites.length === 0;
     const isEmptyDueToFilter = isListEmpty && !!filterTerm && allWebsites.length > 0;
     const isTrulyEmpty = isListEmpty && !filterTerm && !dataError && !showLoadingSkeleton;
 
-    // --- Handle Initial Load / Error States (remain the same) ---
     if (isLoadingData && !dataError && !overallStats && allWebsites.length === 0) {
         return <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress data-testid="dashboard-initial-loading" /></Box>;
     }
+
     if (dataError) {
         return <DataFetchError error={dataError as ApiError} onRetry={refetch} context="Dashboard Data" />;
     }
 
-    // --- *** MODIFIED RENDER LOGIC *** ---
     return (
-        // Keep a single outer container, maybe removing padding if TvModeView handles its own
-        <Box sx={{ width: '100%', /* Removed px here, apply within sections */ }}>
-
-            {/* Standard Dashboard View Container */}
+        <Box sx={{ width: '100%',  }}>
+            {}
             <Box
                 sx={{
-                    display: isTvMode ? 'none' : 'block', // Hide if in TV mode
-                    px: { xs: 1, sm: 2, md: 3 }, // Apply padding here
+                    display: isTvMode ? 'none' : 'block',
+                    px: { xs: 1, sm: 2, md: 3 },
                     mt: 2,
                     mb: 4,
                 }}
@@ -132,12 +133,11 @@ const Dashboard: React.FC = () => {
                         onFilterChange={handleFilterChangeInternal}
                         sortOption={sortOption}
                         onSortChange={setSortOption}
-                        onToggleTvMode={toggleTvMode} // Keep toggle button here
+                        onToggleTvMode={toggleTvMode}
                         isRefetching={isBackgroundActivity && !isLoadingData}
                     />
                 </Paper>
-
-                {/* Grid Container */}
+                {}
                 <Box
                     sx={{
                         display: 'grid',
@@ -152,40 +152,36 @@ const Dashboard: React.FC = () => {
                         isLoading={showLoadingSkeleton}
                         lastIncidentWebsiteId={lastIncidentWebsiteId}
                         isHighlightActive={isHighlightActive}
-                        isTvMode={false} // Explicitly false for standard grid
+                        isTvMode={false}
                     />
                     {!showLoadingSkeleton && !filterTerm && (
                         <AddWebsiteCard />
                     )}
                 </Box>
-
                 {isEmptyDueToFilter && <EmptyFilterResults />}
             </Box>
-
-            {/* TV Mode View Container */}
+            {}
             <Box
                 sx={{
-                    display: isTvMode ? 'block' : 'none', // Show ONLY if in TV mode
-                    // Take up full space if needed, TvModeView might handle its own sizing/padding
-                     minHeight: '100vh', // Ensure it can fill screen height
+                    display: isTvMode ? 'block' : 'none',
+                     minHeight: '100vh',
                      width: '100%',
                 }}
             >
-                {/* Render TvModeView unconditionally when its container is visible */}
-                {/* Avoid passing isTvMode down if TvModeView doesn't use it directly */}
+                {}
+                {}
                 <TvModeView
-                    websiteCards={processedWebsites} // Pass processed data
-                    isLoading={showLoadingSkeleton} // Pass loading state
+                    websiteCards={processedWebsites}
+                    isLoading={showLoadingSkeleton}
                     lastIncidentWebsiteId={lastIncidentWebsiteId}
-                    isHighlightActive={isHighlightActive} // Pass highlight state
-                    isFetching={isBackgroundActivity} // Pass refetching state
-                    isEmptyDueToFilter={isEmptyDueToFilter} // Pass empty state flags
+                    isHighlightActive={isHighlightActive}
+                    isFetching={isBackgroundActivity}
+                    isEmptyDueToFilter={isEmptyDueToFilter}
                     isEmptyBecauseNoWebsites={isTrulyEmpty}
-                    showTvExitMessage={showTvExitMessage} // Pass exit message flag
+                    showTvExitMessage={showTvExitMessage}
                 />
             </Box>
         </Box>
     );
 };
-
 export default Dashboard;

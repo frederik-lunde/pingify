@@ -1,4 +1,3 @@
-// client/src/components/common/FormNotification.tsx
 import React from "react";
 import { Snackbar, Alert, AlertProps } from "@mui/material";
 
@@ -10,7 +9,7 @@ export interface FormNotificationState {
 
 interface FormNotificationProps {
   notification: FormNotificationState;
-  onClose: (event?: React.SyntheticEvent | Event, reason?: string) => void; // Allow reason argument
+  onClose: (event?: React.SyntheticEvent | Event, reason?: string) => void;
   autoHideDuration?: number;
   position?: {
     vertical: "top" | "bottom";
@@ -25,17 +24,12 @@ const FormNotification: React.FC<FormNotificationProps> = ({
   position = { vertical: "bottom", horizontal: "center" },
 }) => {
   const { open, message, severity } = notification;
-
-  // Handle Snackbar close event
   const handleClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
-    // Prevent closing on clickaway
     if (reason === 'clickaway') {
       return;
     }
-    onClose(event, reason); // Call the passed onClose handler
+    onClose(event, reason);
   };
-
-
   return (
     <Snackbar
       open={open}
@@ -44,10 +38,10 @@ const FormNotification: React.FC<FormNotificationProps> = ({
       anchorOrigin={position}
       data-testid="form-notification"
     >
-      {/* Check for message and return Alert or undefined */}
+      {}
       {message ? (
         <Alert
-          onClose={handleClose} // Allow closing the alert directly
+          onClose={handleClose}
           severity={severity}
           variant="filled"
           sx={{ width: "100%" }}
@@ -60,7 +54,6 @@ const FormNotification: React.FC<FormNotificationProps> = ({
   );
 };
 
-// Default initial state for the notification
 export const initialNotificationState: FormNotificationState = {
   open: false,
   message: "",

@@ -1,4 +1,3 @@
-/* src/pages/WebsiteDetails.tsx */
 import React, { useState, useMemo, useCallback, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
@@ -20,19 +19,21 @@ const LazyWebsiteCharts = React.lazy(() => import('../components/details/Website
 export type SortableColumn = Extract<MonitoringResultSortBy, 'checkedAt' | 'isAvailable' | 'statusCode' | 'responseTime'>;
 export type SortDirection = 'asc' | 'desc';
 
+/**
+ * Renders a skeleton UI for the page while loading.
+ */
 const PageSkeleton = () => (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        {/* Skeleton for the WebsiteDetailsHeader (inside Paper) */}
+        {}
         <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-             <Skeleton variant="circular" width={40} height={40} /> {/* Placeholder for back button */}
+             <Skeleton variant="circular" width={40} height={40} /> {}
              <Box sx={{ flexGrow: 1 }}>
                 <Skeleton variant="text" width="60%" height={30} />
                 <Skeleton variant="text" width="80%" height={20} />
              </Box>
-             <Skeleton variant="rectangular" width={150} height={40} /> {/* Placeholder for status chips */}
+             <Skeleton variant="rectangular" width={150} height={40} /> {}
         </Paper>
-
-        {/* Rest of the skeleton remains the same */}
+        {}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 2 }}>
             <Skeleton variant="rectangular" width={120} height={40} />
             <Skeleton variant="rectangular" width={150} height={40} />
@@ -57,12 +58,18 @@ const PageSkeleton = () => (
     </Container>
 );
 
+/**
+ * Renders a loading spinner for Suspense fallback.
+ */
 const LoadingFallback = () => (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
         <CircularProgress />
     </Box>
 );
 
+/**
+ * Displays detailed information and monitoring data for a specific website.
+ */
 const WebsiteDetails: React.FC = () => {
     const { websiteId: websiteIdParam } = useParams<{ websiteId: string }>();
     const navigate = useNavigate();
@@ -99,36 +106,52 @@ const WebsiteDetails: React.FC = () => {
 
     const { mutate: checkWebsite, isPending: isChecking } = useWebsiteCheckMutation();
 
+    /**
+     * Handles change in the selected timeframe.
+     */
     const handleTimeframeChange = useCallback((event: SelectChangeEvent<TimeframeKey>) => {
         setTimeframeKey(event.target.value as TimeframeKey);
     }, []);
 
+    /**
+     * Handles change in the number of checks to display.
+     */
     const handleCheckLimitChange = useCallback((event: SelectChangeEvent<number | string>) => {
         const newLimit = Number(event.target.value);
         if (!isNaN(newLimit) && newLimit > 0) { setCheckLimit(newLimit); }
     }, []);
 
+    /**
+     * Handles sorting of the recent checks list.
+     */
     const handleSort = useCallback((column: SortableColumn) => {
         setSortDir(currentDir => (column === sortBy && currentDir === 'desc' ? 'asc' : 'desc'));
         setSortBy(column);
     }, [sortBy]);
 
+    /**
+     * Triggers a manual check for the website.
+     */
     const handleCheckNow = useCallback(() => {
         if (numericWebsiteId && !isChecking) {
             checkWebsite(numericWebsiteId);
         }
     }, [numericWebsiteId, isChecking, checkWebsite]);
 
+    /**
+     * Navigates to the website settings page.
+     */
     const handleSettingsClick = useCallback(() => {
         if (numericWebsiteId) { navigate(`/website/${numericWebsiteId}/settings`); }
     }, [navigate, numericWebsiteId]);
 
-    // Keep the handler definition, it's passed to the header
+    /**
+     * Navigates back to the dashboard.
+     */
     const handleBackClick = useCallback(() => {
-        navigate('/'); // Navigate to root
+        navigate('/');
     }, [navigate]);
 
-    // Derived Data & Loading States
     const name = websiteDetails?.name ?? (isInitialLoading ? 'Loading...' : 'N/A');
     const url = websiteDetails?.url ?? '';
     const latestResult = websiteDetails?.latestResult ?? null;
@@ -142,27 +165,23 @@ const WebsiteDetails: React.FC = () => {
     const isManualChecking = isChecking;
     const isBackgroundRefetching = isDetailsRefetching && !isChecking;
 
-    // --- Render Logic ---
-
     if (websiteIdParam !== undefined && numericWebsiteId === undefined) {
-        // Removed the separate back button here
         return (
             <Container sx={{ mt: 4 }}>
-                {/* Just show the error */}
+                {}
                 <Alert severity="error">Invalid Website ID provided in URL.</Alert>
             </Container>
         );
     }
+
     if (isInitialLoading) {
         return <PageSkeleton />;
     }
 
-    // Initial Load Error Check - Use DataFetchError
     if (detailsError && !websiteDetails && !isInitialLoading) {
-        // Removed the separate back button here
         return (
             <Container sx={{ mt: 4 }}>
-                 {/* Just show the DataFetchError component */}
+                 {}
                  <DataFetchError
                     error={detailsError as ApiError}
                     onRetry={refetchDetails}
@@ -172,17 +191,14 @@ const WebsiteDetails: React.FC = () => {
         );
     }
 
-    // Website Not Found (after load attempt, no error, but no data)
     if (!isInitialLoading && !websiteDetails && !detailsError) {
-        // Removed the separate back button here
        return (
             <Container sx={{ mt: 4 }}>
-                {/* Just show the warning */}
+                {}
                 <Alert severity="warning">Could not find data for this website.</Alert>
             </Container>
         );
     }
-
 
     if (!websiteDetails) {
         return (
@@ -192,33 +208,28 @@ const WebsiteDetails: React.FC = () => {
         );
     }
 
-    // Check for partial errors (refresh failed, but showing stale data)
     const showInlineError = detailsError && !!websiteDetails;
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-
-            {/* Partial Error Alert */}
+            {}
             {showInlineError && (
                 <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => refetchDetails()}>Retry</Button>}>
                     Could not refresh data: {(detailsError as ApiError)?.message || 'Unknown error'}. Displaying last known data.
                 </Alert>
             )}
-
-            {/* Website Specific Header (Includes Back Button) */}
+            {}
             <WebsiteDetailsHeader
                 name={name}
                 url={url}
                 latestResult={latestResult}
                 isRefetching={isBackgroundRefetching}
                 onSettingsClick={handleSettingsClick}
-                onBackClick={handleBackClick} // Pass the handler down
+                onBackClick={handleBackClick}
             />
-
-             {/* Current Incident Alert Component */}
+             {}
              <WebsiteCurrentIncidentAlert incident={currentIncident} />
-
-            {/* Controls Area Component */}
+            {}
             <WebsiteDetailsControls
                 timeframeKey={timeframeKey}
                 onTimeframeChange={handleTimeframeChange}
@@ -226,8 +237,7 @@ const WebsiteDetails: React.FC = () => {
                 isChecking={isManualChecking}
                 isProcessingData={isProcessingData}
             />
-
-            {/* Charts Component (Lazy Loaded) */}
+            {}
              <Suspense fallback={<LoadingFallback />}>
                 <LazyWebsiteCharts
                     chartData={chartData}
@@ -236,14 +246,12 @@ const WebsiteDetails: React.FC = () => {
                     isLoading={isProcessingData}
                 />
             </Suspense>
-
-            {/* Recent Incidents List Component */}
+            {}
              <RecentIncidentsList
                 incidents={recentIncidents}
                 isLoading={isProcessingData}
              />
-
-            {/* Recent Checks List Component */}
+            {}
             <RecentChecksList
                 recentChecks={recentChecks}
                 checkLimit={checkLimit}
@@ -256,5 +264,4 @@ const WebsiteDetails: React.FC = () => {
         </Container>
     );
 };
-
 export default WebsiteDetails;

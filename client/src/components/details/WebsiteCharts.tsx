@@ -1,15 +1,11 @@
-/* src/components/details/WebsiteCharts.tsx */
 import React, { useMemo, Suspense, memo } from 'react';
 import { Paper, Box, Typography, Stack, Chip, CircularProgress, alpha, useTheme } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { BarChart as BarChartIcon, Timeline as TimelineIcon, InfoOutlined as InfoOutlinedIcon } from '@mui/icons-material';
-// ChartJS types are no longer needed here
 import { TimeframeKey, ChartDataPoint } from '../../types';
 import { getStatusColor, formatUptime } from '../../utils/statusUtils';
-// Import new config functions
 import { getResponseTimeLineChartOptions, getUptimeStatusBarChartOptions } from '../../config/chartConfig';
 
-// Lazy load chart components
 const Bar = React.lazy(() => import('react-chartjs-2').then(module => ({ default: module.Bar })));
 const Line = React.lazy(() => import('react-chartjs-2').then(module => ({ default: module.Line })));
 
@@ -17,17 +13,21 @@ interface WebsiteChartsProps {
     chartData: ChartDataPoint[];
     uptimePercent: number | null;
     timeframeKey: TimeframeKey;
-    isLoading: boolean; // Keep isLoading (though not directly used for options generation anymore)
+    isLoading: boolean;
 }
 
-// Chart fallback UI
+/**
+ * Displays a circular progress indicator as a fallback for lazy-loaded charts.
+ */
 const ChartFallback = () => (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: 150 }}>
         <CircularProgress size={30}/>
     </Box>
 );
 
-// No data message component
+/**
+ * Displays a message indicating no data is available for a chart.
+ */
  const NoDataMessage = ({message}: {message: string}) => (
      <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" height="100%" minHeight={150} color="text.secondary">
         <InfoOutlinedIcon fontSize="small" />
@@ -35,7 +35,9 @@ const ChartFallback = () => (
      </Stack>
  );
 
-// Memoize the component
+/**
+ * Renders Uptime Status and Response Time charts for a website.
+ */
 const WebsiteCharts = memo(({
     chartData,
     uptimePercent,
@@ -43,7 +45,6 @@ const WebsiteCharts = memo(({
 }: WebsiteChartsProps) => {
     const theme = useTheme();
 
-    // --- Uptime Chart Data (Data transformation remains here) ---
     const uptimeChartData = useMemo(() => {
          if (!chartData || chartData.length === 0) return { labels: [], datasets: [] };
          const labels = chartData.map(p => p.label);
@@ -64,14 +65,11 @@ const WebsiteCharts = memo(({
          };
     }, [chartData, theme.palette.success.light, theme.palette.error.light]);
 
-    // --- Uptime Chart Options (Generated using centralized function) ---
     const uptimeChartOptions = useMemo(() => getUptimeStatusBarChartOptions({
         theme,
-        chartData // Pass chartData for tooltip generation
+        chartData
     }), [theme, chartData]);
 
-
-    // --- Response Time Chart Data (Data transformation remains here) ---
      const responseTimeChartData = useMemo(() => {
         if (!chartData || chartData.length === 0) return { labels: [], datasets: [] };
         const labels = chartData.map(p => p.label);
@@ -93,26 +91,22 @@ const WebsiteCharts = memo(({
         };
     }, [chartData, timeframeKey, theme.palette.primary]);
 
-    // --- Response Time Chart Options (Generated using centralized function) ---
     const responseTimeChartOptions = useMemo(() => getResponseTimeLineChartOptions({
         theme,
-        chartData, // Pass chartData for tooltip generation
-        timeframeKey // Pass timeframeKey for context
+        chartData,
+        timeframeKey
     }), [theme, chartData, timeframeKey]);
 
-    // Overall Uptime formatting
     const formattedOverallUptime = useMemo(() => formatUptime(uptimePercent), [uptimePercent]);
     const overallUptimeColor = useMemo(() => getStatusColor(uptimePercent), [uptimePercent]);
 
-    // Determine if charts have data to display
     const hasUptimeData = uptimeChartData.labels.length > 0;
     const hasResponseTimeData = responseTimeChartData.datasets?.[0]?.data?.some(d => d !== null && !isNaN(d)) ?? false;
-
 
     return (
         <>
             <Grid container spacing={3} sx={{ mb: 3 }}>
-                {/* Uptime Status Chart */}
+                {}
                 <Grid size={{ xs: 12, md: 6 }}>
                     <Paper sx={{ p: 2, height: 300, display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -135,8 +129,7 @@ const WebsiteCharts = memo(({
                         </Box>
                     </Paper>
                 </Grid>
-
-                {/* Response Time Chart */}
+                {}
                  <Grid size={{ xs: 12, md: 6 }}>
                     <Paper sx={{ p: 2, height: 300, display: 'flex', flexDirection: 'column' }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -158,7 +151,5 @@ const WebsiteCharts = memo(({
         </>
     );
 });
-
 WebsiteCharts.displayName = 'WebsiteCharts';
-
 export default WebsiteCharts;

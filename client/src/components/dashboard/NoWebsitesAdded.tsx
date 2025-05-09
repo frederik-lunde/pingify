@@ -1,8 +1,10 @@
-// src/components/dashboard/NoWebsitesAdded.tsx (NEW FILE)
 import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
-import { Link } from 'react-router'; // Use your routing Link
+import { Link } from 'react-router';
 
+/**
+ * Displays a message when no websites have been added, with an option to add one.
+ */
 const NoWebsitesAdded: React.FC<{ isTvMode?: boolean }> = ({ isTvMode = false }) => {
     const commonStyles = {
         display: "flex",
@@ -16,8 +18,7 @@ const NoWebsitesAdded: React.FC<{ isTvMode?: boolean }> = ({ isTvMode = false })
         textAlign: "center",
         mt: 4,
     };
-    const tvStyles = { mx: 'auto', maxWidth: 'sm' }; // Specific styles for TV mode
-
+    const tvStyles = { mx: 'auto', maxWidth: 'sm' };
     return (
         <Box sx={isTvMode ? { ...commonStyles, ...tvStyles } : commonStyles}>
             <Typography variant="h6" gutterBottom>No websites added yet</Typography>
@@ -35,5 +36,4 @@ const NoWebsitesAdded: React.FC<{ isTvMode?: boolean }> = ({ isTvMode = false })
         </Box>
     );
 };
-
 export default NoWebsitesAdded;

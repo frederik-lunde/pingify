@@ -1,7 +1,6 @@
-// src/components/dashboard/DashboardSortControl.tsx
 import React, { useState, useCallback } from 'react';
 import {
-    IconButton, Menu, MenuItem, Tooltip, ListItemIcon, ListItemText, Stack // Removed CircularProgress
+    IconButton, Menu, MenuItem, Tooltip, ListItemIcon, ListItemText, Stack
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -25,32 +24,41 @@ const sortOptionsConfig: SortOptionConfig[] = [
 interface DashboardSortControlProps {
     sortOption: SortOption;
     onSortChange: (option: SortOption) => void;
-    // isFetching prop is no longer needed here as the indicator is moved
 }
 
+/**
+ * A control component for selecting website sorting options.
+ */
 const DashboardSortControl: React.FC<DashboardSortControlProps> = ({
     sortOption,
     onSortChange,
-    // isFetching prop removed
 }) => {
     const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null);
     const openSortMenu = Boolean(sortAnchorEl);
 
+    /**
+     * Opens the sort options menu.
+     */
     const handleSortMenuClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
         setSortAnchorEl(event.currentTarget);
     }, []);
 
+    /**
+     * Closes the sort options menu.
+     */
     const handleSortMenuClose = useCallback(() => {
         setSortAnchorEl(null);
     }, []);
 
+    /**
+     * Handles the selection of a sort option.
+     */
     const handleSortOptionSelect = useCallback((option: SortOption) => {
         onSortChange(option);
         handleSortMenuClose();
     }, [onSortChange, handleSortMenuClose]);
 
     return (
-        // Stack is no longer strictly necessary just for the button, but can keep for consistency
         <Stack direction="row" spacing={0.5} alignItems="center">
             <Tooltip title="Sort websites">
                 <IconButton
@@ -65,8 +73,7 @@ const DashboardSortControl: React.FC<DashboardSortControlProps> = ({
                     <FilterListIcon />
                 </IconButton>
             </Tooltip>
-            {/* Removed the CircularProgress component */}
-
+            {}
             <Menu
                 id="sort-menu"
                 anchorEl={sortAnchorEl}
@@ -90,5 +97,4 @@ const DashboardSortControl: React.FC<DashboardSortControlProps> = ({
         </Stack>
     );
 };
-
 export default DashboardSortControl;

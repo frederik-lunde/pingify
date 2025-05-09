@@ -1,21 +1,22 @@
-// src/components/dashboard/WebsiteGrid.tsx
 import React from "react";
 import WebsiteCard from "./WebsiteCard";
-import { WebsiteUser } from "../../types"; // Ensure correct path
+import { WebsiteUser } from "../../types";
 
 interface WebsiteGridProps {
   websiteCards: WebsiteUser[];
   lastIncidentWebsiteId?: number | null | undefined;
   isHighlightActive?: boolean;
-  isLoading?: boolean; // For skeleton cards on initial load
+  isLoading?: boolean;
   isTvMode: boolean;
 }
 
-// Define the dummy data structure outside the component for reuse
+/**
+ * Creates a dummy WebsiteUser object for skeleton loading states.
+ */
 const createDummyWebsiteUser = (index: number): WebsiteUser => ({
-    id: -1, // Use -1 or a unique negative index to indicate skeleton
+    id: -1,
     userId: "-1",
-    websiteId: -index - 1000, // Ensure unique negative websiteId for keys
+    websiteId: -index - 1000,
     name: 'Loading website...',
     interval: 300,
     alertEnabled: false,
@@ -23,12 +24,12 @@ const createDummyWebsiteUser = (index: number): WebsiteUser => ({
     notifyEmail: null,
     createdAt: new Date().toISOString(),
     isPinned: false,
-    latestResult: null, // Skeletons have no result
-    chartData: [],     // Skeletons have no chart data
-    uptimePercent: null, // Skeletons have no uptime
-    currentIncident: null, // Skeletons have no incident
+    latestResult: null,
+    chartData: [],
+    uptimePercent: null,
+    currentIncident: null,
     website: {
-        id: -index - 1000, // Match websiteId
+        id: -index - 1000,
         url: 'http://loading.com',
         isActive: true,
         lastChecked: null,
@@ -38,7 +39,9 @@ const createDummyWebsiteUser = (index: number): WebsiteUser => ({
     }
 });
 
-
+/**
+ * Renders a grid of website cards or skeleton loaders.
+ */
 const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
   ({
       websiteCards,
@@ -47,42 +50,32 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
       isLoading = false,
       isTvMode,
   }) => {
-
-    // --- Render Logic ---
-
-    // If loading and no *real* cards yet, render skeletons using WebsiteCard
     if (isLoading && websiteCards.length === 0) {
-        const skeletonCount = 12; // Or derive from viewport if needed
+        const skeletonCount = 12;
         return (
             <>
                 {Array(skeletonCount).fill(0).map((_, i) => {
                      const dummyData = createDummyWebsiteUser(i);
                      return (
                          <WebsiteCard
-                             // Use a unique key based on dummy data's websiteId
                              key={`skeleton-${dummyData.websiteId}`}
-                             userWebsite={dummyData} // Pass the dummy data
+                             userWebsite={dummyData}
                              shouldHighlightThisCard={false}
-                             isTvMode={false} // Skeletons aren't interactive in TV mode sense
+                             isTvMode={false}
                          />
                      );
                 })}
             </>
         );
     }
-
-    // If not loading and still no cards, render nothing (parent handles messages)
     if (!isLoading && websiteCards.length === 0) {
         return null;
     }
-
-    // Render the actual website cards
     return (
         <>
             {websiteCards.map((item) => {
                 if (!item) return null;
                 const shouldHighlight = isHighlightActive && item.websiteId === lastIncidentWebsiteId;
-
                 return (
                     <WebsiteCard
                         key={`website-${item.websiteId}`}
@@ -96,7 +89,5 @@ const WebsiteGrid: React.FC<WebsiteGridProps> = React.memo(
     );
   },
 );
-
 WebsiteGrid.displayName = 'WebsiteGrid';
-
 export default WebsiteGrid;

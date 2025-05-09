@@ -35,8 +35,7 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^6.10.0",
     "p-limit": "^6.2.0",
-    "prettier": "^3.5.3",
-    "prettier-eslint": "^16.4.1"    
+    "prettier-eslint": "^16.4.1"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -48,6 +47,7 @@
     "@types/node": "^22.15.3",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.17",
+    "prettier": "3.5.3",
     "prisma": "^6.5.0",
     "ts-node-dev": "^x.x.x",
     "typescript": "^x.x.x"

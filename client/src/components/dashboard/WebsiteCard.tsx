@@ -1,4 +1,3 @@
-/* src/components/dashboard/WebsiteCard.tsx */
 import React, { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
@@ -22,18 +21,17 @@ import {
 import { Line } from 'react-chartjs-2';
 import { ChartOptions, ChartData } from 'chart.js';
 import { format, formatDistanceToNowStrict, parseISO } from "date-fns";
-
 import {
     getStatusColor,
     getResponseTimeColor,
     formatResponseTime,
     formatUptime,
-} from "../../utils/statusUtils"; // Ensure path is correct
-import { useWebsiteMutations } from "../../hooks"; // Ensure path is correct
-import { getCardLineChartOptions, getCardLineChartData } from "../../config/chartConfig"; // Ensure path is correct
+} from "../../utils/statusUtils";
+import { useWebsiteMutations } from "../../hooks";
+import { getCardLineChartOptions, getCardLineChartData } from "../../config/chartConfig";
 import {
     WebsiteUser,
-} from "../../types"; // Ensure path is correct
+} from "../../types";
 
 interface WebsiteCardProps {
     userWebsite: WebsiteUser;
@@ -46,13 +44,15 @@ const TICKS_AREA_HEIGHT = 8;
 const TICKS_MARGIN_TOP = 1;
 const CHIPS_ROW_MIN_HEIGHT = '32px';
 
+/**
+ * Renders a simple line chart or a message if no data.
+ */
 const SimpleLineChart = React.memo(
     ({ data, options }: { data: ChartData<'line'>; options: ChartOptions<'line'> }) => {
         const hasPlottableData = useMemo(() =>
             data?.datasets?.[0]?.data?.some(
                 (d) => d !== null && d !== undefined && !isNaN(d as number)
             ) ?? false, [data]);
-
         if (!hasPlottableData) {
             return (
                 <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center" sx={{ height: '100%', color: 'text.disabled' }}>
@@ -70,12 +70,18 @@ const SimpleLineChart = React.memo(
 );
 SimpleLineChart.displayName = 'SimpleLineChart';
 
+/**
+ * Formats an ISO date string to a human-readable "time since" format.
+ */
 const formatIncidentStartTime = (isoDateString: string | null | undefined): string | null => {
     if (!isoDateString) return null;
     try { return formatDistanceToNowStrict(parseISO(isoDateString), { addSuffix: true }); }
     catch (e) { console.error("Error parsing incident start time:", isoDateString, e); return "Invalid Date"; }
 };
 
+/**
+ * Displays a card with website status, metrics, and a mini chart.
+ */
 const WebsiteCard = React.memo(
     ({
         userWebsite,
@@ -85,12 +91,8 @@ const WebsiteCard = React.memo(
         const navigate = useNavigate();
         const theme = useTheme();
         const { setPinStatus, isSettingPin, errorSettingPin } = useWebsiteMutations();
-
-        const { websiteId } = userWebsite; // Destructure here for clarity
-
-        // --- Check if userWebsite is a dummy skeleton ---
+        const { websiteId } = userWebsite;
         const isSkeleton = userWebsite.id === -1;
-
         const name = userWebsite.name ?? userWebsite.website?.url ?? 'Website';
         const url = userWebsite.website?.url;
         const latestResult = userWebsite.latestResult;
@@ -107,14 +109,13 @@ const WebsiteCard = React.memo(
             getCardLineChartData(theme, canShowAggregatedChart ? limitedChartDataPoints : undefined),
             [theme, canShowAggregatedChart, limitedChartDataPoints]
         );
-
         const chartOptions = useMemo(() =>
             getCardLineChartOptions({ theme, chartData: limitedChartDataPoints }),
             [theme, limitedChartDataPoints]
         );
 
         const cardStatus = useMemo(() => {
-            if (isSkeleton) return 'pending'; // Skeletons are always pending visually
+            if (isSkeleton) return 'pending';
             if (currentIncident) return currentIncident.type;
             if (latestResult === undefined || latestResult === null) return 'pending';
             return latestResult.isAvailable ? 'up' : 'down';
@@ -128,14 +129,20 @@ const WebsiteCard = React.memo(
         const canShowTicks = canShowAggregatedChart && limitedChartDataPoints?.every(p => typeof p.uptimeRatio === 'number');
         const canShowSingleTick = !canShowTicks && latestResult !== null && latestResult !== undefined;
 
+        /**
+         * Navigates to the website details page.
+         */
         const handleClick = useCallback(() => {
-            if (isTvMode || isSkeleton) return; // Don't navigate for skeletons
+            if (isTvMode || isSkeleton) return;
             navigate(`/website/${websiteId}`);
         }, [navigate, websiteId, isTvMode, isSkeleton]);
 
+        /**
+         * Toggles the pin status of the website.
+         */
         const handlePinClick = useCallback(async (e: React.MouseEvent) => {
             e.stopPropagation();
-            if (isSkeleton) return; // Don't allow pinning skeletons
+            if (isSkeleton) return;
             try { await setPinStatus({ websiteId: websiteId, isPinned: !isPinned }); }
             catch (err) { console.error("Failed to set pin status from card:", err); }
         }, [setPinStatus, websiteId, isPinned, isSkeleton]);
@@ -143,6 +150,7 @@ const WebsiteCard = React.memo(
         const displayName = name || url || 'Website';
         const displayUrl = url;
         const hasPinError = !!errorSettingPin;
+
         const pinTooltipText = useMemo(() => {
             if (isSettingPin) return "Processing...";
             if (hasPinError) return `Error: ${errorSettingPin?.message || 'Pin action failed'}. Click to retry.`;
@@ -153,41 +161,41 @@ const WebsiteCard = React.memo(
             let dynamicStyles = {};
             const baseSx = {
                 width: '100%',
-                height: '100%', // Make card fill the grid item height
-                minHeight: '150px', // Ensure a minimum height
+                height: '100%',
+                minHeight: '150px',
                 margin: 'auto',
-                cursor: isTvMode || isSkeleton ? "default" : "pointer", // Adjust cursor
+                cursor: isTvMode || isSkeleton ? "default" : "pointer",
                 display: "flex",
                 flexDirection: "column",
                 position: 'relative',
                 overflow: 'hidden',
                 transition: theme.transitions.create(['opacity', 'transform', 'box-shadow', 'border-color'], { duration: theme.transitions.duration.short }),
                 "&:hover": isTvMode || isSkeleton ? {} : { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
-                opacity: isSkeleton ? 0.7 : 1, // Make skeletons slightly transparent
-                backgroundColor: isSkeleton ? alpha(theme.palette.background.paper, 0.5) : theme.palette.background.paper, // Slight bg diff for skeleton
+                opacity: isSkeleton ? 0.7 : 1,
+                backgroundColor: isSkeleton ? alpha(theme.palette.background.paper, 0.5) : theme.palette.background.paper,
             };
-            if (shouldHighlightThisCard && !isSkeleton) { // Don't highlight skeletons
+            if (shouldHighlightThisCard && !isSkeleton) {
                 dynamicStyles = { borderWidth: '2px', borderStyle: 'solid', borderColor: theme.palette.warning.main, boxShadow: `0 0 10px -1px ${alpha(theme.palette.warning.main, 0.6)}` };
-            } else if (isPinned && !isSkeleton) { // Don't show pin border for skeletons
+            } else if (isPinned && !isSkeleton) {
                 dynamicStyles = { borderWidth: '2px', borderStyle: 'solid', borderColor: theme.palette.primary.main };
             } else {
-                dynamicStyles = { borderWidth: '1px', borderStyle: 'solid', borderColor: theme.palette.divider }; // Consistent border
+                dynamicStyles = { borderWidth: '1px', borderStyle: 'solid', borderColor: theme.palette.divider };
             }
             return { ...baseSx, ...dynamicStyles };
         }, [shouldHighlightThisCard, isPinned, theme, isTvMode, isSkeleton]);
 
+        /**
+         * Renders status chips based on website status and data.
+         */
         const renderStatusChips = () => {
             if (cardStatus === 'pending') return <Chip size="small" icon={<PendingIcon fontSize="inherit" />} label="Pending" variant="outlined" color="warning" sx={{ fontWeight: 500 }} />;
-
             let statusChip: React.ReactNode = null;
-
             if (cardStatus === 'up') statusChip = <Tooltip title="Website is online"><Chip size="small" icon={<CheckIcon fontSize="inherit" />} label="Online" color="success" sx={{ fontWeight: 500 }} /></Tooltip>;
             else if (cardStatus === 'down') {
                 statusChip = <Tooltip title={`Website is down ${incidentStartTimeFormatted ? `(since ${incidentStartTimeFormatted})` : ''}`}><Chip size="small" icon={<ErrorIcon fontSize="inherit" />} label="Offline" color="error" sx={{ fontWeight: 500 }} /></Tooltip>;
             } else if (cardStatus === 'slow') {
                 statusChip = <Tooltip title={`Website is responding slowly ${incidentStartTimeFormatted ? `(since ${incidentStartTimeFormatted})` : ''}`}><Chip size="small" icon={<SlowIcon fontSize="inherit" />} label="Slow" color="warning" sx={{ fontWeight: 500 }} /></Tooltip>;
             }
-
             return (
                 <>
                     {statusChip}
@@ -208,14 +216,12 @@ const WebsiteCard = React.memo(
             );
         };
 
-        // Use websiteId for the ID, ensure it's not -1 for skeletons if ID needs to be unique
         const cardId = isSkeleton ? `skeleton-card-${userWebsite.websiteId}` : `website-card-grid-${websiteId}`;
-
         const cardContent = (
             <Card
                 id={cardId}
                 sx={cardStyles}
-                onClick={handleClick} // Click handled internally now
+                onClick={handleClick}
                 aria-label={isSkeleton ? "Loading website data" : `View details for ${displayName}${isPinned ? ', Pinned' : ''}${cardStatus !== 'up' ? `, Status: ${cardStatus}` : ''}${shouldHighlightThisCard ? ', Highlighted as Last Incident Source' : ''}`}
             >
                 <CardContent sx={{
@@ -223,62 +229,55 @@ const WebsiteCard = React.memo(
                     display: "flex",
                     flexDirection: "column",
                     p: 2,
-                    // Ensure padding bottom accommodates ticks area
                     pb: `calc(${theme.spacing(1)} + ${TICKS_AREA_HEIGHT}px + ${theme.spacing(TICKS_MARGIN_TOP)})`
                 }}>
-                    {/* Header */}
+                    {}
                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
-                        {/* --- FIXED: Tooltip 1 --- */}
+                        {}
                         <Tooltip title={displayName} placement="top-start"><Typography variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 40px)', mr: 1, overflow: 'hidden' }}>
                             {displayName}
-                        </Typography></Tooltip> {/* <-- No whitespace before closing tag */}
-
-                        {/* Conditional Rendering */}
+                        </Typography></Tooltip> {}
+                        {}
                         {!isSkeleton && (
-                             /* --- FIXED: Tooltip 2 --- */
-                            <Tooltip title={pinTooltipText} placement="top"><span> {/* <-- Span starts immediately */}
+                            <Tooltip title={pinTooltipText} placement="top"><span> {}
                                 <IconButton size="small" onClick={handlePinClick} disabled={isSettingPin} aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`} sx={{ color: hasPinError && !isSettingPin ? theme.palette.error.main : isPinned ? theme.palette.primary.main : 'inherit' }}>
                                     {isSettingPin ? <CircularProgress size={20} color="inherit" /> : isPinned ? <PinIcon fontSize="small" /> : <PinOutlinedIcon fontSize="small" />}
                                 </IconButton>
-                            </span></Tooltip> /* <-- No whitespace before closing tag */
+                            </span></Tooltip>
                         )}
                     </Box>
-
-                    {/* URL/Placeholder */}
+                    {}
                     <Box sx={{ minHeight: '20px', mb: 1.5 }}>
-                        {name && displayUrl && name !== displayUrl && !isSkeleton && ( // Hide URL for skeletons
+                        {name && displayUrl && name !== displayUrl && !isSkeleton && (
                             <Tooltip title={displayUrl} placement="bottom-start"><Typography variant="body2" color="textSecondary" noWrap sx={{ overflow: 'hidden' }}>{displayUrl}</Typography></Tooltip>
                         )}
-                         {isSkeleton && ( // Placeholder for URL area in skeleton
+                         {isSkeleton && (
                              <Box sx={{ height: '20px', width: '60%', bgcolor: alpha(theme.palette.text.secondary, 0.1), borderRadius: '4px' }} />
                          )}
                     </Box>
-
-                    {/* Chips */}
+                    {}
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5, minHeight: CHIPS_ROW_MIN_HEIGHT, alignItems: 'center' }}>
-                        {/* Render chips or placeholders for skeletons */}
+                        {}
                         {isSkeleton ? (
                             <Chip size="small" icon={<PendingIcon fontSize="inherit" />} label="Loading..." variant="outlined" color="warning" sx={{ fontWeight: 500 }} />
                         ) : (
                             renderStatusChips()
                         )}
                     </Box>
-
-                     {/* Chart/Status Area */}
+                     {}
                     <Box sx={{
                         height: `${CHART_AREA_HEIGHT}px`,
-                        mt: "auto", // Push chart area towards the bottom
+                        mt: "auto",
                         width: '100%',
                         display: 'flex',
                         justifyContent: 'center',
                         alignItems: 'center'
                     }}>
                         {isSkeleton ? (
-                             <CircularProgress size={24} color="inherit" /> // Simple spinner for skeleton chart area
+                             <CircularProgress size={24} color="inherit" />
                         ) : canShowAggregatedChart && cardStatus !== 'down' ? (
                              <SimpleLineChart data={chartData} options={chartOptions} />
                         ) : (
-                            // Existing logic for no chart data / down / slow / pending states
                             <Box sx={{ color: 'text.secondary', textAlign: 'center', width: '100%', p: 1 }}>
                                 {cardStatus === 'pending' ? (
                                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center"><PendingIcon fontSize="small" /><Typography variant="caption">Awaiting check data...</Typography></Stack>
@@ -299,8 +298,7 @@ const WebsiteCard = React.memo(
                         )}
                     </Box>
                 </CardContent>
-
-                {/* Ticks Area - Render only if not a skeleton */}
+                {}
                 {!isSkeleton && (
                     <Box sx={{
                         position: 'absolute',
@@ -316,17 +314,14 @@ const WebsiteCard = React.memo(
                                     let tickColor = theme.palette.grey[400];
                                     let tooltipStatus = 'Unknown';
                                     let uptimePercentFormatted = 'N/A';
-
                                     if (typeof uptimeRatio === 'number' && !isNaN(uptimeRatio)) {
                                         tickColor = uptimeRatio === 1.0 ? theme.palette.success.light : theme.palette.error.light;
                                         tooltipStatus = uptimeRatio === 1.0 ? 'Up' : 'Down';
                                         uptimePercentFormatted = (uptimeRatio * 100).toFixed(1);
                                     } else { tickColor = theme.palette.grey[300]; tooltipStatus = 'Data Missing'; }
-
                                     const tooltipTitle = `${point.label ?? ('Interval ' + index)}: ${tooltipStatus}${uptimePercentFormatted !== 'N/A' ? ` (${uptimePercentFormatted}%)` : ''}`;
                                     const numberOfTicks = limitedChartDataPoints.length;
                                     const tickMaxWidth = numberOfTicks > 0 ? `calc(${100 / numberOfTicks}% - ${theme.spacing(0.5)})` : '0%';
-
                                     return (<Tooltip key={`${websiteId}-tick-${index}`} title={tooltipTitle} placement="top"><Box sx={{ flexGrow: 1, maxWidth: tickMaxWidth, height: '100%', bgcolor: tickColor, borderRadius: '1px' }} /></Tooltip>);
                                 })}
                             </Stack>
@@ -340,7 +335,7 @@ const WebsiteCard = React.memo(
                         )}
                     </Box>
                 )}
-                 {/* Skeleton Placeholder for Ticks */}
+                 {}
                  {isSkeleton && (
                      <Box sx={{
                          position: 'absolute',
@@ -348,17 +343,14 @@ const WebsiteCard = React.memo(
                          left: '5%',
                          right: '5%',
                          height: `${TICKS_AREA_HEIGHT}px`,
-                         bgcolor: alpha(theme.palette.text.secondary, 0.05), // Placeholder background
+                         bgcolor: alpha(theme.palette.text.secondary, 0.05),
                          borderRadius: '1px'
                      }} />
                  )}
             </Card>
         );
-
-        // Don't wrap skeletons in the highlight tooltip
         return shouldHighlightThisCard && !isSkeleton ? <Tooltip title="This website had the most recent incident" placement="top" arrow>{cardContent}</Tooltip> : cardContent;
     },
 );
 WebsiteCard.displayName = 'WebsiteCard';
-
 export default WebsiteCard;

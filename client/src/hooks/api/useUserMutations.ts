@@ -1,4 +1,3 @@
-// src/hooks/api/useUserMutations.ts
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     updateUserProfileApi,
@@ -9,67 +8,52 @@ import {
     UpdateUserResponse,
 } from '../../api/userApi';
 import { ApiError } from '../../types';
-import { authQueryKeys } from './useAuth'; // Import query keys for invalidation
-import { useAuth } from '../../context/AuthContext'; // To call logout on delete
+import { authQueryKeys } from './useAuth';
+import { useAuth } from '../../context/AuthContext';
 
 /**
- * Hook for updating user profile (name/email).
+ * Custom hook for updating the user's profile information.
  */
 export function useUpdateUserProfileMutation() {
     const queryClient = useQueryClient();
-
     return useMutation<UpdateUserResponse, ApiError, UpdateUserDataPayload>({
         mutationFn: updateUserProfileApi,
         onSuccess: (data) => {
-            // Update the cached user data
             queryClient.setQueryData(authQueryKeys.me, { user: data.user });
-            // Optionally invalidate other queries if user name/email is used elsewhere directly
-            console.log("Profile update successful via mutation hook");
-            // Success feedback should be handled in the component (e.g., Snackbar)
         },
         onError: (error) => {
             console.error("Profile update mutation failed:", error.message);
-            // Error feedback handled in the component
         },
     });
 }
 
 /**
- * Hook for updating user password.
+ * Custom hook for updating the user's password.
  */
 export function useUpdateUserPasswordMutation() {
-    // No cache invalidation needed here as password is not stored in frontend state
     return useMutation<{ message: string }, ApiError, UpdatePasswordPayload>({
         mutationFn: updateUserPasswordApi,
         onSuccess: (data) => {
             console.log("Password update successful:", data.message);
-             // Success feedback handled in the component
         },
         onError: (error) => {
             console.error("Password update mutation failed:", error.message);
-            // Error feedback handled in the component
         },
     });
 }
 
 /**
- * Hook for deleting the user account.
+ * Custom hook for deleting the user's account.
  */
 export function useDeleteUserAccountMutation() {
- 
-    const auth = useAuth(); // Get auth context which might be null
-
-    return useMutation<void, ApiError, void>({ // Takes void as input
+    const auth = useAuth();
+    return useMutation<void, ApiError, void>({
         mutationFn: deleteUserAccountApi,
         onSuccess: () => {
-            console.log("Account deletion successful.");
-          
-            auth?.logout(); // Use optional chaining to safely call logout
-           
+            auth?.logout();
         },
         onError: (error) => {
             console.error("Account deletion mutation failed:", error.message);
-             // Error feedback handled in the component
         },
     });
 }

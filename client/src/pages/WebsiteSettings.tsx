@@ -1,4 +1,3 @@
-// src/pages/WebsiteSettings.tsx
 import React, { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router";
 import { Formik, Form, Field, FieldProps } from "formik";
@@ -11,7 +10,6 @@ import Grid from "@mui/material/Grid2";
 import {
     ArrowBack as ArrowBackIcon, Save as SaveIcon, Delete as DeleteIcon,
 } from "@mui/icons-material";
-
 import { useUserWebsiteQuery, useWebsiteMutations } from "../hooks";
 import FormNotification, { initialNotificationState, FormNotificationState } from "../components/common/FormNotification";
 import ConfirmationDialog from "../components/common/ConfirmationDialog";
@@ -53,22 +51,26 @@ const WebsiteSettingsSchema = Yup.object().shape({
         }),
 });
 
-
+/**
+ * Page component for managing settings of a specific website.
+ */
 const WebsiteSettings: React.FC = () => {
     const { websiteId: websiteIdParam } = useParams<{ websiteId: string }>();
     const navigate = useNavigate();
 
+    /**
+     * Parses the website ID from the URL parameter.
+     */
     const parseIdParam = (idParam: string | undefined): number | undefined => {
         if (!idParam) return undefined;
         const id = parseInt(idParam, 10);
         return isNaN(id) || id <= 0 ? undefined : id;
     };
-
     const numericWebsiteId = useMemo(() => parseIdParam(websiteIdParam), [websiteIdParam]);
 
     const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-    const [deleteError, setDeleteError] = useState<string | null>(null); // Keep for dialog-specific error
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     const {
         data: userWebsite,
@@ -86,7 +88,6 @@ const WebsiteSettings: React.FC = () => {
         removeWebsite,
         isUpdating,
         isRemoving,
-        // errorUpdating, // Use notification instead
     } = useWebsiteMutations();
 
     const isMutating = isUpdating || isRemoving;
@@ -100,19 +101,17 @@ const WebsiteSettings: React.FC = () => {
         notifyEmail: userWebsite?.notifyEmail || "",
     }), [userWebsite]);
 
+    /**
+     * Handles form submission for updating website settings.
+     */
     const handleSubmit = async (
         values: WebsiteSettingsFormValues,
     ) => {
-        // const { setStatus } = formikHelpers; // Not using status for errors
-        // setStatus(null);
-        setNotification(initialNotificationState); // Clear previous notification
-
+        setNotification(initialNotificationState);
         if (!numericWebsiteId) {
-            // setStatus({ error: "Cannot save: Invalid Website ID." }); // Use notification
             setNotification({ open: true, message: "Error: Cannot save settings - Invalid Website ID.", severity: "error" });
             return;
         }
-
         const updateData: UpdateWebsiteUserDTO = {
             name: values.name.trim() || null,
             interval: Number(values.interval),
@@ -120,33 +119,38 @@ const WebsiteSettings: React.FC = () => {
             alertThreshold: values.alertEnabled ? Number(values.alertThreshold) : null,
             notifyEmail: values.alertEnabled && values.notifyEmail.trim() ? values.notifyEmail.trim() : null,
         };
-
         try {
             await updateSettings({ websiteId: numericWebsiteId, websiteData: updateData });
             setNotification({ open: true, message: "Settings saved successfully!", severity: "success" });
-            // Navigate back to details page after successful save (or show notification briefly first)
-             setTimeout(() => navigate(`/website/${numericWebsiteId}`), 1500); // Short delay then navigate
+             setTimeout(() => navigate(`/website/${numericWebsiteId}`), 1500);
         } catch (err) {
             const apiError = err as ApiError;
             console.error("Failed to update settings:", apiError);
             const message = apiError?.message || "Failed to save settings.";
-            // setStatus({ error: message }); // Use notification
             setNotification({ open: true, message: `Error: ${message}`, severity: "error" });
         }
-        // Formik handles isSubmitting state automatically
     };
 
+    /**
+     * Opens the delete confirmation dialog.
+     */
     const openDeleteDialog = useCallback(() => {
-        setDeleteError(null); // Clear previous error when opening
+        setDeleteError(null);
         setDeleteConfirmOpen(true);
     }, []);
 
+    /**
+     * Closes the delete confirmation dialog.
+     */
     const closeDeleteDialog = useCallback(() => {
         if (!isRemoving) {
             setDeleteConfirmOpen(false);
         }
     }, [isRemoving]);
 
+    /**
+     * Handles the confirmation of website deletion.
+     */
     const handleDeleteConfirm = useCallback(async () => {
         if (!numericWebsiteId) return;
         setDeleteError(null);
@@ -155,30 +159,35 @@ const WebsiteSettings: React.FC = () => {
             await removeWebsite(numericWebsiteId);
             setNotification({ open: true, message: `Website removed successfully. Redirecting...`, severity: "success" });
             closeDeleteDialog();
-             setTimeout(() => navigate("/"), 1500); // Navigate after delay
+             setTimeout(() => navigate("/"), 1500);
         } catch (err) {
             const apiError = err as ApiError;
             console.error("Failed to delete website:", apiError);
             const message = apiError.message || 'Unknown error removing website';
-            setDeleteError(`Removal failed: ${message}`); // Set error state FOR THE DIALOG
-             // Also show a snackbar error for the main page
+            setDeleteError(`Removal failed: ${message}`);
              setNotification({ open: true, message: `Error: ${message}`, severity: "error" });
         }
     }, [numericWebsiteId, removeWebsite, navigate, closeDeleteDialog, setNotification]);
 
+    /**
+     * Navigates back to the website details or dashboard.
+     */
     const handleBackClick = useCallback(() => {
         navigate(numericWebsiteId ? `/website/${numericWebsiteId}` : '/');
     }, [navigate, numericWebsiteId]);
 
+    /**
+     * Handles closing of the notification snackbar.
+     */
     const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
         if (reason === 'clickaway') return;
         setNotification((prev) => ({ ...prev, open: false }));
     }, []);
 
-    // --- Render Logic ---
     if (websiteIdParam !== undefined && numericWebsiteId === undefined) {
         return <Container sx={{ mt: 4 }}><Alert severity="error">Invalid Website ID provided in URL.</Alert></Container>;
     }
+
     if (isWebsiteLoading) {
         return <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}><Box display="flex" justifyContent="center" my={5}><CircularProgress data-testid="settings-loading-spinner" /></Box></Container>;
     }
@@ -213,18 +222,17 @@ const WebsiteSettings: React.FC = () => {
         return <Container sx={{ mt: 4 }}><Alert severity="info">Loading website settings...</Alert></Container>;
     }
 
-    // Prepare description for the confirmation dialog, showing potential delete error
     const deleteDialogDescription = (
         <>
             Are you sure you want to remove "{userWebsite.name || userWebsite.website?.url}"? This action cannot be undone.
-            {/* Keep deleteError here as it's specific feedback within the dialog flow */}
+            {}
             {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
         </>
     );
 
     return (
         <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-            {/* Header */}
+            {}
             <Box sx={{ mb: 3, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: 'wrap', gap: 1 }}>
                 <Stack direction="row" alignItems="center" spacing={1}>
                     <Tooltip title="Back to Website Details">
@@ -238,15 +246,13 @@ const WebsiteSettings: React.FC = () => {
                     {userWebsite.website?.url ?? 'URL not available'}
                 </Typography>
             </Box>
-
-            {/* Form */}
+            {}
             <Formik initialValues={initialValues} validationSchema={WebsiteSettingsSchema} onSubmit={handleSubmit} enableReinitialize>
-                {({ errors, touched, values, /* status, */ dirty, isValid }) => ( // Removed status
+                {({ errors, touched, values,  dirty, isValid }) => (
                     <Form noValidate>
-                        {/* Removed inline alerts for status.error and errorUpdating */}
-                        {/* {status?.error && <Alert severity="error" sx={{ mb: 3 }}>{status.error}</Alert>} */}
-                        {/* {errorUpdating && !status?.error && <Alert severity="error" sx={{ mb: 3 }}>Update failed: {(errorUpdating as ApiError).message || 'Unknown error'}</Alert>} */}
-
+                        {}
+                        {}
+                        {}
                         <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}>
                             <Typography variant="h6" gutterBottom>General Settings</Typography>
                             <Divider sx={{ mb: 3 }} />
@@ -263,8 +269,7 @@ const WebsiteSettings: React.FC = () => {
                                 </Grid>
                             </Grid>
                         </Paper>
-
-                        {/* Alert Settings Paper */}
+                        {}
                         <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}>
                             <Typography variant="h6" gutterBottom>Alert Settings</Typography>
                             <Divider sx={{ mb: 3 }} />
@@ -289,8 +294,7 @@ const WebsiteSettings: React.FC = () => {
                                 </Grid>
                             )}
                         </Paper>
-
-                        {/* Action Buttons */}
+                        {}
                         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: 'center', mt: 4, gap: 2, flexWrap: 'wrap' }}>
                             <Button variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={openDeleteDialog}
                                 disabled={isActionLoading} data-testid="delete-button">
@@ -305,8 +309,7 @@ const WebsiteSettings: React.FC = () => {
                     </Form>
                 )}
             </Formik>
-
-            {/* Delete Confirmation Dialog */}
+            {}
             <ConfirmationDialog
                 open={deleteConfirmOpen}
                 onClose={closeDeleteDialog}
@@ -318,11 +321,9 @@ const WebsiteSettings: React.FC = () => {
                 isLoading={isRemoving}
                 confirmButtonColor="error"
             />
-
-            {/* Snackbar Notification */}
+            {}
             <FormNotification notification={notification} onClose={handleNotificationClose} />
         </Container>
     );
 };
-
 export default WebsiteSettings;

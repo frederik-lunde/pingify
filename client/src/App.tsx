@@ -1,9 +1,5 @@
-// src/App.tsx
 import { Routes, Route } from "react-router";
-// import { CssBaseline } from "@mui/material"; // REMOVE CssBaseline import here
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-
-// Core Components & Pages
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
@@ -13,23 +9,22 @@ import AddWebsite from "./pages/AddWebsite";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import IncidentsPage from "./pages/Incidents";
-import ProfilePage from "./pages/Profile"; // Corrected path
+import ProfilePage from "./pages/Profile";
 import NotFoundPage from "./pages/NotFound";
-
-// Context
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProviderWrapper } from "./context/ThemeContext";
 import { TvModeProvider } from "./context/TvModeContext";
 
-// Component containing Routes
+/**
+ * Defines the application's routing structure.
+ */
 function AppRoutes() {
     return (
         <Routes>
-            {/* Public routes */}
+            {}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-
-            {/* Protected routes within MainLayout */}
+            {}
             <Route
                 element={
                     <ProtectedRoute>
@@ -44,18 +39,19 @@ function AppRoutes() {
                 <Route path="/incidents" element={<IncidentsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
             </Route>
-
-            {/* Catch-all 404 route */}
+            {}
             <Route path="*" element={<NotFoundPage />} />
         </Routes>
     );
 }
 
-// Main App component
+/**
+ * Root component of the application, sets up providers and routes.
+ */
 function App() {
     return (
         <>
-            {/* CssBaseline is now handled within ThemeProviderWrapper */}
+            {}
             <AuthProvider>
                 <ThemeProviderWrapper>
                     <TvModeProvider>
@@ -67,5 +63,4 @@ function App() {
         </>
     );
 }
-
 export default App;

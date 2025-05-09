@@ -1,25 +1,32 @@
-// src/api/userApi.ts
 import apiClient from './client';
-import { User } from '../types'; // Assuming User type is defined here
+import { User } from '../types';
 
-// Interfaces matching backend service/controller expectations
+/**
+ * Payload for updating user data.
+ */
 export interface UpdateUserDataPayload {
     name?: string;
     email?: string;
 }
 
+/**
+ * Payload for updating user password.
+ */
 export interface UpdatePasswordPayload {
     currentPassword?: string;
     newPassword?: string;
 }
 
+/**
+ * Response structure for updating user profile.
+ */
 export interface UpdateUserResponse {
-    user: Omit<User, 'password'>; // Return updated user data
+    user: Omit<User, 'password'>;
     message: string;
 }
 
 /**
- * Updates the current user's profile information (name, email).
+ * Updates the current user's profile information.
  */
 export const updateUserProfileApi = async (data: UpdateUserDataPayload): Promise<UpdateUserResponse> => {
     return apiClient.patch<UpdateUserResponse>('/users/me', data);
@@ -29,7 +36,6 @@ export const updateUserProfileApi = async (data: UpdateUserDataPayload): Promise
  * Updates the current user's password.
  */
 export const updateUserPasswordApi = async (data: UpdatePasswordPayload): Promise<{ message: string }> => {
-    // Ensure required fields are present before sending
      if (!data.currentPassword || !data.newPassword) {
          return Promise.reject(new Error("Current and new passwords are required."));
      }
@@ -38,14 +44,7 @@ export const updateUserPasswordApi = async (data: UpdatePasswordPayload): Promis
 
 /**
  * Deletes the current user's account.
- * Returns void on success (HTTP 204 No Content).
  */
 export const deleteUserAccountApi = async (): Promise<void> => {
     await apiClient.delete('/users/me');
-    // No explicit return needed for 204, but signifies success
 };
-
-// Optional: If you need to re-fetch the user profile separately
-// export const fetchMyProfile = async (): Promise<{ user: Omit<User, 'password'> }> => {
-//     return apiClient.get<{ user: Omit<User, 'password'> }>('/users/me');
-// };

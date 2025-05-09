@@ -1,85 +1,116 @@
-/*
-* client/src/types.ts
-* Defines the core data structures used throughout the frontend application,
-* primarily reflecting the expected shapes of data received from the API
-* and data sent to the API (DTOs).
-*/
-
-// --- SECTION 1: Primitive Type Aliases & Enums ---
-
-/** Defines valid keys for selecting timeframes in UI and API requests. */
+/**
+ * Defines keys for standard timeframes used in data fetching.
+ */
 export type TimeframeKey = 'hour' | 'day' | 'week' | 'month' | 'year';
+/**
+ * Array of valid timeframe keys.
+ */
 export const VALID_TIMEFRAMES = ['hour', 'day', 'week', 'month', 'year'] as const;
 
-/** Defines valid incident types used in API responses and filters. */
+/**
+ * Defines the type of an incident (e.g., website down or slow).
+ */
 export type IncidentType = 'down' | 'slow';
+/**
+ * Array of valid incident types.
+ */
 export const VALID_INCIDENT_TYPES = ['down', 'slow'] as const;
 
-/** Defines valid alert types (currently same as incident types). */
+/**
+ * Defines the type of an alert (e.g., website down or slow).
+ */
 export type AlertType = 'down' | 'slow';
+/**
+ * Array of valid alert types.
+ */
 export const VALID_ALERT_TYPES = ['down', 'slow'] as const;
 
-/** Defines valid incident status filters for API queries. */
+/**
+ * Defines filter options for incident status (open or closed).
+ */
 export type IncidentStatusFilter = 'open' | 'closed';
+/**
+ * Array of valid incident status filter values.
+ */
 export const VALID_INCIDENT_STATUSES = ['open', 'closed'] as const;
 
-/** Defines valid fields for sorting monitoring results via API. */
+/**
+ * Defines the fields by which monitoring results can be sorted.
+ */
 export type MonitoringResultSortBy = 'checkedAt' | 'isAvailable' | 'responseTime' | 'statusCode' | 'id';
+/**
+ * Array of valid fields for sorting monitoring results.
+ */
 export const VALID_SORT_BY: MonitoringResultSortBy[] = ['checkedAt', 'isAvailable', 'responseTime', 'statusCode', 'id'];
 
-/** Defines valid sort directions for API queries. */
+/**
+ * Defines the direction for sorting (ascending or descending).
+ */
 export type SortDirection = 'asc' | 'desc';
+/**
+ * Array of valid sort directions.
+ */
 export const VALID_SORT_DIR: SortDirection[] = ['asc', 'desc'];
 
-/** Defines dashboard website sort options (frontend specific). */
+/**
+ * Predefined sort options for website lists.
+ */
 export const SORT_OPTIONS = ['name-asc', 'name-desc', 'response-asc', 'response-desc'] as const;
+/**
+ * Represents a specific sort option from the predefined list.
+ */
 export type SortOption = typeof SORT_OPTIONS[number];
 
-// --- SECTION 2: Core API Entity Types (as received from backend) ---
-
-/** Represents a single monitoring check result. */
+/**
+ * Represents a single monitoring check result for a website.
+ */
 export interface MonitoringResult {
   id: number;
   websiteId: number;
-  checkedAt: string; // ISO 8601 date string
-  responseTime: number | null; // Milliseconds
+  checkedAt: string;
+  responseTime: number | null;
   isAvailable: boolean;
   statusCode: number | null;
   errorMessage: string | null;
-  // Optional nested data if the specific API endpoint includes it
   website?: {
     url: string;
-    name?: string | null; // User's custom name might be included
+    name?: string | null;
   };
 }
 
-/** Represents core website data. */
+/**
+ * Represents a globally defined website in the system.
+ */
 export interface Website {
   id: number;
   url: string;
   isActive: boolean;
-  lastChecked: string | null; // ISO 8601 date string
+  lastChecked: string | null;
   globalInterval: number;
-  createdAt?: string; // ISO 8601 date string
-  updatedAt?: string; // ISO 8601 date string
+  createdAt?: string;
+  updatedAt?: string;
   name?: string | null;
 }
 
-/** Represents basic user information. */
+/**
+ * Represents a user account in the system.
+ */
 export interface User {
-  id: string; // User ID is a string (CUID)
+  id: string;
   email: string;
   name?: string | null;
 }
 
-/** Represents an incident record (downtime or slow response period). */
+/**
+ * Represents a monitoring incident (e.g., downtime or slow period).
+ */
 export interface Incident {
     id: number;
     websiteId: number;
     type: IncidentType;
-    startTime: string; // ISO 8601 date string
-    endTime: string | null; // ISO 8601 date string or null if ongoing
-    durationSeconds: number | null; // Duration in seconds if ended
+    startTime: string;
+    endTime: string | null;
+    durationSeconds: number | null;
     initialResultId?: number | null;
     confirmingResultId?: number | null;
     resolvingResultId?: number | null;
@@ -90,7 +121,9 @@ export interface Incident {
     };
 }
 
-/** Represents the user's specific settings and aggregated data for a monitored website. */
+/**
+ * Represents a user's specific website configuration and associated data.
+ */
 export interface WebsiteUser {
   id: number;
   userId: string;
@@ -109,7 +142,9 @@ export interface WebsiteUser {
   currentIncident?: Incident | null;
 }
 
-/** Represents an active alert notification record. */
+/**
+ * Represents an alert notification sent to a user.
+ */
 export interface Alert {
     id: number;
     websiteId: number;
@@ -134,10 +169,9 @@ export interface Alert {
     }
 }
 
-
-// --- SECTION 3: API DTOs (Data Transfer Objects - Sent from Frontend) ---
-
-/** DTO for adding a website TO A USER's dashboard. */
+/**
+ * Data Transfer Object for adding a new website for a user.
+ */
 export interface AddWebsiteUserDTO {
   url: string;
   name?: string | null;
@@ -148,7 +182,9 @@ export interface AddWebsiteUserDTO {
   isPinned?: boolean;
 }
 
-/** DTO for UPDATING a user's settings for a website. */
+/**
+ * Data Transfer Object for updating a user's website settings.
+ */
 export interface UpdateWebsiteUserDTO {
   name?: string | null;
   interval?: number | null;
@@ -158,40 +194,49 @@ export interface UpdateWebsiteUserDTO {
   isPinned?: boolean;
 }
 
-/** DTO specifically for updating the pin status via PATCH. */
+/**
+ * Data Transfer Object for setting the pin status of a website.
+ */
 export interface SetPinStatusDTO {
     isPinned: boolean;
 }
 
-/** DTO for user login. */
+/**
+ * Represents user credentials for login.
+ */
 export interface LoginCredentials {
   email: string;
   password: string;
 }
 
-/** DTO for user registration. */
+/**
+ * Represents data required for user registration.
+ */
 export interface RegisterUserData {
   email: string;
   password: string;
   name?: string;
 }
 
-/** DTO for updating user profile (name/email). */
+/**
+ * Data Transfer Object for updating user profile information.
+ */
 export interface UpdateUserProfileDTO {
     name?: string;
     email?: string;
 }
 
-/** DTO for updating user password. */
+/**
+ * Data Transfer Object for updating a user's password.
+ */
 export interface UpdateUserPasswordDTO {
     currentPassword?: string;
     newPassword?: string;
 }
 
-
-// --- SECTION 4: API Query Options (Parameters for GET requests) ---
-
-/** Options for fetching monitoring results lists. */
+/**
+ * Defines query options for fetching monitoring results.
+ */
 export interface ResultsQueryOptions {
   limit?: number;
   from?: Date;
@@ -199,7 +244,9 @@ export interface ResultsQueryOptions {
   websiteId?: number;
 }
 
-/** Options for fetching active alerts list. */
+/**
+ * Defines query options for fetching alerts.
+ */
 export interface AlertQueryOptions {
   limit?: number;
   type?: AlertType;
@@ -208,7 +255,9 @@ export interface AlertQueryOptions {
   websiteId?: number;
 }
 
-/** Options for fetching incidents list. */
+/**
+ * Defines query options for fetching incidents.
+ */
 export interface IncidentQueryOptions {
     limit?: number;
     type?: IncidentType;
@@ -218,10 +267,9 @@ export interface IncidentQueryOptions {
     status?: IncidentStatusFilter;
 }
 
-
-// --- SECTION 5: API Response Shapes & Aggregated ViewModels ---
-
-/** Raw outcome of a single monitoring check (less common in UI). */
+/**
+ * Represents the response of a single monitoring check.
+ */
 export interface MonitoringResponse {
   responseTime: number | null;
   isAvailable: boolean;
@@ -229,7 +277,9 @@ export interface MonitoringResponse {
   errorMessage: string | null;
 }
 
-/** Aggregated stats for a single website over a period. */
+/**
+ * Represents statistics for a single website.
+ */
 export interface WebsiteStatsData {
   websiteId: number;
   websiteName: string;
@@ -243,7 +293,9 @@ export interface WebsiteStatsData {
   slowIncidentCount: number;
 }
 
-/** Overall statistics summary for the user's dashboard view. */
+/**
+ * Represents overall monitoring statistics for a user.
+ */
 export interface OverallStats {
   totalWebsites: number;
   activeWebsites: number;
@@ -255,7 +307,9 @@ export interface OverallStats {
   lastIncidentWebsiteId?: number | null;
 }
 
-/** Represents a single data point formatted for chart display. */
+/**
+ * Represents a data point used in charts (e.g., uptime, response time).
+ */
 export interface ChartDataPoint {
     label: string;
     timestamp: number;
@@ -264,7 +318,9 @@ export interface ChartDataPoint {
     checkCount: number;
 }
 
-/** Detailed data structure for the single website details page. */
+/**
+ * Represents detailed data for a specific website, including charts and recent activity.
+ */
 export interface WebsiteDetailsData {
   websiteId: number;
   name: string;
@@ -277,13 +333,17 @@ export interface WebsiteDetailsData {
   recentIncidents: Incident[];
 }
 
-/** Standard response shape for authentication endpoints. */
+/**
+ * Represents the response from a successful authentication request.
+ */
 export interface AuthResponse {
     token: string;
     user: User;
 }
 
-/** Aggregated statistics about the user's active alerts. */
+/**
+ * Represents statistics related to alerts.
+ */
 export interface AlertStats {
   totalAlerts: number;
   byType: Partial<Record<AlertType, number>>;
@@ -294,33 +354,34 @@ export interface AlertStats {
   }>;
 }
 
-/** Response shape for the incident count endpoint. */
+/**
+ * Represents a response containing an incident count.
+ */
 export interface IncidentCountResponse {
   incidentCount: number;
 }
 
-
-// --- SECTION 6: Frontend Specific Context/State/Hook Types ---
-
-/** Structure for the Authentication Context. */
+/**
+ * Defines the shape of the authentication context.
+ */
 export interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
   error: string | null;
-  logout: () => void; // Assuming logout returns void or Promise<void>
+  logout: () => void;
 }
 
-
-/** Structure returned by the useWebsiteData hook */
+/**
+ * Represents a summary of website data, typically for dashboard display.
+ */
 export interface WebsiteDataSummary {
     websiteCards: WebsiteUser[];
     overallStats: OverallStats | null;
     isLoading: boolean;
     isFetching: boolean;
     error: ApiError | null;
-    // --- FIX: Use unknown instead of any ---
-    refetch: () => Promise<unknown>; // Use unknown for safer promise result handling
+    refetch: () => Promise<unknown>;
     totalWebsitesCount: number;
     upWebsitesCount: number;
     incidentsLast24h: number | null;
@@ -328,15 +389,16 @@ export interface WebsiteDataSummary {
     lastIncidentWebsiteId: number | null | undefined;
 }
 
-/** Standardized structure for API errors (as received/parsed by frontend). */
+/**
+ * Represents a custom API error, extending the base Error class.
+ */
 export interface ApiError extends Error {
   name: string;
   status?: number;
   statusText?: string;
   url?: string;
   method?: string;
-  // --- FIX: Use unknown instead of any ---
-  data?: unknown; // Use unknown for the raw error response body
+  data?: unknown;
   isAuthError?: boolean;
   isNetworkError?: boolean;
 }

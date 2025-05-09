@@ -1,4 +1,3 @@
-// src/components/WebsiteUrlSearch.tsx
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
     TextField,
@@ -27,6 +26,9 @@ export interface WebsiteUrlSearchProps {
     formikConfig?: Omit<FieldHookConfig<string>, 'name'>;
 }
 
+/**
+ * An Autocomplete component for searching and selecting website URLs, integrated with Formik.
+ */
 const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
     name,
     label = "Website URL or Name",
@@ -38,23 +40,20 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
     onSelect: externalOnSelect,
     formikConfig = {},
 }) => {
-    // --- Formik Hooks ---
     const [field, meta, helpers] = useField({ name, ...formikConfig });
     const { setValue, setTouched } = helpers;
     const { isSubmitting } = useFormikContext();
-
-    // --- State ---
     const [inputValue, setInputValue] = useState(field.value || "");
 
-    // Sync internal state if Formik value changes
+    /**
+     * Synchronizes internal input value with Formik field value.
+     */
     useEffect(() => {
         if (field.value !== inputValue) {
             setInputValue(field.value || "");
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [field.value]);
 
-    // --- Search Hook & Debounce ---
     const {
         results: options,
         loading,
@@ -62,6 +61,9 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
         search: searchWebsites,
     } = useWebsiteSearch(searchLimit);
 
+    /**
+     * Debounces the website search API call.
+     */
     const debouncedSearch = useMemo(
         () =>
             debounce((searchTerm: string) => {
@@ -72,7 +74,9 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
         [searchWebsites]
     );
 
-    // --- URL Formatting ---
+    /**
+     * Ensures a URL string has a protocol (http/https).
+     */
     const ensureUrlProtocol = useCallback((url: string): string => {
         if (!url || typeof url !== 'string') return "";
         const trimmedUrl = url.trim();
@@ -86,7 +90,9 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
         return trimmedUrl;
     }, []);
 
-    // --- Event Handlers ---
+    /**
+     * Handles changes to the Autocomplete input field.
+     */
     const handleInputChange = useCallback(
         (_event: React.SyntheticEvent, newValue: string, reason: string) => {
             setInputValue(newValue);
@@ -101,35 +107,32 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
         [setValue, externalOnSelect, debouncedSearch]
     );
 
-    // --- FIX: Remove the explicit generic type argument ---
+    /**
+     * Handles selection of an item from the Autocomplete suggestions.
+     */
     const handleSelectionChange = useCallback(
         (
-            _event: React.SyntheticEvent, // Type inferred correctly
-            selectedValue: string | Website | null, // Type inferred correctly
+            _event: React.SyntheticEvent,
+            selectedValue: string | Website | null,
         ) => {
             let finalUrl = "";
             let selectedWebsite: Website | null = null;
-
             if (typeof selectedValue === "string") {
                 finalUrl = ensureUrlProtocol(selectedValue.trim());
             } else if (selectedValue && typeof selectedValue === 'object' && 'url' in selectedValue) {
-                // selectedValue is a Website object
                 finalUrl = selectedValue.url;
                 selectedWebsite = selectedValue;
             }
-
             setInputValue(finalUrl);
             setValue(finalUrl);
-            setTouched(true, false); // Mark touched on selection
-
+            setTouched(true, false);
             if (externalOnSelect) {
                 externalOnSelect(selectedWebsite);
             }
         },
-        [ensureUrlProtocol, setValue, setTouched, externalOnSelect] // Dependencies remain the same
+        [ensureUrlProtocol, setValue, setTouched, externalOnSelect]
     );
 
-    // --- Autocomplete Value Prop ---
     const autocompleteValue = useMemo(() => {
         if (!field.value) return null;
         const matchedOption = options.find(
@@ -138,16 +141,14 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
         return matchedOption || field.value;
     }, [field.value, options]);
 
-    // --- Final Helper/Error Text ---
     const hasError = (meta.touched && !!meta.error) || !!searchError;
     const finalHelperText = hasError
         ? (meta.error || searchError?.message)
         : helperText;
 
-    // --- Render ---
     return (
         <Box sx={{ width: '100%' }}>
-            <Autocomplete<string | Website, false, false, true> // Keep type params on Autocomplete itself
+            <Autocomplete<string | Website, false, false, true>
                 freeSolo
                 autoSelect
                 options={options}
@@ -171,19 +172,16 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
                         />
                     </li>
                 )}
-                // --- Control Autocomplete State ---
                 value={autocompleteValue}
                 inputValue={inputValue}
                 onInputChange={handleInputChange}
-                onChange={handleSelectionChange} // Pass correctly inferred handler
-                // onBlur is handled by renderInput's TextField below
+                onChange={handleSelectionChange}
                 loading={loading}
                 disabled={disabled || isSubmitting}
                 renderInput={(params) => (
                     <TextField
                         {...params}
                         name={field.name}
-                        // Attach Formik's onBlur and our custom logic
                         onBlur={(event) => {
                             field.onBlur(event);
                             const currentValue = event.target.value || '';
@@ -224,5 +222,4 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
         </Box>
     );
 };
-
 export default WebsiteUrlSearch;

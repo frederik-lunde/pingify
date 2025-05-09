@@ -1,9 +1,8 @@
-// client/src/api/incidentApi.ts
 import apiClient from './client';
 import { Incident, IncidentQueryOptions, IncidentCountResponse, ApiError } from '../types';
 
 /**
- * Constructs query parameters object for incident endpoints, omitting undefined values.
+ * Builds query parameters object from incident options.
  */
 const buildIncidentQueryParams = (options: IncidentQueryOptions): Record<string, string | number | boolean> => {
     const params: Record<string, string | number | boolean> = {};
@@ -17,31 +16,23 @@ const buildIncidentQueryParams = (options: IncidentQueryOptions): Record<string,
 };
 
 /**
- * Helper to log API errors (interceptor already creates/rejects with ApiError).
- * Accepts 'unknown' and performs type checks.
+ * Logs API errors with additional context.
  */
 const logApiError = (error: unknown, context: string): void => {
-    // Check if it looks like our custom ApiError or a standard Error
     if (error instanceof Error) {
-        // Further check if it has properties specific to ApiError (duck typing)
-        // Assuming ApiError instances will always have a 'name' property set to 'ApiError'
-        // and potentially status, url, method from the interceptor
         if ('name' in error && error.name === 'ApiError' && 'status' in error && 'url' in error && 'method' in error) {
-            const apiError = error as ApiError; // Safe cast after checks
+            const apiError = error as ApiError;
             console.error(`API Error (${apiError.status ?? 'Unknown'}) ${context}: ${apiError.message} on ${apiError.method} ${apiError.url}`);
         } else {
-            // Standard Error (e.g., network error before reaching server)
             console.error(`Error ${context}: ${error.message}`);
         }
     } else {
-        // Handle cases where the thrown value is not an Error object
         console.error(`Non-Error Thrown ${context}:`, error);
     }
 };
 
 /**
- * Fetches incidents for the authenticated user's monitored websites.
- * Endpoint: GET /incidents/user
+ * Fetches incidents for the current user.
  */
 export const fetchUserIncidents = async (options: IncidentQueryOptions = {}): Promise<Incident[]> => {
     const url = "/incidents/user";
@@ -49,15 +40,14 @@ export const fetchUserIncidents = async (options: IncidentQueryOptions = {}): Pr
         const params = buildIncidentQueryParams(options);
         const data = await apiClient.get<Incident[]>(url, { params });
         return data ?? [];
-    } catch (error) { // Let TypeScript infer 'unknown'
+    } catch (error) {
         logApiError(error, 'fetching user incidents');
-        throw error; // Re-throw the original error (likely an ApiError from the interceptor)
+        throw error;
     }
 };
 
 /**
- * Fetches incidents for a specific website (requires user access).
- * Endpoint: GET /incidents/website/:websiteId
+ * Fetches incidents for a specific website.
  */
 export const fetchWebsiteIncidents = async (websiteId: number, options: IncidentQueryOptions = {}): Promise<Incident[]> => {
     if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
@@ -65,28 +55,25 @@ export const fetchWebsiteIncidents = async (websiteId: number, options: Incident
     }
     const url = `/incidents/website/${websiteId}`;
     try {
-        // Ensure websiteId from path param isn't overridden by options
         const params = buildIncidentQueryParams({ ...options, websiteId: undefined });
         const data = await apiClient.get<Incident[]>(url, { params });
         return data ?? [];
-    } catch (error) { // Let TypeScript infer 'unknown'
+    } catch (error) {
         logApiError(error, `fetching incidents for website ${websiteId}`);
-        throw error; // Re-throw the original error
+        throw error;
     }
 };
 
 /**
- * Fetches the count of incidents started in the last 24 hours for the user.
- * Endpoint: GET /incidents/user/count/last24h
+ * Fetches the count of user incidents in the last 24 hours.
  */
 export const fetchUserIncidentCountLast24h = async (): Promise<IncidentCountResponse> => {
     const url = "/incidents/user/count/last24h";
     try {
         const data = await apiClient.get<IncidentCountResponse>(url);
-        // Ensure a valid response structure even if API returns null/undefined
         return data ?? { incidentCount: 0 };
-    } catch (error) { // Let TypeScript infer 'unknown'
+    } catch (error) {
         logApiError(error, 'fetching user incident count (last 24h)');
-        throw error; // Re-throw the original ApiError
+        throw error;
     }
 };

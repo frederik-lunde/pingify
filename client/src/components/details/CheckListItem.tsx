@@ -1,39 +1,35 @@
-/*
-src/components/details/CheckListItem.tsx
-*/
-import { memo } from 'react'; // Removed React prefix
+import { memo } from 'react';
 import { ListItem, Typography, Tooltip, Divider, alpha, useTheme } from '@mui/material';
-import Grid from '@mui/material/Grid2'; // <-- Use Grid v2
+import Grid from '@mui/material/Grid2';
 import { CheckCircleOutline as CheckIcon, ErrorOutline as ErrorIcon } from '@mui/icons-material';
-import { MonitoringResult } from '../../types'; // Adjust path
-import { formatResponseTime } from '../../utils/statusUtils'; // Adjust path
+import { MonitoringResult } from '../../types';
+import { formatResponseTime } from '../../utils/statusUtils';
 
 interface CheckListItemProps {
     check: MonitoringResult;
-    isLastItem: boolean; // To control the divider
+    isLastItem: boolean;
 }
 
-// Memoize the list item component
+/**
+ * Renders a single item in a list of monitoring checks.
+ */
 const CheckListItem = memo(({ check, isLastItem }: CheckListItemProps) => {
     const theme = useTheme();
     const rowSx = {
         py: 1, px: { xs: 1, sm: 2 },
         '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.04) },
-        // Apply background color directly if not available
-        ...(!check.isAvailable && { bgcolor: alpha(theme.palette.error.light, 0.1) }) // Slightly less intense bg
+        ...(!check.isAvailable && { bgcolor: alpha(theme.palette.error.light, 0.1) })
     };
-    // Format date directly, handle null case
     const formattedDate = check.checkedAt
         ? new Date(check.checkedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'medium' })
         : 'N/A';
-
     return (
         <>
-            <ListItem sx={rowSx} disableGutters> {/* Added disableGutters */}
-                {/* Use Grid v2 container */}
+            <ListItem sx={rowSx} disableGutters> {}
+                {}
                 <Grid container spacing={1} alignItems="center" sx={{ width: '100%' }}>
-                    {/* Use size prop for Grid v2 items */}
-                    <Grid size={{ xs: 1 }} display="flex" justifyContent="center" alignItems="center"> {/* Centered icon */}
+                    {}
+                    <Grid size={{ xs: 1 }} display="flex" justifyContent="center" alignItems="center"> {}
                         {check.isAvailable ? (
                             <Tooltip title="Up">
                                 <CheckIcon color="success" fontSize="small" />
@@ -45,7 +41,7 @@ const CheckListItem = memo(({ check, isLastItem }: CheckListItemProps) => {
                         )}
                     </Grid>
                     <Grid size={{ xs: 11, sm: 5 }}>
-                        <Typography variant="body2" noWrap title={check.checkedAt ?? 'No timestamp'}> {/* Use original ISO string for title */}
+                        <Typography variant="body2" noWrap title={check.checkedAt ?? 'No timestamp'}> {}
                             {formattedDate}
                         </Typography>
                     </Grid>
@@ -63,12 +59,10 @@ const CheckListItem = memo(({ check, isLastItem }: CheckListItemProps) => {
                     </Grid>
                 </Grid>
             </ListItem>
-            {/* Use component="li" for semantic correctness with List */}
-            {!isLastItem && <Divider component="li" variant="inset" sx={{ ml: { xs: 0, sm: 'calc(1/12 * 100% + 8px)' } }} />} {/* Adjusted inset calculation based on Grid size */}
+            {}
+            {!isLastItem && <Divider component="li" variant="inset" sx={{ ml: { xs: 0, sm: 'calc(1/12 * 100% + 8px)' } }} />} {}
         </>
     );
 });
-
 CheckListItem.displayName = 'CheckListItem';
-
 export default CheckListItem;
