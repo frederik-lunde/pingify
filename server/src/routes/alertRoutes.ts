@@ -1,8 +1,8 @@
-// server/src/routes/alertRoutes.ts
+
 import { Router } from "express";
 import * as alertController from "../controllers/alertController";
 import { authenticate } from "../middleware/authMiddleware";
-import { handleValidationErrors } from "../middleware/validators/authValidator"; // Reuse this
+import { handleValidationErrors } from "../middleware/validators/authValidator"; 
 import {
   getUserAlertsValidationRules,
   dismissAlertValidationRules,
@@ -14,7 +14,7 @@ const router = Router();
 
 router.use(authenticate);
 
-// --- User Specific Routes ---
+
 router.get(
   "/user",
   getUserAlertsValidationRules(),
@@ -28,7 +28,7 @@ router.get(
   alertController.getUserAlertStats,
 );
 
-// --- User Actions ---
+
 router.delete(
   "/:alertId",
   dismissAlertValidationRules(),
@@ -36,7 +36,7 @@ router.delete(
   alertController.dismissAlert,
 );
 
-// --- Website Specific Routes ---
+
 router.get(
   "/website/:websiteId",
   getAlertsByWebsiteValidationRules(),

@@ -1,12 +1,5 @@
-// src/middleware/validators/commonValidators.ts
 import { param, query } from "express-validator";
-import {
-  VALID_ALERT_TYPES,
-  VALID_INCIDENT_TYPES,
-  VALID_TIMEFRAMES,
-  VALID_SORT_BY,
-  VALID_SORT_DIR,
-} from "../../types"; // Assuming these enums/constants exist in types
+
 
 export const validateOptionalIntQueryParam = (paramName: string) =>
   query(paramName)

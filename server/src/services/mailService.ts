@@ -1,8 +1,8 @@
-// server/src/services/mail.service.ts
+
 import nodemailer from "nodemailer";
 import { mailConfig } from "../config/config";
 
-// Define the structure for email options
+
 interface MailOptions {
   to: string | string[];
   subject: string;
@@ -20,7 +20,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Verify connection configuration on startup (optional but recommended)
+
 transporter.verify((error, success) => {
   if (error) {
     console.error("Mail transporter verification failed:", error);
@@ -29,18 +29,14 @@ transporter.verify((error, success) => {
   }
 });
 
-/**
- * Sends an email using the pre-configured transporter.
- * @param options - MailOptions object (to, subject, text, html)
- */
 export const sendMail = async (options: MailOptions): Promise<void> => {
   try {
     const info = await transporter.sendMail({
-      from: mailConfig.from, // Sender address from config
-      to: options.to, // List of receivers
-      subject: options.subject, // Subject line
-      text: options.text, // Plain text body
-      html: options.html, // HTML body
+      from: mailConfig.from, 
+      to: options.to, 
+      subject: options.subject, 
+      text: options.text, 
+      html: options.html, 
     });
     console.log("Message sent: %s", info.messageId);
   } catch (error) {

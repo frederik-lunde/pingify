@@ -1,4 +1,3 @@
-// server/src/services/alertService.ts
 import {
   Website as PrismaWebsite,
   Alert as PrismaAlert,
@@ -17,7 +16,6 @@ import {
   VALID_ALERT_TYPES,
   MonitoringResponse,
   IncidentType,
-  WebsiteUser,
 } from "../types";
 import { WebsiteMonitor, ResultsManager } from "./monitoringService";
 import * as IncidentService from "./incidentService";
@@ -25,6 +23,10 @@ import { sendMail } from "./mailService";
 
 const RECHECK_DELAY_SECONDS = monitoringConfig.recheckDelaySeconds;
 
+/**
+ * Processes a monitoring result to detect recoveries or potential new incidents.
+ * Handles incident resolution, alert dismissal, and scheduling of confirmation checks.
+ */
 export async function handleResultProcessing(
   website: PrismaWebsite,
   result: PrismaMonitoringResult,
@@ -35,7 +37,7 @@ export async function handleResultProcessing(
   );
   let recoveryProcessed = false;
 
-  // --- Check for Recovery FIRST ---
+
   const openDownIncident = await IncidentService.getOpenIncident(
     website.id,
     "down",
@@ -92,7 +94,7 @@ export async function handleResultProcessing(
     }
   }
 
-  // --- Check for Potential New Incidents (only if no recovery was just processed) ---
+
   if (recoveryProcessed) {
     console.log(
       `${logPrefix} Skipping new incident check as recovery was just processed.`,
@@ -173,7 +175,9 @@ export async function handleResultProcessing(
   }
 }
 
-// No changes needed in scheduleIncidentConfirmationCheck
+/**
+ * Schedules a delayed check to confirm a potential incident.
+ */
 async function scheduleIncidentConfirmationCheck(
   websiteId: number,
   initialResult: PrismaMonitoringResult,
@@ -224,7 +228,10 @@ async function scheduleIncidentConfirmationCheck(
   }, delayMs);
 }
 
-// No direct userId changes here, but relies on createAlertAndNotify using string userId
+/**
+ * Performs a confirmation check for a potential incident. If confirmed,
+ * creates an incident record and triggers alert notifications for relevant users.
+ */
 async function handleIncidentConfirmation(
   website: PrismaWebsite,
   initialResult: PrismaMonitoringResult,
@@ -308,13 +315,13 @@ async function handleIncidentConfirmation(
       `${logPrefix} Incident ${newIncident.id} created/confirmed. Checking users for alerts.`,
     );
 
-    // Base criteria: User monitors this website and has alerts enabled globally for it
+
     const baseWhereClause: Prisma.WebsiteUserWhereInput = {
       websiteId: website.id,
       alertEnabled: true,
     };
 
-    // Specific criteria for SLOW alerts
+
     if (confirmedType === "slow") {
       if (confirmingResultDb.responseTime !== null) {
         baseWhereClause.alertThreshold = {
@@ -325,17 +332,17 @@ async function handleIncidentConfirmation(
         console.log(
           `${logPrefix} Confirmed SLOW incident ${newIncident.id} but confirmation check had null responseTime. No threshold-based alerts will be sent.`,
         );
-        baseWhereClause.id = -1; // Impossible condition
+        baseWhereClause.id = -1;
       }
     }
 
-    // Fetch WebsiteUser records, which now have userId as string
+
     const usersToAlert = await prisma.websiteUser.findMany({
       where: baseWhereClause,
       select: {
-        // Select all fields needed by createAlertAndNotify
+
         id: true,
-        userId: true, // This is now a string
+        userId: true,
         websiteId: true,
         name: true,
         interval: true,
@@ -358,7 +365,7 @@ async function handleIncidentConfirmation(
     );
 
     for (const user of usersToAlert) {
-      // Pass the PrismaWebsiteUser object (which includes the string userId)
+
       await createAlertAndNotify(
         website,
         user,
@@ -369,20 +376,24 @@ async function handleIncidentConfirmation(
   }
 }
 
+/**
+ * Creates an alert record in the database and sends an email notification
+ * to the user if they have an email configured.
+ */
 async function createAlertAndNotify(
   website: PrismaWebsite,
-  websiteUser: PrismaWebsiteUser, // This object has userId: string
+  websiteUser: PrismaWebsiteUser,
   incident: PrismaIncident,
   confirmingResult: PrismaMonitoringResult,
 ): Promise<void> {
-  // Use string userId from websiteUser object
+
   const logPrefix = `[AlertNotify U:${websiteUser.userId} W:${website.id} I:${incident.id}]`;
   const alertType = incident.type as AlertType;
 
-  // Check uses string userId
+
   const existingAlert = await prisma.alert.findFirst({
     where: {
-      userId: websiteUser.userId, // Use string ID
+      userId: websiteUser.userId,
       websiteId: website.id,
       type: alertType,
       incidentId: incident.id,
@@ -417,10 +428,10 @@ async function createAlertAndNotify(
 
   let newAlert: PrismaAlert | null = null;
   try {
-    // Create uses string userId
+
     newAlert = await prisma.alert.create({
       data: {
-        userId: websiteUser.userId, // Use string ID
+        userId: websiteUser.userId,
         websiteId: website.id,
         type: alertType,
         message: message,
@@ -485,7 +496,10 @@ async function createAlertAndNotify(
   }
 }
 
-// No changes needed in dismissAlertsByType
+/**
+ * Dismisses (deletes) all active alerts of a specific type for a given website.
+ * Typically used upon incident recovery.
+ */
 async function dismissAlertsByType(
   websiteId: number,
   type: AlertType,
@@ -508,11 +522,9 @@ async function dismissAlertsByType(
   }
 }
 
-// --- Alert Querying Functions ---
 
 /**
  * Retrieves alerts for a specific user, with optional filtering.
- * Changed userId type to string.
  */
 export async function getAlertsForUser(
   userId: string,
@@ -520,7 +532,7 @@ export async function getAlertsForUser(
 ): Promise<PrismaAlert[]> {
   const { limit = 50, type, from, to, websiteId } = options;
 
-  // Use string userId in where clause
+
   const whereClause: Prisma.AlertWhereInput = { userId: userId };
   if (type && VALID_ALERT_TYPES.includes(type)) whereClause.type = type;
   if (from || to) {
@@ -540,7 +552,7 @@ export async function getAlertsForUser(
           id: true,
           url: true,
           websiteUsers: {
-            where: { userId: userId }, // Use string ID here
+            where: { userId: userId },
             select: { name: true },
           },
         },
@@ -554,7 +566,7 @@ export async function getAlertsForUser(
 
 /**
  * Retrieves alerts for a specific website, with optional filtering.
- * Includes website URL, user details (ID will be string), and related incident info.
+ * Includes website URL, user details, and related incident info.
  */
 export async function getAlertsByWebsite(
   websiteId: number,
@@ -576,7 +588,7 @@ export async function getAlertsByWebsite(
     take: limit,
     include: {
       website: { select: { id: true, url: true } },
-      // User ID included here will now be a string
+
       user: { select: { id: true, name: true, email: true } },
       incident: { select: { id: true, startTime: true, endTime: true } },
     },
@@ -585,7 +597,6 @@ export async function getAlertsByWebsite(
 
 /**
  * Dismisses (deletes) a specific alert if the user owns it.
- * Changed userId type to string.
  */
 export async function dismissAlert(
   userId: string,
@@ -596,7 +607,7 @@ export async function dismissAlert(
 
   const alert = await prisma.alert.findUnique({
     where: { id: alertId },
-    select: { userId: true }, // userId retrieved here will be a string
+    select: { userId: true },
   });
 
   if (!alert) {
@@ -604,7 +615,7 @@ export async function dismissAlert(
     return null;
   }
 
-  // Compare string IDs
+
   if (alert.userId !== userId) {
     console.warn(
       `${logPrefix} User does not own this alert. Dismissal denied.`,
@@ -631,7 +642,6 @@ export async function dismissAlert(
 
 /**
  * Calculates statistics about alerts for a specific user over a given period.
- * Changed userId type to string.
  */
 export async function getUserAlertStats(
   userId: string,
@@ -641,7 +651,7 @@ export async function getUserAlertStats(
 
   const alerts = await prisma.alert.findMany({
     where: {
-      userId: userId, // Use string ID
+      userId: userId,
       createdAt: { gte: startDate },
     },
     select: {
@@ -652,7 +662,7 @@ export async function getUserAlertStats(
         select: {
           url: true,
           websiteUsers: {
-            where: { userId: userId }, // Use string ID
+            where: { userId: userId },
             select: { name: true },
           },
         },

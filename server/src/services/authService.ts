@@ -1,18 +1,20 @@
-// src/services/authService.ts
-import { PrismaClient, User } from "@prisma/client";
+import { User } from "@prisma/client";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { LoginCredentials, RegisterUserData } from "../types"; // Assuming User type here might need update if not from Prisma directly
+import { LoginCredentials, RegisterUserData } from "../types";
 import prisma from "../prisma/prismaClient";
 import { securityConfig } from "../config/config";
 
 const JWT_SECRET = securityConfig.jwtSecret;
 const SALT_ROUNDS = 10;
 
-// Define UserWithoutPassword based on Prisma's User model
-// If you have a shared types file, ensure the User type there reflects id: string
+
+
 type UserWithoutPassword = Omit<User, "password">;
 
+/**
+ * Registers a new user.
+ */
 export async function registerUser(
   data: RegisterUserData,
 ): Promise<{ user: UserWithoutPassword; token: string }> {
@@ -24,7 +26,7 @@ export async function registerUser(
   }
 
   const hashedPassword = await bcrypt.hash(data.password, SALT_ROUNDS);
-  // Prisma now generates a CUID for the id automatically
+
   const user = await prisma.user.create({
     data: {
       email: data.email,
@@ -33,11 +35,14 @@ export async function registerUser(
     },
   });
 
-  const token = generateToken(user.id); // Pass the string ID
+  const token = generateToken(user.id);
   const { password, ...userWithoutPassword } = user;
   return { user: userWithoutPassword, token };
 }
 
+/**
+ * Logs in an existing user.
+ */
 export async function loginUser(
   credentials: LoginCredentials,
 ): Promise<{ user: UserWithoutPassword; token: string }> {
@@ -56,22 +61,26 @@ export async function loginUser(
     throw new Error("Invalid credentials");
   }
 
-  const token = generateToken(user.id); // Pass the string ID
+  const token = generateToken(user.id);
   const { password, ...userWithoutPassword } = user;
   return { user: userWithoutPassword, token };
 }
 
-// Changed userId type to string
+/**
+ * Generates a JWT for a given user ID.
+ */
 export function generateToken(userId: string): string {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "24h" });
 }
 
-// Changed expected userId type to string
+/**
+ * Verifies a JWT and returns the decoded user ID.
+ */
 export function verifyToken(token: string): { userId: string } {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // Type Guard: Check if the decoded payload is an object and has the userId property of type string
+
     if (
       typeof decoded === "object" &&
       decoded !== null &&
