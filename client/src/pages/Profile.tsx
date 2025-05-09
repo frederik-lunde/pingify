@@ -1,6 +1,5 @@
-/* src/pages/ProfilePage.tsx */
 import React, { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router'; // Import useNavigate
+import { useNavigate } from 'react-router';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import {
@@ -17,11 +16,11 @@ import {
     FormControl,
     InputLabel,
     SelectChangeEvent,
-    Stack, // Added Stack
-    IconButton, // Added IconButton
-    Tooltip, // Added Tooltip
+    Stack,
+    IconButton,
+    Tooltip,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material'; // Added ArrowBackIcon
+import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import Grid from '@mui/material/Grid2';
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode, AppThemeMode } from '../context/ThemeContext';
@@ -35,7 +34,6 @@ import FormNotification, {
     initialNotificationState, FormNotificationState
 } from "../components/common/FormNotification";
 
-// --- Validation Schemas --- (Keep as is)
 const profileSchema = Yup.object({
     name: Yup.string()
         .required('Name is required')
@@ -56,13 +54,14 @@ const passwordSchema = Yup.object({
         .oneOf([Yup.ref('newPassword')], 'New passwords must match'),
 });
 
-// --- Component ---
+/**
+ * Page for managing user profile, password, and account settings.
+ */
 const ProfilePage: React.FC = () => {
-    const navigate = useNavigate(); // Initialize navigate
+    const navigate = useNavigate();
     const auth = useAuth();
     const user = auth?.user;
     const authLoading = auth?.loading ?? true;
-
     const { mode: currentThemeMode, setThemeMode } = useThemeMode();
     const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -71,26 +70,36 @@ const ProfilePage: React.FC = () => {
     const updateUserPassword = useUpdateUserPasswordMutation();
     const deleteUserAccount = useDeleteUserAccountMutation();
 
+    /**
+     * Displays a notification message.
+     */
     const showNotification = useCallback((message: string, severity: "success" | "error") => {
         setNotification({ open: true, message, severity });
     }, []);
 
-    // --- Back Button Handler ---
+    /**
+     * Navigates back to the dashboard.
+     */
     const handleBackClick = useCallback(() => {
-        navigate('/'); // Navigate to root
+        navigate('/');
     }, [navigate]);
 
+    /**
+     * Formik configuration for updating user profile.
+     */
     const profileFormik = useFormik({
         initialValues: { name: user?.name || '', email: user?.email || '' },
         validationSchema: profileSchema,
         enableReinitialize: true,
+        /**
+         * Handles profile form submission.
+         */
         onSubmit: (values, { setSubmitting, resetForm }) => {
             setNotification(initialNotificationState);
             updateUserProfile.mutate(values, {
                 onSuccess: (res) => {
                     showNotification(res.message || 'Profile updated successfully!', 'success');
                     resetForm({ values });
-                    // Potentially update user in AuthContext here if not handled automatically
                 },
                 onError: (error) => {
                     showNotification(error.message || 'Failed to update profile.', 'error');
@@ -102,9 +111,15 @@ const ProfilePage: React.FC = () => {
         },
     });
 
+    /**
+     * Formik configuration for updating user password.
+     */
     const passwordFormik = useFormik({
         initialValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
         validationSchema: passwordSchema,
+        /**
+         * Handles password change form submission.
+         */
         onSubmit: (values, { setSubmitting, resetForm }) => {
             setNotification(initialNotificationState);
             const {...payload } = values;
@@ -123,15 +138,24 @@ const ProfilePage: React.FC = () => {
         },
     });
 
+    /**
+     * Handles theme selection change.
+     */
     const handleThemeChange = (event: SelectChangeEvent<AppThemeMode>) => {
         const newMode = event.target.value as AppThemeMode;
         setThemeMode(newMode);
     };
 
+    /**
+     * Opens the account deletion confirmation dialog.
+     */
     const handleDeleteAccount = () => {
          setDeleteConfirmOpen(true);
     };
 
+    /**
+     * Confirms and initiates account deletion.
+     */
     const handleConfirmDelete = () => {
         setNotification(initialNotificationState);
         deleteUserAccount.mutate(undefined, {
@@ -140,14 +164,14 @@ const ProfilePage: React.FC = () => {
                 setDeleteConfirmOpen(false);
             },
              onSuccess: () => {
-                // No need for notification here as user will be logged out/redirected
-                // showNotification('Account deleted successfully.', 'success');
                 setDeleteConfirmOpen(false);
-                // Auth context should handle logout/redirect on success
             },
         });
     };
 
+    /**
+     * Handles closing of the notification snackbar.
+     */
     const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
         if (reason === 'clickaway') {
             return;
@@ -155,7 +179,6 @@ const ProfilePage: React.FC = () => {
         setNotification((prev) => ({ ...prev, open: false }));
     }, []);
 
-    // --- Render ---
     if (authLoading || !user) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
@@ -166,19 +189,18 @@ const ProfilePage: React.FC = () => {
 
     return (
         <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-            {/* Header with Back Button */}
+            {}
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
                 <Tooltip title="Back to Dashboard">
                     <IconButton onClick={handleBackClick} aria-label="Back to dashboard">
                         <ArrowBackIcon />
                     </IconButton>
                 </Tooltip>
-                <Typography variant="h4" component="h1" sx={{ mb: 0 /* Remove default gutterBottom */ }}>
+                <Typography variant="h4" component="h1" sx={{ mb: 0  }}>
                     Profile Settings
                 </Typography>
             </Stack>
-
-             {/* Theme Selection */}
+             {}
              <Paper sx={{ p: 3, mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Appearance</Typography>
                 <FormControl fullWidth sx={{ mt: 1 }}>
@@ -196,8 +218,7 @@ const ProfilePage: React.FC = () => {
                     </Select>
                 </FormControl>
             </Paper>
-
-            {/* Profile Information Form */}
+            {}
             <Paper sx={{ p: 3, mb: 4 }}>
                  <Typography variant="h6" gutterBottom>Account Information</Typography>
                  <Box component="form" onSubmit={profileFormik.handleSubmit} noValidate sx={{ mt: 1 }}>
@@ -246,8 +267,7 @@ const ProfilePage: React.FC = () => {
                     </Grid>
                  </Box>
             </Paper>
-
-            {/* Change Password Form */}
+            {}
             <Paper sx={{ p: 3, mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Change Password</Typography>
                 <Box component="form" onSubmit={passwordFormik.handleSubmit} noValidate sx={{ mt: 1 }}>
@@ -313,8 +333,7 @@ const ProfilePage: React.FC = () => {
                     </Grid>
                 </Box>
             </Paper>
-
-            {/* Delete Account Section */}
+            {}
              <Paper sx={{ p: 3, backgroundColor: (theme) => theme.palette.error.light ? theme.palette.error.light + '33' : theme.palette.error.main + '33', border: (theme) => `1px solid ${theme.palette.error.main}` }}>
                 <Typography variant="h6" gutterBottom color="error">Danger Zone</Typography>
                 <Typography variant="body2" sx={{ mb: 2 }}>
@@ -337,8 +356,7 @@ const ProfilePage: React.FC = () => {
                      {deleteUserAccount.isPending ? <CircularProgress size={24} color="inherit" /> : 'Delete My Account'}
                 </Button>
             </Paper>
-
-            {/* Confirmation Dialog */}
+            {}
             <ConfirmationDialog
                 open={deleteConfirmOpen}
                 onClose={() => setDeleteConfirmOpen(false)}
@@ -350,8 +368,7 @@ const ProfilePage: React.FC = () => {
                 isLoading={deleteUserAccount.isPending}
                 confirmButtonColor="error"
             />
-
-             {/* FormNotification */}
+             {}
             <FormNotification
                 notification={notification}
                 onClose={handleNotificationClose}
@@ -359,5 +376,4 @@ const ProfilePage: React.FC = () => {
         </Container>
     );
 };
-
 export default ProfilePage;

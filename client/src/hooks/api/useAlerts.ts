@@ -1,14 +1,15 @@
-// client/src/hooks/api/useAlerts.ts
 import { useQuery, useMutation, useQueryClient, UseMutateFunction, UseMutateAsyncFunction } from '@tanstack/react-query';
-import { Alert, AlertStats, AlertQueryOptions, ApiError } from "../../types"; // Ensure this path is correct
+import { Alert, AlertStats, AlertQueryOptions, ApiError } from "../../types";
 import {
     fetchUserAlerts,
     fetchWebsiteAlerts,
     fetchAlertStats,
     dismissAlert as dismissAlertAPI
-} from '../../api/alertApi'; // Ensure this path is correct
+} from '../../api/alertApi';
 
-// Consistent Query Keys
+/**
+ * Defines query keys for alert-related data.
+ */
 export const alertQueryKeys = {
     all: ['alerts'] as const,
     lists: () => [...alertQueryKeys.all, 'list'] as const,
@@ -17,22 +18,20 @@ export const alertQueryKeys = {
     stats: (days?: number) => [...alertQueryKeys.all, 'stats', 'user', { days }] as const,
 };
 
-// Options for React Query hooks
 interface UseAlertsHookOptions {
     enabled?: boolean;
     refetchInterval?: number | false;
     staleTime?: number;
-    gcTime?: number; // Allow overriding garbage collection time
+    gcTime?: number;
 }
 
-// Default cache times (consider making these configurable or context-based)
-const DEFAULT_LIST_STALE_TIME = 1000 * 30; // 30 seconds
-const DEFAULT_LIST_GC_TIME = 1000 * 60 * 5; // 5 minutes
-const DEFAULT_STATS_STALE_TIME = 1000 * 60 * 5; // 5 minutes
-const DEFAULT_STATS_GC_TIME = 1000 * 60 * 15; // 15 minutes
+const DEFAULT_LIST_STALE_TIME = 1000 * 30;
+const DEFAULT_LIST_GC_TIME = 1000 * 60 * 5;
+const DEFAULT_STATS_STALE_TIME = 1000 * 60 * 5;
+const DEFAULT_STATS_GC_TIME = 1000 * 60 * 15;
 
 /**
- * Hook to fetch the authenticated user's active alerts.
+ * Custom hook to fetch user alerts with TanStack Query.
  */
 export function useUserAlertsQuery(
     apiOptions: AlertQueryOptions = {},
@@ -42,18 +41,16 @@ export function useUserAlertsQuery(
     return useQuery<Alert[], ApiError>({
         queryKey: queryKey,
         queryFn: () => fetchUserAlerts(apiOptions),
-        enabled: hookOptions?.enabled, // Defaults to true if not provided
-        refetchInterval: hookOptions?.refetchInterval, // Control polling
+        enabled: hookOptions?.enabled,
+        refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME,
         gcTime: hookOptions?.gcTime ?? DEFAULT_LIST_GC_TIME,
-        // Consider keeping previous data for smoother updates if lists change often
-        // placeholderData: keepPreviousData, // TanStack Query v5+
-        initialData: [], // Start with an empty array
+        initialData: [],
     });
 }
 
 /**
- * Hook to fetch active alerts for a specific website.
+ * Custom hook to fetch alerts for a specific website with TanStack Query.
  */
 export function useWebsiteAlertsQuery(
     websiteId: number | undefined,
@@ -61,15 +58,11 @@ export function useWebsiteAlertsQuery(
     hookOptions?: UseAlertsHookOptions
 ) {
     const queryKey = alertQueryKeys.website(websiteId, apiOptions);
-    // Query is enabled only if websiteId is a valid number and hook is not explicitly disabled
     const isQueryEnabled = (hookOptions?.enabled ?? true) && typeof websiteId === 'number' && websiteId > 0;
-
     return useQuery<Alert[], ApiError>({
         queryKey: queryKey,
-        // Ensure fetch function is only called with a valid websiteId
         queryFn: () => {
             if (!websiteId) {
-                // Should not happen if 'enabled' is set correctly, but safeguard
                 console.warn("useWebsiteAlertsQuery called without valid websiteId");
                 return Promise.resolve([]);
             }
@@ -79,15 +72,15 @@ export function useWebsiteAlertsQuery(
         refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_LIST_STALE_TIME,
         gcTime: hookOptions?.gcTime ?? DEFAULT_LIST_GC_TIME,
-        initialData: [], // Start with an empty array
+        initialData: [],
     });
 }
 
 /**
- * Hook to fetch the authenticated user's alert statistics.
+ * Custom hook to fetch alert statistics with TanStack Query.
  */
 export function useAlertStatsQuery(
-    days = 7, // Default to 7 days
+    days = 7,
     hookOptions?: UseAlertsHookOptions
 ) {
     const queryKey = alertQueryKeys.stats(days);
@@ -98,12 +91,10 @@ export function useAlertStatsQuery(
         refetchInterval: hookOptions?.refetchInterval,
         staleTime: hookOptions?.staleTime ?? DEFAULT_STATS_STALE_TIME,
         gcTime: hookOptions?.gcTime ?? DEFAULT_STATS_GC_TIME,
-        // Provide a sensible initial data structure
         initialData: () => ({ totalAlerts: 0, byType: {}, byWebsite: [] }),
     });
 }
 
-// Define the return type for useAlertActions for clarity
 interface UseAlertActionsReturn {
     dismissAlert: UseMutateFunction<void, ApiError, number, unknown>;
     dismissAlertAsync: UseMutateAsyncFunction<void, ApiError, number, unknown>;
@@ -111,49 +102,33 @@ interface UseAlertActionsReturn {
     errorDismissingAlert: ApiError | null;
 }
 
-
 /**
- * Hook providing mutation functions for alert actions (e.g., dismissing).
+ * Custom hook providing mutation functions for alert actions (e.g., dismiss).
  */
 export function useAlertActions(): UseAlertActionsReturn {
     const queryClient = useQueryClient();
-
-    // Define the pattern for invalidating user-specific alert lists more broadly
     const userAlertListsQueryKeyPattern = alertQueryKeys.lists();
-    // Also define the pattern for invalidating stats
     const userAlertStatsQueryKeyPattern = alertQueryKeys.stats();
 
-
-    const dismissAlertMutation = useMutation<void, ApiError, number>({ // Alert ID is number
-        mutationFn: dismissAlertAPI, // Pass the API function directly
+    const dismissAlertMutation = useMutation<void, ApiError, number>({
+        mutationFn: dismissAlertAPI,
          onSuccess: (_data, alertId) => {
-            // Optional: Log success
             console.log(`Alert ${alertId} dismissed successfully.`);
-            // Invalidation is often preferred in onSettled, but can be here too
-            // For faster UI feedback, optimistic updates are better (see below)
          },
          onError: (error, alertId) => {
-            // Log error more visibly, e.g., using a toast notification library
             console.error(`Failed to dismiss alert ${alertId}:`, error.message);
-            // Optionally show error to user
         },
-        // onSettled runs after onSuccess or onError
         onSettled: (_data, error, alertId) => {
             console.log(`DismissAlert mutation settled for alert ${alertId}. Error: ${error?.message ?? 'None'}`);
-            // Invalidate queries to refetch data after the mutation attempt
-            // This ensures the UI reflects the latest state from the server
-            queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern, refetchType: 'active' }); // Invalidate active user alert lists
-            queryClient.invalidateQueries({ queryKey: userAlertStatsQueryKeyPattern, refetchType: 'active' }); // Invalidate active stats queries
-
-
+            queryClient.invalidateQueries({ queryKey: userAlertListsQueryKeyPattern, refetchType: 'active' });
+            queryClient.invalidateQueries({ queryKey: userAlertStatsQueryKeyPattern, refetchType: 'active' });
         },
-
     });
 
     return {
         dismissAlert: dismissAlertMutation.mutate,
         dismissAlertAsync: dismissAlertMutation.mutateAsync,
-        isDismissingAlert: dismissAlertMutation.isPending, // Correctly maps to isPending
+        isDismissingAlert: dismissAlertMutation.isPending,
         errorDismissingAlert: dismissAlertMutation.error,
     };
 }

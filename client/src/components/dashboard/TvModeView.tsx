@@ -1,4 +1,3 @@
-// src/components/dashboard/TvModeView.tsx
 import React from 'react';
 import { Box, CircularProgress, Snackbar } from '@mui/material';
 import WebsiteGrid from './WebsiteGrid';
@@ -17,6 +16,9 @@ interface TvModeViewProps {
     showTvExitMessage: boolean;
 }
 
+/**
+ * Renders the dashboard in TV mode, displaying website cards in a grid.
+ */
 const TvModeView: React.FC<TvModeViewProps> = ({
     websiteCards,
     isLoading,
@@ -27,24 +29,19 @@ const TvModeView: React.FC<TvModeViewProps> = ({
     isEmptyBecauseNoWebsites,
     showTvExitMessage,
 }) => {
-    // Define grid styles, potentially adjustable for TV mode
     const gridContainerSx = {
         display: 'grid',
-        gap: { xs: 1, sm: 2 }, // Maybe slightly less gap for TV mode? Adjust as needed.
-        // Use a slightly different minmax for TV mode if desired, or keep consistent
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', // Example: slightly smaller min width for potentially more columns on large TV screens
-        p: { xs: 1, sm: 2 }, // Add padding around the grid
+        gap: { xs: 1, sm: 2 },
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        p: { xs: 1, sm: 2 },
         boxSizing: 'border-box',
     };
-
     return (
         <Box
             sx={{
                 cursor: 'default',
                 minHeight: '100vh',
                 width: '100%',
-                // Remove padding here, apply it to the grid container instead
-                // p: { xs: 1, sm: 2, md: 0 }, // REMOVED
                 boxSizing: 'border-box',
                 bgcolor: 'background.default',
                 outline: 'none',
@@ -52,41 +49,36 @@ const TvModeView: React.FC<TvModeViewProps> = ({
             }}
             tabIndex={-1}
         >
-            {/* Loading state */}
+            {}
             {isLoading && websiteCards.length === 0 && (
                  <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
                     <CircularProgress />
                 </Box>
             )}
-
-            {/* Grid Container for Website Cards - Render only when cards exist */}
+            {}
             {!isLoading && !isEmptyBecauseNoWebsites && !isEmptyDueToFilter && (
-                // Apply the grid layout styles here
                 <Box sx={gridContainerSx}>
                     <WebsiteGrid
                         websiteCards={websiteCards}
-                        isLoading={false} // Already handled loading above
+                        isLoading={false}
                         lastIncidentWebsiteId={lastIncidentWebsiteId}
                         isHighlightActive={isHighlightActive}
-                        isTvMode={true} // Pass TV mode flag down
+                        isTvMode={true}
                     />
                 </Box>
             )}
-
-            {/* Empty State Messages - Render outside the grid container */}
+            {}
             {!isLoading && isEmptyDueToFilter && (
-                 <Box sx={{ p: { xs: 1, sm: 2 } }}> {/* Add padding if needed */}
+                 <Box sx={{ p: { xs: 1, sm: 2 } }}> {}
                      <EmptyFilterResults isTvMode={true}/>
                  </Box>
             )}
             {!isLoading && isEmptyBecauseNoWebsites && (
-                <Box sx={{ p: { xs: 1, sm: 2 } }}> {/* Add padding if needed */}
+                <Box sx={{ p: { xs: 1, sm: 2 } }}> {}
                     <NoWebsitesAdded isTvMode={true} />
                 </Box>
             )}
-
-
-            {/* Snackbar and Fetching Indicator */}
+            {}
             <Snackbar
                 open={showTvExitMessage}
                 message="Press any key or click to exit TV Mode"
@@ -98,9 +90,7 @@ const TvModeView: React.FC<TvModeViewProps> = ({
                     <CircularProgress size={24} />
                 </Box>
             )}
-
         </Box>
     );
 };
-
 export default TvModeView;

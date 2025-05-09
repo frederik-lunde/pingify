@@ -1,24 +1,19 @@
-/*
-client/src/components/dashboard/DashboardSearchFilter.tsx
-*/
 import React, { useState, useEffect, useCallback } from 'react';
-import { TextField, InputAdornment, IconButton, Box, SxProps, Theme } from '@mui/material'; // Import SxProps and Theme
+import { TextField, InputAdornment, IconButton, Box, SxProps, Theme } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 
 interface DashboardSearchFilterProps {
-    /** Callback function triggered when the debounced search term changes. */
     onFilterChange: (filterTerm: string) => void;
-    /** Placeholder text for the input field. */
     placeholder?: string;
-    /** Debounce delay in milliseconds. */
     debounceDelay?: number;
-    /** Initial value for the filter (optional). */
     initialValue?: string;
-    /** Styling for the root Box element */
-    sx?: SxProps<Theme>; // Use SxProps for better type checking
+    sx?: SxProps<Theme>;
 }
 
+/**
+ * A search filter component with debouncing for dashboard filtering.
+ */
 const DashboardSearchFilter: React.FC<DashboardSearchFilterProps> = ({
     onFilterChange,
     placeholder = "Filter by name or URL...",
@@ -28,26 +23,31 @@ const DashboardSearchFilter: React.FC<DashboardSearchFilterProps> = ({
 }) => {
     const [searchTerm, setSearchTerm] = useState<string>(initialValue);
 
-    // Effect to handle debouncing
+    /**
+     * Debounces the search term and calls onFilterChange.
+     */
     useEffect(() => {
         const handler = setTimeout(() => {
             onFilterChange(searchTerm.trim());
         }, debounceDelay);
-
         return () => {
             clearTimeout(handler);
         };
-        // Only re-run if these specific props change
     }, [searchTerm, debounceDelay, onFilterChange]);
 
+    /**
+     * Updates the search term state on input change.
+     */
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(event.target.value);
     };
 
-    // Handler to clear the search input
+    /**
+     * Clears the search input field.
+     */
     const handleClear = useCallback(() => {
         setSearchTerm('');
-    }, []); 
+    }, []);
 
     return (
         <Box sx={{ width: '100%', maxWidth: 400, ...sx }}>
@@ -77,7 +77,7 @@ const DashboardSearchFilter: React.FC<DashboardSearchFilterProps> = ({
                         </InputAdornment>
                     ) : null,
                 }}
-                aria-label={placeholder} // Add aria-label for accessibility
+                aria-label={placeholder}
             />
         </Box>
     );

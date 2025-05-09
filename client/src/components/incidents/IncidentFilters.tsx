@@ -1,22 +1,17 @@
-/* src/components/incidents/IncidentFilters.tsx */
 import React, { useState } from 'react';
 import {
     FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Stack,
 } from '@mui/material';
-import { IncidentType, VALID_INCIDENT_TYPES } from '../../types'; // Adjust path
-
+import { IncidentType, VALID_INCIDENT_TYPES } from '../../types';
 
 type StatusFilter = 'all' | 'open' | 'closed';
 type TypeFilter = 'all' | IncidentType;
-// --- REMOVED 'custom' from TimeframeFilter ---
-type TimeframeFilter = '24h' | '7d' | '30d'; // Removed 'custom'
+type TimeframeFilter = '24h' | '7d' | '30d';
 
 export interface IncidentFilterValues {
     status: StatusFilter;
     type: TypeFilter;
     timeframe: TimeframeFilter;
-    // --- REMOVED customRange ---
-    // customRange: DateRange<Date>;
 }
 
 interface IncidentFiltersProps {
@@ -25,38 +20,42 @@ interface IncidentFiltersProps {
     isLoading: boolean;
 }
 
+/**
+ * Renders filter controls for incidents (status, type, timeframe).
+ */
 const IncidentFilters: React.FC<IncidentFiltersProps> = ({ initialFilters, onFilterChange, isLoading }) => {
     const [status, setStatus] = useState<StatusFilter>(initialFilters.status);
     const [type, setType] = useState<TypeFilter>(initialFilters.type);
     const [timeframe, setTimeframe] = useState<TimeframeFilter>(initialFilters.timeframe);
-    // --- REMOVED customRange state ---
-    // const [customRange, setCustomRange] = useState<DateRange<Date>>(initialFilters.customRange);
 
+    /**
+     * Handles changes to the incident status filter.
+     */
     const handleStatusChange = (event: SelectChangeEvent<StatusFilter>) => {
         const newStatus = event.target.value as StatusFilter;
         setStatus(newStatus);
-        // --- Pass updated filter object without customRange ---
         onFilterChange({ status: newStatus, type, timeframe });
     };
 
+    /**
+     * Handles changes to the incident type filter.
+     */
     const handleTypeChange = (event: SelectChangeEvent<TypeFilter>) => {
         const newType = event.target.value as TypeFilter;
         setType(newType);
-        // --- Pass updated filter object without customRange ---
         onFilterChange({ status, type: newType, timeframe });
     };
 
+    /**
+     * Handles changes to the incident timeframe filter.
+     */
     const handleTimeframeChange = (event: SelectChangeEvent<TimeframeFilter>) => {
         const newTimeframe = event.target.value as TimeframeFilter;
         setTimeframe(newTimeframe);
-        // --- Pass updated filter object without customRange ---
         onFilterChange({ status, type, timeframe: newTimeframe });
     };
 
-    // --- REMOVED handleCustomRangeChange ---
-
     return (
-        // --- REMOVED LocalizationProvider ---
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center" sx={{ mb: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
             <FormControl size="small" sx={{ minWidth: 120, flexGrow: 1 }}>
                 <InputLabel id="incident-status-filter-label">Status</InputLabel>
@@ -72,7 +71,6 @@ const IncidentFilters: React.FC<IncidentFiltersProps> = ({ initialFilters, onFil
                     <MenuItem value="closed">Closed</MenuItem>
                 </Select>
             </FormControl>
-
             <FormControl size="small" sx={{ minWidth: 120, flexGrow: 1 }}>
                 <InputLabel id="incident-type-filter-label">Type</InputLabel>
                 <Select
@@ -88,7 +86,6 @@ const IncidentFilters: React.FC<IncidentFiltersProps> = ({ initialFilters, onFil
                     ))}
                 </Select>
             </FormControl>
-
             <FormControl size="small" sx={{ minWidth: 150, flexGrow: 1 }}>
                 <InputLabel id="incident-timeframe-filter-label">Timeframe</InputLabel>
                 <Select
@@ -101,17 +98,14 @@ const IncidentFilters: React.FC<IncidentFiltersProps> = ({ initialFilters, onFil
                     <MenuItem value="24h">Last 24 Hours</MenuItem>
                     <MenuItem value="7d">Last 7 Days</MenuItem>
                     <MenuItem value="30d">Last 30 Days</MenuItem>
-                    {/* --- REMOVED Custom Range MenuItem --- */}
-                    {/* <MenuItem value="custom">Custom Range</MenuItem> */}
+                    {}
+                    {}
                 </Select>
             </FormControl>
-
-            {/* --- REMOVED Conditional Collapse and DateRangePicker --- */}
-
-            {/* Placeholder for potential website filter */}
-            {/* <FormControl size="small" sx={{ minWidth: 200, flexGrow: 1 }}>...</FormControl> */}
+            {}
+            {}
+            {}
         </Stack>
     );
 };
-
 export default IncidentFilters;

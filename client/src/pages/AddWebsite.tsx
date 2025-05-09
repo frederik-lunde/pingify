@@ -1,4 +1,3 @@
-// src/pages/AddWebsite.tsx
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { Formik, Form, Field, FormikHelpers } from "formik";
@@ -7,37 +6,29 @@ import {
   Container, Paper, Typography, TextField, Button, Box, Switch,
   FormControlLabel, Tooltip, IconButton, CircularProgress,
 } from "@mui/material";
-// --- Use Grid v2 ---
 import Grid from "@mui/material/Grid2";
-// --- End Grid v2 ---
 import { Add as AddIcon, HelpOutline as HelpIcon } from "@mui/icons-material";
-
-// --- Import SHARED Types ---
 import {
     AddWebsiteUserDTO,
     Website,
     WebsiteUser,
-    ApiError // ApiError now has data: unknown
+    ApiError
 } from "../types";
-
-// --- Import Components ---
 import WebsiteUrlSearch from "../components/WebsiteUrlSearch";
 import FormNotification, {
   initialNotificationState, FormNotificationState
 } from "../components/common/FormNotification";
-
-// --- Import Hooks ---
 import { useWebsiteMutations } from "../hooks/api/useWebsites";
 
-
-// Helper to ensure URL has a protocol
+/**
+ * Ensures a URL string has a protocol.
+ */
 const ensureUrlProtocol = (url: string): string => {
     if (!url) return "";
     if (!/^(https?|ftp):\/\//i.test(url)) { return `https://${url}`; }
     return url;
 };
 
-// Form values interface
 interface AddWebsiteFormValues {
   name: string;
   url: string;
@@ -47,10 +38,8 @@ interface AddWebsiteFormValues {
   notifyEmail: string;
 }
 
-// URL validation regex
 const websiteUrlRegex = /^(https?:\/\/)((([a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)+([a-zA-Z]{2,}|[0-9]{1,3})(\.[0-9]{1,3})?|localhost)(:[0-9]+)?(\/.*)?$/i;
 
-// Validation schema using Yup
 const AddWebsiteSchema = Yup.object().shape({
   url: Yup.string()
     .trim()
@@ -83,26 +72,26 @@ const AddWebsiteSchema = Yup.object().shape({
      }),
 });
 
-// Helper function to safely extract error message
+/**
+ * Extracts a user-friendly error message.
+ */
 const getErrorMessage = (error: unknown): string => {
     const defaultMessage = "An unexpected error occurred.";
     if (error instanceof Error) {
-        // Check if it's our specific ApiError structure with data
         if ('name' in error && error.name === 'ApiError' && 'data' in error) {
-            const apiError = error as ApiError; // Safe cast after checks
-            // Check if data is an object and has a string message property
+            const apiError = error as ApiError;
             if (apiError.data && typeof apiError.data === 'object' && 'message' in apiError.data && typeof apiError.data.message === 'string') {
                 return apiError.data.message;
             }
         }
-        // Fallback to the main error message
         return error.message || defaultMessage;
     }
-    // Handle non-Error throws if necessary
     return defaultMessage;
 };
 
-
+/**
+ * Page component for adding a new website.
+ */
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -111,7 +100,6 @@ const AddWebsite: React.FC = () => {
       isTriggeringCheck
     } = useWebsiteMutations();
   const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
-
   const isProcessing = isAdding || isTriggeringCheck;
 
   const initialValues: AddWebsiteFormValues = {
@@ -123,6 +111,9 @@ const AddWebsite: React.FC = () => {
     notifyEmail: "",
   };
 
+  /**
+   * Handles form submission for adding a website.
+   */
   const handleSubmit = async (
     values: AddWebsiteFormValues,
     formikHelpers: FormikHelpers<AddWebsiteFormValues>
@@ -161,15 +152,16 @@ const AddWebsite: React.FC = () => {
       setNotification({ open: true, message: `Website "${successName}" added successfully! Initial check triggered.`, severity: "success" });
       setTimeout(() => navigate("/"), 2000);
     } catch (err) {
-      console.error("Failed to add website:", err); // Log the raw error
-
-      // --- FIX: Use helper function to safely extract message ---
+      console.error("Failed to add website:", err);
       const message = getErrorMessage(err);
       setNotification({ open: true, message: `Error: ${message}`, severity: "error" });
       setSubmitting(false);
     }
   };
 
+  /**
+   * Handles closing of the notification snackbar.
+   */
   const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') {
       return;
@@ -177,6 +169,9 @@ const AddWebsite: React.FC = () => {
     setNotification((prev) => ({ ...prev, open: false }));
   }, []);
 
+  /**
+   * Handles selection of a URL from search results.
+   */
   const handleUrlSelect = useCallback((
         website: Website | null,
         setFieldValue: FormikHelpers<AddWebsiteFormValues>['setFieldValue'],
@@ -185,7 +180,6 @@ const AddWebsite: React.FC = () => {
         if (website?.url) {
              const formattedUrl = ensureUrlProtocol(website.url);
              setFieldValue("url", formattedUrl, true);
-
              if (!currentName && website.name) {
                  setFieldValue("name", website.name, true);
              } else if (!currentName) {
@@ -205,7 +199,6 @@ const AddWebsite: React.FC = () => {
         <Typography variant="h4" component="h1" gutterBottom>
           Add Website to Monitor
         </Typography>
-
         <Formik
           initialValues={initialValues}
           validationSchema={AddWebsiteSchema}
@@ -216,8 +209,7 @@ const AddWebsite: React.FC = () => {
             <Form noValidate>
               <Box sx={{ mt: 3 }}>
                 <Grid container spacing={3}>
-
-                  {/* Website Name */}
+                  {}
                   <Grid size={12}>
                     <Field
                       as={TextField}
@@ -230,8 +222,7 @@ const AddWebsite: React.FC = () => {
                       disabled={isSubmitting || isProcessing}
                     />
                   </Grid>
-
-                  {/* Website URL Search Component */}
+                  {}
                   <Grid size={12}>
                     <WebsiteUrlSearch
                       name="url"
@@ -244,8 +235,7 @@ const AddWebsite: React.FC = () => {
                       required
                     />
                   </Grid>
-
-                  {/* Check Interval */}
+                  {}
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Field
                       as={TextField}
@@ -261,10 +251,8 @@ const AddWebsite: React.FC = () => {
                       disabled={isSubmitting || isProcessing}
                     />
                   </Grid>
-
                    <Grid size={{ xs: 0, sm: 6 }} />
-
-                  {/* Alert Settings Section */}
+                  {}
                   <Grid size={12} sx={{ borderTop: 1, borderColor: "divider", pt: 3, mt: 2 }}>
                     <Typography variant="h6" gutterBottom>Alert Settings</Typography>
                     <Box sx={{ display: "flex", alignItems: "center" }}>
@@ -285,8 +273,7 @@ const AddWebsite: React.FC = () => {
                       </Tooltip>
                     </Box>
                   </Grid>
-
-                  {/* Conditional Alert Fields */}
+                  {}
                   {values.alertEnabled && (
                     <>
                       <Grid size={{ xs: 12, sm: 6 }}>
@@ -304,7 +291,6 @@ const AddWebsite: React.FC = () => {
                           disabled={isSubmitting || isProcessing}
                         />
                       </Grid>
-
                       <Grid size={{ xs: 12, sm: 6 }}>
                         <Field
                           as={TextField}
@@ -321,8 +307,7 @@ const AddWebsite: React.FC = () => {
                       </Grid>
                     </>
                   )}
-
-                  {/* Action Buttons */}
+                  {}
                   <Grid size={12} sx={{ mt: 3, display: "flex", justifyContent: "flex-end", gap: 2 }}>
                     <Button variant="outlined" onClick={() => navigate("/")} disabled={isSubmitting || isProcessing}>
                       Cancel
@@ -342,7 +327,6 @@ const AddWebsite: React.FC = () => {
           )}
         </Formik>
       </Paper>
-
       <FormNotification
         notification={notification}
         onClose={handleNotificationClose}
@@ -350,5 +334,4 @@ const AddWebsite: React.FC = () => {
     </Container>
   );
 };
-
 export default AddWebsite;

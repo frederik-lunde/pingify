@@ -1,38 +1,29 @@
-// src/utils/authTokenUtils.ts
-// Central location for token management utilities
-
 /**
- * Gets auth token from either localStorage or sessionStorage.
- * Prefers localStorage (persistent) over sessionStorage (session-only).
+ * Retrieves the authentication token from local or session storage.
  */
 export const getAuthToken = (): string | null => {
   try {
-    // First try localStorage (for "Remember Me" users)
     const localToken = localStorage.getItem("authToken");
     if (localToken) return localToken;
-
-    // Then try sessionStorage (for regular session users)
     const sessionToken = sessionStorage.getItem("authToken");
     return sessionToken;
   } catch (error) {
-      // Handle potential SecurityError if storage access is restricted (e.g., in private browsing, some iframes)
       console.error("Failed to access browser storage for auth token:", error);
       return null;
   }
 };
 
 /**
- * Stores auth token based on remember me preference.
- * Clears the other storage type to avoid conflicts.
+ * Stores the authentication token in local or session storage.
  */
 export const storeAuthToken = (token: string, rememberMe: boolean): void => {
   try {
       if (rememberMe) {
         localStorage.setItem("authToken", token);
-        sessionStorage.removeItem("authToken"); // Clear session storage
+        sessionStorage.removeItem("authToken");
       } else {
         sessionStorage.setItem("authToken", token);
-        localStorage.removeItem("authToken"); // Clear local storage
+        localStorage.removeItem("authToken");
       }
   } catch (error) {
        console.error("Failed to store auth token in browser storage:", error);
@@ -40,7 +31,7 @@ export const storeAuthToken = (token: string, rememberMe: boolean): void => {
 };
 
 /**
- * Removes auth token from all storage locations.
+ * Removes the authentication token from both local and session storage.
  */
 export const removeAuthToken = (): void => {
   try {
@@ -52,11 +43,10 @@ export const removeAuthToken = (): void => {
 };
 
 /**
- * Custom event used by the API client interceptor to signal an authentication error (e.g., 401)
- * that requires global handling (logout and redirect).
+ * Dispatches a custom 'auth-error' event on the window.
  */
 export const fireAuthErrorEvent = (): void => {
-  console.debug("Firing auth-error event"); // Optional: for debugging
+  console.debug("Firing auth-error event");
   window.dispatchEvent(
     new CustomEvent("auth-error", { detail: "Unauthorized API access detected" }),
   );

@@ -9,7 +9,7 @@ interface EmptyFilterResultsProps {
 
 const EmptyFilterResults: React.FC<EmptyFilterResultsProps> = ({ isTvMode = false }) => {
     const containerStyles = isTvMode
-        ? { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' } // Center vertically in TV mode
+        ? { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }
         : { mt: 4 }; 
 
     return (

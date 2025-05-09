@@ -1,14 +1,13 @@
-// src/components/common/DataFetchError.tsx
 import React from 'react';
 import { Container, Alert, Button, Typography } from '@mui/material';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import { ApiError } from '../../types'; // Adjust path as needed
+import { ApiError } from '../../types';
 
 interface DataFetchErrorProps {
-    error: ApiError | Error | null; // Accept different error types
+    error: ApiError | Error | null;
     onRetry: () => void;
-    context?: string; // Optional context for the error message
-    minHeight?: string | number; // Optional min height for centering
+    context?: string;
+    minHeight?: string | number;
 }
 
 const DataFetchError: React.FC<DataFetchErrorProps> = ({
@@ -18,7 +17,6 @@ const DataFetchError: React.FC<DataFetchErrorProps> = ({
     minHeight = '70vh',
 }) => {
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-
     return (
         <Container
             maxWidth="sm"
@@ -32,15 +30,15 @@ const DataFetchError: React.FC<DataFetchErrorProps> = ({
                 py: 4,
             }}
         >
-            {/* Keep your custom main icon */}
+            {}
             <ErrorOutlineIcon sx={{ fontSize: 60, color: 'error.main', mb: 2 }} />
             <Typography variant="h5" component="h2" gutterBottom>
                 Failed to Load {context}
             </Typography>
-            {/* Add icon={false} to the Alert component */}
+            {}
             <Alert
                 severity="error"
-                icon={false} // This removes the default icon on the left
+                icon={false}
                 sx={{ mb: 3, width: '100%', justifyContent: 'center' }}
             >
                 {errorMessage}

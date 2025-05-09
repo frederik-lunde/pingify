@@ -9,64 +9,57 @@ import React, {
     useRef
 } from 'react';
 
-// --- Type Definitions for Vendor Prefixes ---
-// Extend the standard Document interface
 interface DocumentWithFullscreen extends Document {
     webkitExitFullscreen?: () => Promise<void>;
     msExitFullscreen?: () => Promise<void>;
     webkitFullscreenElement?: Element | null;
     msFullscreenElement?: Element | null;
 }
-
-// Extend the standard HTMLElement interface
 interface HTMLElementWithFullscreen extends HTMLElement {
     webkitRequestFullscreen?: () => Promise<void>;
     msRequestFullscreen?: () => Promise<void>;
 }
 
-// --- Helper functions ---
+/**
+ * Requests browser fullscreen mode for a given HTML element.
+ */
 const requestBrowserFullscreen = (element: HTMLElement) => {
-    // Cast the element to our extended type to access prefixed methods
     const elementWithFullscreen = element as HTMLElementWithFullscreen;
-
     if (elementWithFullscreen.requestFullscreen) {
         elementWithFullscreen.requestFullscreen().catch(err => console.error("Error attempting to enable full-screen mode:", err));
-    } else if (elementWithFullscreen.webkitRequestFullscreen) { /* Safari */
-        // Now type-safe access
+    } else if (elementWithFullscreen.webkitRequestFullscreen) {
         elementWithFullscreen.webkitRequestFullscreen().catch((err) => console.error("Error attempting to enable full-screen mode (webkit):", err));
-    } else if (elementWithFullscreen.msRequestFullscreen) { /* IE11 */
-        // Now type-safe access
+    } else if (elementWithFullscreen.msRequestFullscreen) {
         elementWithFullscreen.msRequestFullscreen().catch((err) => console.error("Error attempting to enable full-screen mode (ms):", err));
     }
 };
 
+/**
+ * Exits browser fullscreen mode.
+ */
 const exitBrowserFullscreen = () => {
-    // Cast the document to our extended type
     const docWithFullscreen = document as DocumentWithFullscreen;
-
     if (docWithFullscreen.exitFullscreen) {
         docWithFullscreen.exitFullscreen().catch(err => console.error("Error attempting to disable full-screen mode:", err));
-    } else if (docWithFullscreen.webkitExitFullscreen) { /* Safari */
-        // Now type-safe access
+    } else if (docWithFullscreen.webkitExitFullscreen) {
         docWithFullscreen.webkitExitFullscreen().catch((err) => console.error("Error attempting to disable full-screen mode (webkit):", err));
-    } else if (docWithFullscreen.msExitFullscreen) { /* IE11 */
-        // Now type-safe access
+    } else if (docWithFullscreen.msExitFullscreen) {
         docWithFullscreen.msExitFullscreen().catch((err) => console.error("Error attempting to disable full-screen mode (ms):", err));
     }
 };
 
+/**
+ * Checks if the browser is currently in fullscreen mode.
+ */
 const isBrowserFullscreen = (): boolean => {
-    // Cast the document to our extended type
     const docWithFullscreen = document as DocumentWithFullscreen;
     return !!(
         docWithFullscreen.fullscreenElement ||
-        docWithFullscreen.webkitFullscreenElement || // Now type-safe access
-        docWithFullscreen.msFullscreenElement      // Now type-safe access
+        docWithFullscreen.webkitFullscreenElement ||
+        docWithFullscreen.msFullscreenElement
     );
 };
 
-
-// --- Context Definition ---
 interface TvModeContextType {
     isTvMode: boolean;
     toggleTvMode: () => void;
@@ -78,53 +71,57 @@ interface TvModeProviderProps {
     children: ReactNode;
 }
 
-// --- Provider Component ---
+/**
+ * Provides TV mode context and functionality to its children.
+ */
 export const TvModeProvider: React.FC<TvModeProviderProps> = ({ children }) => {
     const [isTvMode, setIsTvMode] = useState<boolean>(false);
     const isTvModeRef = useRef(isTvMode);
 
+    /**
+     * Effect to keep a ref synchronized with the TV mode state.
+     */
     useEffect(() => {
         isTvModeRef.current = isTvMode;
     }, [isTvMode]);
 
+    /**
+     * Toggles TV mode on/off and manages browser fullscreen.
+     */
     const toggleTvMode = useCallback(() => {
         const nextIsTvMode = !isTvModeRef.current;
         setIsTvMode(nextIsTvMode);
-
         if (nextIsTvMode) {
             requestBrowserFullscreen(document.documentElement);
-            // No 'as any' needed here, 'overflow' is standard CSS property
             document.body.style.overflow = 'hidden';
         } else {
             if (isBrowserFullscreen()) {
                 exitBrowserFullscreen();
             }
-            // No 'as any' needed here
             document.body.style.overflow = 'auto';
         }
     }, []);
 
+    /**
+     * Effect to handle fullscreen changes and synchronize TV mode state.
+     */
     useEffect(() => {
         const handleFullscreenChange = () => {
             const currentlyFullscreen = isBrowserFullscreen();
             if (!currentlyFullscreen && isTvModeRef.current) {
                 console.log('Fullscreen exited manually, syncing TV mode state.');
                 setIsTvMode(false);
-                 // No 'as any' needed here
                 document.body.style.overflow = 'auto';
             }
         };
-
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
         document.addEventListener('msfullscreenchange', handleFullscreenChange);
-
         return () => {
             document.removeEventListener('fullscreenchange', handleFullscreenChange);
             document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
             document.removeEventListener('msfullscreenchange', handleFullscreenChange);
             if (isTvModeRef.current) {
-                 // No 'as any' needed here
                 document.body.style.overflow = 'auto';
             }
         };
@@ -142,7 +139,9 @@ export const TvModeProvider: React.FC<TvModeProviderProps> = ({ children }) => {
     );
 };
 
-// --- Consumer Hook ---
+/**
+ * Custom hook to access the TV mode context.
+ */
 export const useTvMode = (): TvModeContextType => {
     const context = useContext(TvModeContext);
     if (context === undefined) {

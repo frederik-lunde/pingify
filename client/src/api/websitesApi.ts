@@ -1,4 +1,3 @@
-// src/api/websitesApi.ts
 import apiClient from './client';
 import {
     WebsiteUser,
@@ -9,16 +8,14 @@ import {
 } from '../types';
 
 /**
- * Fetches all websites for the user's dashboard.
- * Endpoint: GET /websites/user/dashboard
+ * Fetches all websites associated with the current user.
  */
 export const fetchUserWebsites = async (): Promise<WebsiteUser[]> => {
     return apiClient.get<WebsiteUser[]>('/websites/user/dashboard');
 };
 
 /**
- * Fetches a single website by ID for the user's dashboard.
- * Endpoint: GET /websites/user/dashboard/:websiteId
+ * Fetches a single website by its ID for the current user.
  */
 export const fetchUserWebsite = async (websiteId: number): Promise<WebsiteUser> => {
      if (!websiteId) throw new Error("Website ID is required to fetch a single website.");
@@ -26,24 +23,21 @@ export const fetchUserWebsite = async (websiteId: number): Promise<WebsiteUser> 
 };
 
 /**
- * Searches for websites globally
- * Endpoint: GET /websites/search
+ * Searches for websites based on a query string.
  */
 export const searchWebsites = async (query: string, limit: number = 10): Promise<Website[]> => {
     return apiClient.get<Website[]>('/websites/search', { params: { query, limit } });
 };
 
 /**
- * Creates a new website entry for the user.
- * Endpoint: POST /websites/user/dashboard
+ * Creates a new website for the current user.
  */
 export const createWebsite = async (websiteData: AddWebsiteUserDTO): Promise<WebsiteUser> => {
     return apiClient.post<WebsiteUser>('/websites/user/dashboard', websiteData);
 };
 
 /**
- * Updates an existing website entry for the user.
- * Endpoint: PUT /websites/user/dashboard/:websiteId
+ * Updates an existing website for the current user.
  */
 export const updateWebsite = async ({ websiteId, websiteData }: { websiteId: number, websiteData: UpdateWebsiteUserDTO }): Promise<WebsiteUser> => {
      if (!websiteId) throw new Error("Website ID is required for update.");
@@ -51,18 +45,15 @@ export const updateWebsite = async ({ websiteId, websiteData }: { websiteId: num
 };
 
 /**
- * Sets the pin status for a user's website.
- * Endpoint: PATCH /websites/user/dashboard/:websiteId/pin
+ * Sets the pin status of a website for the current user.
  */
 export const setWebsitePinStatus = async ({ websiteId, pinData }: { websiteId: number, pinData: SetPinStatusDTO }): Promise<WebsiteUser> => {
     if (!websiteId) throw new Error("Website ID is required to set pin status.");
     return apiClient.patch<WebsiteUser>(`/websites/user/dashboard/${websiteId}/pin`, pinData);
 };
 
-
 /**
- * Deletes a website entry for the user.
- * Endpoint: DELETE /websites/user/dashboard/:websiteId
+ * Deletes a website for the current user.
  */
 export const deleteWebsite = async (websiteId: number): Promise<void> => {
      if (!websiteId) throw new Error("Website ID is required for deletion.");

@@ -1,4 +1,3 @@
-// client/src/components/navbar/AlertDropdown.tsx
 import React, { useCallback, useState, useMemo } from "react";
 import {
     Badge, IconButton, Tooltip, Menu, MenuItem, Stack, Typography,
@@ -11,9 +10,9 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import NotificationsOffIcon from '@mui/icons-material/NotificationsOff';
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router";
-import { useUserAlertsQuery, useAlertActions } from "../../hooks/api/useAlerts"; // Ensure this path is correct
-import { Alert, ApiError, AlertQueryOptions, AlertType, VALID_ALERT_TYPES } from "../../types"; // Ensure this path is correct
-import { getAlertTypeColor } from "../../utils/statusUtils"; // Ensure this path is correct
+import { useUserAlertsQuery, useAlertActions } from "../../hooks/api/useAlerts";
+import { Alert, ApiError, AlertQueryOptions, AlertType, VALID_ALERT_TYPES } from "../../types";
+import { getAlertTypeColor } from "../../utils/statusUtils";
 
 interface AlertItemProps {
     alert: Alert;
@@ -23,6 +22,9 @@ interface AlertItemProps {
     isLastItem: boolean;
 }
 
+/**
+ * Renders a single alert item within the alerts dropdown.
+ */
 const AlertItem: React.FC<AlertItemProps> = React.memo(({
     alert,
     isDismissing,
@@ -31,12 +33,10 @@ const AlertItem: React.FC<AlertItemProps> = React.memo(({
     isLastItem
 }) => {
     if (!alert?.id) return null;
-
     const websiteId = alert.website?.id;
     const websiteName = alert.website?.name || alert.website?.url || `Website ${alert.websiteId}`;
     const alertTime = alert.createdAt ? formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true }) : 'Unknown time';
     const alertType = VALID_ALERT_TYPES.includes(alert.type as AlertType) ? alert.type as AlertType : undefined;
-
     return (
         <MenuItem
             onClick={() => onNavigate(websiteId)}
@@ -102,6 +102,9 @@ interface AlertsDropdownProps {
     maxItems?: number;
 }
 
+/**
+ * Displays a dropdown menu for active user alerts with dismiss and navigation actions.
+ */
 const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
     apiFilters = { limit: 10 },
     pollingInterval = 60000,
@@ -110,7 +113,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const navigate = useNavigate();
     const isMenuOpen = Boolean(anchorEl);
-
     const {
         data: fetchedAlerts,
         isPending,
@@ -123,46 +125,50 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
             staleTime: (isMenuOpen && pollingInterval) ? pollingInterval : undefined,
         }
     );
-
-    // Memoize the activeAlerts array itself
     const activeAlerts: Alert[] = useMemo(() => fetchedAlerts ?? [], [fetchedAlerts]);
-
     const {
         dismissAlert,
         isDismissingAlert,
-        // errorDismissingAlert
     } = useAlertActions();
 
     const isLoading = isPending && !activeAlerts.length;
     const isPollingIndicator = isFetching && !isPending;
-
-    // Now these hooks depend on the memoized activeAlerts
     const badgeCount = useMemo(() => activeAlerts.length, [activeAlerts]);
     const displayedAlerts = useMemo(() => activeAlerts.slice(0, maxItems), [activeAlerts, maxItems]);
     const hasMoreAlerts = useMemo(() => activeAlerts.length > maxItems, [activeAlerts, maxItems]);
 
+    /**
+     * Opens the alerts dropdown menu.
+     */
     const handleOpenMenu = useCallback((event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);
     }, []);
 
+    /**
+     * Closes the alerts dropdown menu.
+     */
     const handleCloseMenu = useCallback(() => {
         setAnchorEl(null);
     }, []);
 
+    /**
+     * Navigates to the website associated with an alert.
+     */
     const handleNavigateToWebsite = useCallback(
         (websiteId: number | undefined) => {
             handleCloseMenu();
             if (websiteId !== undefined) {
                 navigate(`/website/${websiteId}`);
             } else {
-                // Find the alert associated with this action if needed for logging
-                // const clickedAlert = activeAlerts.find(a => a.website?.id === websiteId); // This won't work if websiteId is undefined
                 console.warn("Cannot navigate: Missing websiteId in alert data");
             }
         },
-        [navigate, handleCloseMenu] // Removed activeAlerts dependency as it's not needed for the logic
+        [navigate, handleCloseMenu]
     );
 
+    /**
+     * Handles the dismissal of an alert.
+     */
     const handleDismiss = useCallback(
         (event: React.MouseEvent, alertId: number | undefined) => {
             event.stopPropagation();
@@ -175,11 +181,17 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
         [dismissAlert, isDismissingAlert]
     );
 
+    /**
+     * Navigates to the main alerts page.
+     */
     const handleViewAllAlerts = useCallback(() => {
         handleCloseMenu();
         navigate('/alerts');
     }, [navigate, handleCloseMenu]);
 
+    /**
+     * Renders the content of the alerts menu based on current state.
+     */
     const renderMenuContent = () => {
         if (isLoading) {
             return (
@@ -188,7 +200,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                 </MenuItem>
             );
         }
-
         if (queryError) {
             return (
                  <MenuItem disabled sx={{ py: 2, whiteSpace: 'normal', cursor: 'default' }}>
@@ -204,7 +215,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                 </MenuItem>
             );
         }
-
         if (badgeCount === 0) {
             return (
                 <MenuItem disabled sx={{ py: 3, cursor: 'default' }}>
@@ -217,7 +227,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                 </MenuItem>
             );
         }
-
         const menuItems = displayedAlerts.map((alert, index) => (
             <AlertItem
                 key={`alert-${alert.id}`}
@@ -228,14 +237,11 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                 isLastItem={index === displayedAlerts.length - 1 && !hasMoreAlerts}
             />
         ));
-
         if (hasMoreAlerts) {
              if (menuItems.length > 0) {
                  const lastItemIndex = menuItems.length - 1;
-                 // Check if it's a valid element and cast to specify props type
                  const lastElement = menuItems[lastItemIndex];
                  if(React.isValidElement<AlertItemProps>(lastElement)) {
-                    // Clone with specific type
                     menuItems[lastItemIndex] = React.cloneElement(lastElement, { isLastItem: false });
                  }
                 menuItems.push(<Divider key="view-all-divider" />);
@@ -248,7 +254,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                 </MenuItem>
             );
         }
-
         return menuItems;
     };
 
@@ -270,7 +275,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                     </Badge>
                 </IconButton>
             </Tooltip>
-
             <Menu
                 id="alerts-menu"
                 anchorEl={anchorEl}
@@ -292,11 +296,9 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
                     <Typography variant="subtitle1" fontWeight="bold">Active Alerts</Typography>
                     {isPollingIndicator && <CircularProgress size={20} thickness={4} sx={{ mr: 1 }}/>}
                 </Stack>
-
                 {renderMenuContent()}
             </Menu>
         </>
     );
 };
-
 export default AlertsDropdown;

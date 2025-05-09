@@ -1,22 +1,19 @@
-// client/src/hooks/domain/useWebsiteData.ts
 import { useMemo, useCallback } from "react";
-
 import {
     ApiError,
-    WebsiteDataSummary, // Import the newly defined type
-    WebsiteUser // Import WebsiteUser if not already implicitly available
-} from "../../types"; // Adjust path if needed
-import { useUserWebsitesQuery } from "../api/useWebsites"; // Assuming correct path
-import { useUserStatsQuery } from "../api/useMonitoring"; // Assuming correct path
+    WebsiteDataSummary,
+    WebsiteUser
+} from "../../types";
+import { useUserWebsitesQuery } from "../api/useWebsites";
+import { useUserStatsQuery } from "../api/useMonitoring";
 
 /**
- * Custom hook to fetch and combine website list and overall stats.
+ * Custom hook to fetch and consolidate website data and statistics.
  */
 export function useWebsiteData(
     statsPeriod: string = 'week',
     refetchInterval?: number | false
-): WebsiteDataSummary { // Use the defined return type
-
+): WebsiteDataSummary {
     const queryOptions = useMemo(() => ({
         refetchInterval,
         staleTime: refetchInterval ? refetchInterval / 2 : 5 * 60 * 1000,
@@ -31,23 +28,16 @@ export function useWebsiteData(
     const errors: (ApiError | null)[] = [websitesQuery.error, statsQuery.error];
     const combinedError = errors.find(e => e !== null) ?? null;
 
-    // --- Process and Combine Data ---
-    // --- MODIFIED: Rename and simplify ---
-    const websiteCards = useMemo((): WebsiteUser[] => { // Type is now WebsiteUser[]
+    const websiteCards = useMemo((): WebsiteUser[] => {
         if (!websitesQuery.isSuccess || !websitesQuery.data) {
             return [];
         }
-        // The data from useUserWebsitesQuery is already WebsiteUser[]
         return websitesQuery.data;
     }, [websitesQuery.isSuccess, websitesQuery.data]);
 
-
-    // --- Calculate Aggregate Counts ---
     const { totalWebsitesCount, upWebsitesCount } = useMemo(() => {
-        // --- MODIFIED: Use websiteCards ---
         const total = websiteCards.length;
         const up = websiteCards.reduce((count, item) => {
-            // Logic remains the same, operates directly on WebsiteUser item
             const isDownIncident = item.currentIncident?.type === 'down';
             if (!isDownIncident) {
                 return count + 1;
@@ -55,10 +45,8 @@ export function useWebsiteData(
             return count;
         }, 0);
         return { totalWebsitesCount: total, upWebsitesCount: up };
-    }, [websiteCards]); // Depend on websiteCards
+    }, [websiteCards]);
 
-
-    // --- Extract Specific Data from Overall Stats Query ---
     const { incidentsLast24h, lastIncidentTimestamp, lastIncidentWebsiteId } = useMemo(() => {
         const stats = statsQuery.data;
         return {
@@ -68,9 +56,7 @@ export function useWebsiteData(
         };
     }, [statsQuery.data]);
 
-    // --- Refetch Function ---
     const refetch = useCallback(async () => {
-        console.log('[useWebsiteData] Triggering refetch for dashboard queries...');
         const results = await Promise.allSettled([
             websitesQuery.refetch(),
             statsQuery.refetch(),
@@ -83,11 +69,7 @@ export function useWebsiteData(
         return results;
     }, [websitesQuery, statsQuery]);
 
-
-    // --- Return Value ---
-    // Structure matches WebsiteDataSummary
     return {
-        // --- MODIFIED: Use websiteCards ---
         websiteCards: websiteCards,
         overallStats: statsQuery.data ?? null,
         isLoading,
