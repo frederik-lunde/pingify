@@ -1,8 +1,8 @@
-// src/routes/authRoutes.ts
+
 import { Router } from "express";
 import * as authController from "../controllers/authController";
 import { authenticate } from "../middleware/authMiddleware";
-// --- Import the validator middleware ---
+
 import {
   registerValidationRules,
   loginValidationRules,
@@ -11,7 +11,7 @@ import {
 
 const router = Router();
 
-// --- Public Routes ---
+
 
 router.post(
   "/register",
@@ -27,7 +27,7 @@ router.post(
   authController.login,
 );
 
-// --- Protected Routes ---
+
 
 router.get("/me", authenticate, authController.getCurrentUser);
 
