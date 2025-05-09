@@ -1,16 +1,16 @@
 // server/src/routes/monitoringRoutes.ts
-import { Router } from 'express';
-import * as monitoringController from '../controllers/monitorController'; // Corrected controller import name
-import { authenticate } from '../middleware/authMiddleware';
-import { handleValidationErrors } from '../middleware/validators/authValidator'; // Reuse this
+import { Router } from "express";
+import * as monitoringController from "../controllers/monitorController"; // Corrected controller import name
+import { authenticate } from "../middleware/authMiddleware";
+import { handleValidationErrors } from "../middleware/validators/authValidator"; // Reuse this
 import {
-    getResultsValidationRules,
-    getResultsByWebsiteValidationRules,
-    triggerWebsiteCheckValidationRules,
-    getStatsValidationRules,
-    getWebsiteStatsValidationRules,
-    getWebsiteDetailsValidationRules,
-} from '../middleware/validators/monitorValidator';
+  getResultsValidationRules,
+  getResultsByWebsiteValidationRules,
+  triggerWebsiteCheckValidationRules,
+  getStatsValidationRules,
+  getWebsiteStatsValidationRules,
+  getWebsiteDetailsValidationRules,
+} from "../middleware/validators/monitorValidator";
 
 const router = Router();
 
@@ -18,44 +18,44 @@ router.use(authenticate);
 
 // --- User Routes ---
 router.get(
-    '/user/results',
-    getResultsValidationRules(),
-    handleValidationErrors,
-    monitoringController.getUserResults
+  "/user/results",
+  getResultsValidationRules(),
+  handleValidationErrors,
+  monitoringController.getUserResults,
 );
 router.get(
-    '/user/stats',
-    getStatsValidationRules(),
-    handleValidationErrors,
-    monitoringController.getUserStats
+  "/user/stats",
+  getStatsValidationRules(),
+  handleValidationErrors,
+  monitoringController.getUserStats,
 );
 
 // --- Website-Specific Routes ---
 router.get(
-    '/website/:websiteId/results',
-    getResultsByWebsiteValidationRules(),
-    handleValidationErrors,
-    monitoringController.getResultsByWebsite
+  "/website/:websiteId/results",
+  getResultsByWebsiteValidationRules(),
+  handleValidationErrors,
+  monitoringController.getResultsByWebsite,
 );
 router.get(
-    '/website/:websiteId/stats',
-    getWebsiteStatsValidationRules(),
-    handleValidationErrors,
-    monitoringController.getWebsiteStats
+  "/website/:websiteId/stats",
+  getWebsiteStatsValidationRules(),
+  handleValidationErrors,
+  monitoringController.getWebsiteStats,
 );
 router.get(
-    '/website/:websiteId',
-    getWebsiteDetailsValidationRules(),
-    handleValidationErrors,
-    monitoringController.getWebsiteDetails
+  "/website/:websiteId",
+  getWebsiteDetailsValidationRules(),
+  handleValidationErrors,
+  monitoringController.getWebsiteDetails,
 );
 
 // --- Actions ---
 router.post(
-    '/check/:websiteId',
-    triggerWebsiteCheckValidationRules(),
-    handleValidationErrors,
-    monitoringController.triggerWebsiteCheck
+  "/check/:websiteId",
+  triggerWebsiteCheckValidationRules(),
+  handleValidationErrors,
+  monitoringController.triggerWebsiteCheck,
 );
 
 export default router;

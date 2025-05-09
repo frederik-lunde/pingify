@@ -1,6 +1,6 @@
 // server/src/services/mail.service.ts
-import nodemailer from 'nodemailer';
-import { mailConfig } from '../config/config';
+import nodemailer from "nodemailer";
+import { mailConfig } from "../config/config";
 
 // Define the structure for email options
 interface MailOptions {
@@ -10,11 +10,10 @@ interface MailOptions {
   html?: string;
 }
 
-
 const transporter = nodemailer.createTransport({
   host: mailConfig.host,
   port: mailConfig.port,
-  secure: mailConfig.secure, 
+  secure: mailConfig.secure,
   auth: {
     user: mailConfig.auth.user,
     pass: mailConfig.auth.pass,
@@ -24,9 +23,9 @@ const transporter = nodemailer.createTransport({
 // Verify connection configuration on startup (optional but recommended)
 transporter.verify((error, success) => {
   if (error) {
-    console.error('Mail transporter verification failed:', error);
+    console.error("Mail transporter verification failed:", error);
   } else {
-    console.log('Mail transporter is ready to send emails');
+    console.log("Mail transporter is ready to send emails");
   }
 });
 
@@ -43,9 +42,11 @@ export const sendMail = async (options: MailOptions): Promise<void> => {
       text: options.text, // Plain text body
       html: options.html, // HTML body
     });
-    console.log('Message sent: %s', info.messageId);
+    console.log("Message sent: %s", info.messageId);
   } catch (error) {
-    console.error('Error sending email:', error);
-    throw new Error(`Failed to send email to ${options.to}. Subject: ${options.subject}`);
+    console.error("Error sending email:", error);
+    throw new Error(
+      `Failed to send email to ${options.to}. Subject: ${options.subject}`,
+    );
   }
 };

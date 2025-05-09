@@ -1,28 +1,28 @@
 // src/app.ts
-import express from 'express';
-import morgan from 'morgan';
-import cors from 'cors'; // Keep this import
-import helmet from 'helmet';
-import { rateLimit } from 'express-rate-limit';
-import compression from 'compression';
+import express from "express";
+import morgan from "morgan";
+import cors from "cors"; // Keep this import
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
+import compression from "compression";
 
 // Import the specific config needed or the whole config object
-import { config } from './config/config'; // Adjust path if needed
+import { config } from "./config/config"; // Adjust path if needed
 
 // Routes
-import authRoutes from './routes/authRoutes';
-import userRoutes from './routes/userRoutes';
-import websiteRoutes from './routes/websiteRoutes';
-import monitoringRoutes from './routes/monitoringRoutes';
-import alertRoutes from './routes/alertRoutes';
-import incidentRoutes from './routes/incidentRoutes';
+import authRoutes from "./routes/authRoutes";
+import userRoutes from "./routes/userRoutes";
+import websiteRoutes from "./routes/websiteRoutes";
+import monitoringRoutes from "./routes/monitoringRoutes";
+import alertRoutes from "./routes/alertRoutes";
+import incidentRoutes from "./routes/incidentRoutes";
 
 // Middleware
-import errorMiddleware from './middleware/errorMiddleware';
-import { authenticate } from './middleware/authMiddleware';
+import errorMiddleware from "./middleware/errorMiddleware";
+import { authenticate } from "./middleware/authMiddleware";
 
 // Utils
-import { scheduleMonitoring } from './utils/scheduler';
+import { scheduleMonitoring } from "./utils/scheduler";
 
 const app = express();
 
@@ -42,9 +42,9 @@ app.use(cors(corsOptions));
 
 // 3. Request Logging - Conditional based on environment
 if (config.app.isProduction) {
-    app.use(morgan('combined')); // More standard format for production logs
+  app.use(morgan("combined")); // More standard format for production logs
 } else {
-    app.use(morgan('dev')); // More detailed for development
+  app.use(morgan("dev")); // More detailed for development
 }
 
 // 4. Body Parsers
@@ -58,33 +58,29 @@ app.use(compression());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: config.app.isProduction ? 500 : 2000, // Example: Stricter limit in prod
-  message: 'Too many requests, please try again later.',
+  message: "Too many requests, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use(limiter);
 
-
 // --- Routes ---
 
 // Public API routes
-app.use('/api/auth', authRoutes);
+app.use("/api/auth", authRoutes);
 
 // Protected API routes (Apply authentication middleware here)
-app.use('/api/users', authenticate, userRoutes);
-app.use('/api/websites', authenticate, websiteRoutes);
-app.use('/api/monitoring', authenticate, monitoringRoutes);
-app.use('/api/incidents', authenticate, incidentRoutes);
-app.use('/api/alerts', authenticate, alertRoutes);
-
+app.use("/api/users", authenticate, userRoutes);
+app.use("/api/websites", authenticate, websiteRoutes);
+app.use("/api/monitoring", authenticate, monitoringRoutes);
+app.use("/api/incidents", authenticate, incidentRoutes);
+app.use("/api/alerts", authenticate, alertRoutes);
 
 // --- Background Tasks ---
 scheduleMonitoring(); // Start scheduled tasks
 
-
 // --- Error Handling ---
 // This MUST be the last middleware added
 app.use(errorMiddleware);
-
 
 export default app;
