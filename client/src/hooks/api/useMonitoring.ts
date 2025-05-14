@@ -1,10 +1,10 @@
-// src/hooks/api/useMonitoring.ts
+
 import {
     useQuery,
     useMutation,
     useQueryClient,
     UseQueryOptions,
-    QueryFilters // Keep QueryFilters if used elsewhere, though not directly in the fix
+    QueryFilters 
 } from '@tanstack/react-query';
 import {
     fetchWebsiteDetails,
@@ -12,8 +12,8 @@ import {
     fetchUserStats,
     fetchWebsiteStats,
     FetchWebsiteDetailsParams,
-    // Assuming you might have an API function like:
-    // fetchMonitoringResultsForWebsite, (if not, this key might be for invalidation only)
+    
+    
 } from '../../api/monitoringApi';
 import {
     WebsiteDetailsData,
@@ -40,12 +40,12 @@ export const monitoringQueryKeys = {
     websiteStats: (websiteId: number | undefined, period: TimeframeKey | string, userId: string | undefined) =>
         [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { userId, period }] as const,
     
-    // For all monitoring results aggregated at the user level (if you have such a query)
-    userResults: (limit: number | undefined, userId: string | undefined) => // This key seems to be for user-level aggregated/listed results
+    
+    userResults: (limit: number | undefined, userId: string | undefined) => 
         [...monitoringQueryKeys.all, 'userResults', { userId, limit }] as const,
 
-    // ADDED: Key for monitoring results of a SPECIFIC website
-    // This is the key that was missing for the useWebsiteMutations.ts invalidation logic
+    
+    
     websiteResults: (websiteId: number | undefined, userId?: string | undefined, params?: { limit?: number, from?: string, to?: string }) =>
         [...monitoringQueryKeys.all, 'websiteResults', websiteId, { userId, ...params }] as const,
 };
@@ -68,39 +68,16 @@ export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, option
         queryKey: queryKey,
         queryFn: () => {
             if (!userId || !params.websiteId) return Promise.reject(new Error("Missing user or website ID for query"));
-            return fetchWebsiteDetails(params); // This fetches the comprehensive WebsiteDetailsData
+            return fetchWebsiteDetails(params); 
         },
         enabled: options?.enabled === undefined ? (!!userId && !!params.websiteId && params.websiteId > 0) : options.enabled,
-        staleTime: 1000 * 30, // 30 seconds
-        gcTime: 1000 * 60 * 5,  // 5 minutes
+        staleTime: 1000 * 30, 
+        gcTime: 1000 * 60 * 5,  
         ...options,
     });
 }
 
-// If you need a hook specifically for fetching *only* the list of MonitoringResult[] for a website,
-// you would add it here, using `monitoringQueryKeys.websiteResults`.
-// For example:
-/*
-export function useMonitoringResultsForWebsiteQuery(
-    websiteId: number,
-    params?: { limit?: number, from?: string, to?: string },
-    options?: CustomQueryOptions<MonitoringResult[]>
-) {
-    const auth = useAuth();
-    const userId = auth?.user?.id;
-    // Assume you have an API function: fetchMonitoringResultsForWebsite(websiteId, params)
-    return useQuery<MonitoringResult[], ApiError>({
-        queryKey: monitoringQueryKeys.websiteResults(websiteId, userId, params),
-        queryFn: () => {
-            if (!userId || !websiteId) return Promise.reject(new Error("Missing user or website ID"));
-            // return fetchMonitoringResultsForWebsite(websiteId, params);
-            return Promise.resolve([]); // Placeholder if API doesn't exist yet
-        },
-        enabled: !!userId && !!websiteId && (options?.enabled === undefined ? true : options.enabled),
-        ...options,
-    });
-}
-*/
+
 
 
 /**
@@ -111,48 +88,48 @@ export function useWebsiteCheckMutation() {
     const auth = useAuth();
     const userId = auth?.user?.id;
 
-    // Define query key patterns for invalidation
-    const userIncidentListKeyPattern = incidentQueryKeys.list({}, userId); // Assuming list takes params and userId
+    
+    const userIncidentListKeyPattern = incidentQueryKeys.list({}, userId); 
     const userIncidentCountKey = incidentQueryKeys.countLast24h(userId);
-    const userOverallStatsKeyPattern = monitoringQueryKeys.userStats('week', userId); // Use a common default or make dynamic
+    const userOverallStatsKeyPattern = monitoringQueryKeys.userStats('week', userId); 
     const userWebsiteListKeyPattern = websiteQueryKeys.lists(userId);
 
 
-    return useMutation<MonitoringResult, ApiError, number>({ // Expects websiteId as input
+    return useMutation<MonitoringResult, ApiError, number>({ 
         mutationFn: (websiteId: number) => {
              if (!websiteId || isNaN(websiteId) || websiteId <= 0) {
                 return Promise.reject(new Error("Invalid Website ID provided."));
             }
             return triggerWebsiteCheck(websiteId);
         },
-        // The first argument to onSuccess is the data returned by mutationFn (MonitoringResult)
-        // The second argument is the variables passed to mutate/mutateAsync (websiteId)
-        onSuccess: (data, websiteId) => { // Corrected: 'data' is the MonitoringResult, 'websiteId' is the variable
+        
+        
+        onSuccess: (data, websiteId) => { 
             if (userId) {
                 console.log(`Check successful for website ${websiteId}, invalidating relevant queries.`);
-                // Invalidate details for the specific website (if params are known or use a broader pattern)
-                // For broader invalidation of details containing this websiteId:
+                
+                
                 const detailsKeyPrefix: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'details', websiteId];
                 queryClient.invalidateQueries({ queryKey: detailsKeyPrefix, exact: false });
 
-                // Invalidate stats for the specific website (if period is known or use a broader pattern)
+                
                 const websiteStatsKeyPrefix: QueryFilters['queryKey'] = [...monitoringQueryKeys.all, 'stats', 'website', websiteId];
                 queryClient.invalidateQueries({ queryKey: websiteStatsKeyPrefix, exact: false });
 
-                // Invalidate specific monitoring results for this website
+                
                 queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.websiteResults(websiteId, userId), exact: false });
 
 
-                // Invalidate user-level stats and results
-                queryClient.invalidateQueries({ queryKey: userOverallStatsKeyPattern, exact: false }); // More specific
+                
+                queryClient.invalidateQueries({ queryKey: userOverallStatsKeyPattern, exact: false }); 
                 queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.userResults(undefined, userId), exact: false });
 
 
-                queryClient.invalidateQueries({ queryKey: userWebsiteListKeyPattern }); // User's list of websites
+                queryClient.invalidateQueries({ queryKey: userWebsiteListKeyPattern }); 
                 queryClient.invalidateQueries({ queryKey: userIncidentListKeyPattern, exact: false });
                 queryClient.invalidateQueries({ queryKey: userIncidentCountKey });
-                queryClient.invalidateQueries({ queryKey: alertQueryKeys.lists(), exact: false }); // User's alerts
-                queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats(), exact: false }); // User's alert stats
+                queryClient.invalidateQueries({ queryKey: alertQueryKeys.lists(), exact: false }); 
+                queryClient.invalidateQueries({ queryKey: alertQueryKeys.stats(), exact: false }); 
             } else {
                 console.warn("[Invalidation Skipped] User ID not available, cannot invalidate user-specific caches.");
             }
@@ -177,8 +154,8 @@ export function useUserStatsQuery(period: TimeframeKey | string = 'week', option
             return fetchUserStats(period);
         },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 60 * 1000, // 1 minute
-        gcTime: 1000 * 60 * 15, // 15 minutes
+        staleTime: 60 * 1000, 
+        gcTime: 1000 * 60 * 15, 
         ...options,
     });
 }
@@ -188,9 +165,9 @@ export function useUserStatsQuery(period: TimeframeKey | string = 'week', option
  */
 export function useWebsiteStatsQuery(websiteId: number | undefined, period: TimeframeKey | string = 'week', options?: CustomQueryOptions<WebsiteStatsData>) {
     const auth = useAuth();
-    const userId = auth?.user?.id; // Get userId for the query key
+    const userId = auth?.user?.id; 
     const queryKey = monitoringQueryKeys.websiteStats(websiteId, period, userId);
-    // Enable query only if userId and websiteId are present and websiteId is valid
+    
     const isQueryEnabled = (options?.enabled === undefined ? true : options.enabled) && (!!userId && !!websiteId && websiteId > 0);
 
     return useQuery<WebsiteStatsData, ApiError>({
@@ -200,8 +177,8 @@ export function useWebsiteStatsQuery(websiteId: number | undefined, period: Time
             return fetchWebsiteStats(websiteId, period);
         },
         enabled: isQueryEnabled,
-        staleTime: 60 * 1000, // 1 minute
-        gcTime: 1000 * 60 * 10, // 10 minutes
+        staleTime: 60 * 1000, 
+        gcTime: 1000 * 60 * 10, 
         ...options,
     });
 }
