@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import {
     Card, CardContent, Typography, Box, Chip, IconButton,
@@ -26,7 +26,7 @@ import {
     getResponseTimeColor,
     formatResponseTime,
     formatUptime,
-} from "../../utils/statusUtils"; // Assuming statusUtils.ts is in this path
+} from "../../utils/statusUtils";
 import { useWebsiteMutations } from "../../hooks";
 import { getCardLineChartOptions, getCardLineChartData } from "../../config/chartConfig";
 import {
@@ -96,6 +96,18 @@ const WebsiteCard = React.memo(
         const uptimePercent = userWebsite.uptimePercent;
         const isPinned = userWebsite.isPinned;
         const currentIncident = userWebsite.currentIncident;
+
+        const [isHovered, setIsHovered] = useState(false);
+
+        const handleMouseEnter = useCallback(() => {
+            if (isTvMode || isSkeleton) return;
+            setIsHovered(true);
+        }, [isTvMode, isSkeleton]);
+
+        const handleMouseLeave = useCallback(() => {
+            if (isTvMode || isSkeleton) return;
+            setIsHovered(false);
+        }, [isTvMode, isSkeleton]);
 
         const limitedChartDataPoints = aggregatedChartDataProp?.length ? aggregatedChartDataProp : undefined;
         const validAggregatedPointsCount = useMemo(() => limitedChartDataPoints?.filter(p => p.avgResponseTime !== null && !isNaN(p.avgResponseTime)).length ?? 0, [limitedChartDataPoints]);
@@ -227,6 +239,8 @@ const WebsiteCard = React.memo(
                 id={cardId}
                 sx={cardStyles}
                 onClick={handleClick}
+                onMouseEnter={handleMouseEnter} 
+                onMouseLeave={handleMouseLeave}
                 aria-label={isSkeleton ? "Loading website data" : `View details for ${displayName}${isPinned ? ', Pinned' : ''}${cardStatus !== 'up' ? `, Status: ${cardStatus}` : ''}${shouldHighlightThisCard ? ', Highlighted as Last Incident Source' : ''}`}
             >
                 <CardContent sx={{
@@ -241,11 +255,36 @@ const WebsiteCard = React.memo(
                             {displayName}
                         </Typography></Tooltip>
                         {!isSkeleton && (
-                            <Tooltip title={pinTooltipText} placement="top"><span>
-                                <IconButton size="small" onClick={handlePinClick} disabled={isSettingPin} aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`} sx={{ color: hasPinError && !isSettingPin ? theme.palette.error.main : isPinned ? theme.palette.primary.main : 'inherit' }}>
-                                    {isSettingPin ? <CircularProgress size={20} color="inherit" /> : isPinned ? <PinIcon fontSize="small" /> : <PinOutlinedIcon fontSize="small" />}
-                                </IconButton>
-                            </span></Tooltip>
+                            <Tooltip title={pinTooltipText} placement="top">
+                                <Box
+                                    component="span" 
+                                    sx={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',   
+                                        opacity: (isHovered || isPinned || isSettingPin) ? 1 : 0,
+                                        visibility: (isHovered || isPinned || isSettingPin) ? 'visible' : 'hidden',
+                                        transition: theme.transitions.create(['opacity', 'visibility'], {
+                                            duration: theme.transitions.duration.shortest,
+                                        }),
+                                    }}
+                                >
+                                    <IconButton 
+                                        size="small" 
+                                        onClick={handlePinClick} 
+                                        disabled={isSettingPin} 
+                                        aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`} 
+                                        sx={{ 
+                                            color: hasPinError && !isSettingPin 
+                                                ? theme.palette.error.main 
+                                                : isPinned 
+                                                    ? theme.palette.primary.main 
+                                                    : 'inherit' 
+                                        }}
+                                    >
+                                        {isSettingPin ? <CircularProgress size={20} color="inherit" /> : isPinned ? <PinIcon fontSize="small" /> : <PinOutlinedIcon fontSize="small" />}
+                                    </IconButton>
+                                </Box>
+                            </Tooltip>
                         )}
                     </Box>
                     <Box sx={{ minHeight: '20px', mb: 1.5 }}>
