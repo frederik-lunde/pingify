@@ -310,9 +310,10 @@ export const getWebsiteDetails = async (
     }
 
     const timeframe = (req.query.timeframe as TimeframeKey) ?? "day";
+    // Assuming VALID_TIMEFRAMES is defined in your types.ts and imported
     if (VALID_TIMEFRAMES && !VALID_TIMEFRAMES.includes(timeframe)) {
-        
-        console.warn(`Invalid timeframe '${req.query.timeframe}' provided, defaulting to 'day'.`);
+        console.warn(`Invalid timeframe '${req.query.timeframe}' provided for getWebsiteDetails, defaulting to 'day'.`);
+        // timeframe = "day"; // No need to reassign if already defaulted above
     }
 
     const limit = req.query.limit
@@ -320,7 +321,7 @@ export const getWebsiteDetails = async (
       : 50;
     const incidentLimit = req.query.incidentLimit
       ? parseInt(req.query.incidentLimit as string, 10)
-      : 10;
+      : 10; // Default incident limit
     const sortBy = (req.query.sortBy as MonitoringResultSortBy) ?? "checkedAt";
     const sortDir = (req.query.sortDir as SortDirection) ?? "desc";
 
@@ -334,17 +335,17 @@ export const getWebsiteDetails = async (
     }
 
     const startDate = getStartDateForTimeframe(timeframe);
-    const endDate = new Date();
+    const endDate = new Date(); // endDate is always now for recent incidents within the timeframe
 
     let orderByClause: Prisma.MonitoringResultOrderByWithRelationInput[] = [];
     if (sortBy === "statusCode" || sortBy === "responseTime") {
       orderByClause.push({ [sortBy]: { sort: sortDir, nulls: "last" } });
-    } else { 
+    } else {
       orderByClause.push({ [sortBy]: sortDir });
     }
-    
+
     if (sortBy !== "checkedAt") {
-      orderByClause.push({ checkedAt: "desc" }); 
+      orderByClause.push({ checkedAt: "desc" });
     }
 
     const [
@@ -353,7 +354,7 @@ export const getWebsiteDetails = async (
       recentChecksData,
       uptimePercentData,
       currentIncidentData,
-      recentIncidentsData,
+      recentIncidentsData, // This is the one we're focusing on
     ] = await Promise.all([
       prisma.monitoringResult.findFirst({
         where: { websiteId },
@@ -361,19 +362,28 @@ export const getWebsiteDetails = async (
       }),
       StatsCalculator.getChartDataForWebsite(websiteId, timeframe),
       prisma.monitoringResult.findMany({
-        where: { websiteId: websiteId },
+        where: { websiteId: websiteId }, // You might want to filter recent checks by timeframe too if desired
         orderBy: orderByClause,
         take: limit,
       }),
       StatsCalculator.calculateUptimeBetweenDates(
         websiteId,
-        startDate,
+        startDate, // Uptime is already calculated for the timeframe
         endDate,
       ),
       IncidentService.getCurrentOpenIncidentForWebsite(websiteId),
-      IncidentService.getIncidents(
-        { websiteId: websiteId, limit: incidentLimit },
-        userId, 
+      IncidentService.getIncidents( // MODIFIED PART
+        {
+          websiteId: websiteId,
+          limit: incidentLimit,
+          from: startDate, // Pass the calculated start date
+          to: endDate,     // Pass the calculated end date (now)
+          // You might also want to consider how 'status' (open/closed) interacts here
+          // For "Recent Incidents" usually you want both open and closed within the timeframe.
+          // If getIncidents defaults to only open or closed, you might need to adjust its logic
+          // or pass an explicit status filter if applicable.
+        },
+        userId,
       ),
     ]);
 
@@ -398,9 +408,9 @@ export const getWebsiteDetails = async (
       chartData: safeChartData,
       recentChecks: mappedRecentChecks,
       uptimePercent:
-        typeof uptimePercentData === "number" ? uptimePercentData : 100, 
+        typeof uptimePercentData === "number" ? uptimePercentData : 100,
       currentIncident: currentIncidentData ?? null,
-      recentIncidents: safeRecentIncidents,
+      recentIncidents: safeRecentIncidents, // This will now be filtered by timeframe
     };
     res.json(responseData);
   } catch (error) {

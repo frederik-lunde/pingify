@@ -1,6 +1,6 @@
 import axios, { AxiosError } from "axios";
 import { performance } from "perf_hooks";
-import { Prisma, Incident as PrismaIncident } from "@prisma/client"; 
+import { Prisma, Incident as PrismaIncident } from "@prisma/client";
 import { monitoringConfig } from "../config/config";
 import { handleResultProcessing } from "./alertService";
 import * as IncidentService from "./incidentService";
@@ -29,7 +29,6 @@ import {
   ChartDataPoint,
   WebsitePrisma,
   MonitoringResultPrisma,
-  
 } from "../types";
 
 const REQUEST_TIMEOUT_MS = monitoringConfig.requestTimeoutMs;
@@ -45,119 +44,111 @@ export class WebsiteMonitor {
    * @returns A promise that resolves to a MonitoringResponse object.
    */
   static async performWebsiteCheck(url: string): Promise<MonitoringResponse> {
-  const CHECK_COUNT = 3;
-  const CHECK_DELAY_MS = 5000;
+    const CHECK_COUNT = 3;
+    const CHECK_DELAY_MS = 5000;
 
-  let failures = 0;
-  let worstStatus: number | null = null;
-  let worstError: string | null = null;
-  let totalResponseTime = 0;
-  let bestResponseTime: number | null = null; 
-  let successfulChecksCount = 0;
-  let sumOfSuccessfulResponseTimes = 0;
+    let failures = 0;
+    let worstStatus: number | null = null;
+    let worstError: string | null = null;
+    let totalResponseTime = 0;
+    let successfulChecksCount = 0;
+    let sumOfSuccessfulResponseTimes = 0;
 
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const singleCheck = async (): Promise<MonitoringResponse> => {
+      const start = performance.now();
+      let responseTime: number | null = null;
+      let isAvailable = false;
+      let statusCode: number | null = null;
+      let errorMessage: string | null = null;
 
-  const singleCheck = async (): Promise<MonitoringResponse> => {
-    const start = performance.now();
-    let responseTime: number | null = null;
-    let isAvailable = false;
-    let statusCode: number | null = null;
-    let errorMessage: string | null = null;
+      try {
+        const response = await axios.get(url, {
+          timeout: REQUEST_TIMEOUT_MS,
+          headers: {
+            "User-Agent": MONITOR_USER_AGENT,
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+          },
+          validateStatus: () => true,
+        });
 
-    try {
-      const response = await axios.get(url, {
-        timeout: REQUEST_TIMEOUT_MS,
-        headers: {
-          "User-Agent": MONITOR_USER_AGENT,
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-          "Accept-Encoding": "gzip, deflate, br",
-        },
-        validateStatus: () => true,
-      });
+        responseTime = Math.round(performance.now() - start);
+        statusCode = response.status;
+        isAvailable = statusCode >= 200 && statusCode < 300;
 
-      responseTime = Math.round(performance.now() - start);
-      statusCode = response.status;
-      isAvailable = statusCode >= 200 && statusCode < 300;
-
-      if (statusCode === 200 && typeof response.data === "string") {
-        const lowerCaseBody = response.data.toLowerCase();
-        if (
-          lowerCaseBody.includes("502 bad gateway") ||
-          lowerCaseBody.includes("error 502")
-        ) {
-          statusCode = 502;
-          isAvailable = false;
-          errorMessage = "Detected 502 message in body";
+        if (statusCode === 200 && typeof response.data === "string") {
+          const lowerCaseBody = response.data.toLowerCase();
+          if (
+            lowerCaseBody.includes("502 bad gateway") ||
+            lowerCaseBody.includes("error 502")
+          ) {
+            statusCode = 502;
+            isAvailable = false;
+            errorMessage = "Detected 502 message in body";
+          }
         }
+
+        if (!isAvailable && !errorMessage) {
+          errorMessage = `HTTP Status ${statusCode}`;
+        }
+      } catch (error: unknown) {
+        responseTime = Math.round(performance.now() - start);
+        isAvailable = false;
+        if (axios.isAxiosError(error)) {
+          statusCode = error.response?.status ?? null;
+          errorMessage = this.parseAxiosErrorMessage(error);
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = "Unknown error occurred during check.";
+        }
+        console.error(`[Check Error] ${url}: ${errorMessage} (Status: ${statusCode ?? "N/A"})`);
       }
 
-      if (!isAvailable && !errorMessage) {
-        errorMessage = `HTTP Status ${statusCode}`;
-      }
-    } catch (error: unknown) {
-      responseTime = Math.round(performance.now() - start); 
-      isAvailable = false;
-      if (axios.isAxiosError(error)) {
-        statusCode = error.response?.status ?? null;
-        errorMessage = this.parseAxiosErrorMessage(error);
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
+      return { responseTime, isAvailable, statusCode, errorMessage };
+    };
+
+    for (let i = 0; i < CHECK_COUNT; i++) {
+      const result = await singleCheck();
+
+      if (!result.isAvailable) {
+        failures++;
+        if (worstStatus === null || (result.statusCode !== null && result.statusCode > (worstStatus || 0))) {
+          worstStatus = result.statusCode;
+        }
+        if (result.errorMessage && (!worstError || (worstError && result.errorMessage !== worstError))) {
+          worstError = result.errorMessage;
+        }
       } else {
-        errorMessage = "Unknown error occurred during check.";
-      }
-      console.error(`[Check Error] ${url}: ${errorMessage} (Status: ${statusCode ?? "N/A"})`);
-    }
-
-    return { responseTime, isAvailable, statusCode, errorMessage };
-  };
-
-  for (let i = 0; i < CHECK_COUNT; i++) {
-    const result = await singleCheck();
-
-    if (!result.isAvailable) {
-      failures++;
-      if (worstStatus === null || (result.statusCode !== null && result.statusCode > (worstStatus || 0) )) {
-        worstStatus = result.statusCode;
-      }
-       if (result.errorMessage && (!worstError || (worstError && result.errorMessage !== worstError))) { 
-        worstError = result.errorMessage;
-      }
-    } else {
         successfulChecksCount++;
         if (result.responseTime !== null) {
-            sumOfSuccessfulResponseTimes += result.responseTime;
+          sumOfSuccessfulResponseTimes += result.responseTime;
         }
+      }
+
+      totalResponseTime += result.responseTime ?? REQUEST_TIMEOUT_MS;
+
+      if (i < CHECK_COUNT - 1) {
+        await delay(CHECK_DELAY_MS);
+      }
     }
-    
-    
-    
-    
-    
-    totalResponseTime += result.responseTime ?? REQUEST_TIMEOUT_MS; 
-    
-    if (i < CHECK_COUNT - 1) {
-      await delay(CHECK_DELAY_MS);
-    }
+
+    const isAvailable = failures < 2;
+
+    const avgResponseTime = successfulChecksCount > 0
+      ? Math.round(sumOfSuccessfulResponseTimes / successfulChecksCount)
+      : null;
+
+    return {
+      responseTime: avgResponseTime,
+      isAvailable,
+      statusCode: isAvailable ? 200 : (worstStatus ?? 500),
+      errorMessage: isAvailable ? null : (worstError ?? "Multiple checks failed"),
+    };
   }
-
-  const isAvailable = failures < 2; 
-  
-  
-  const avgResponseTime = successfulChecksCount > 0 
-    ? Math.round(sumOfSuccessfulResponseTimes / successfulChecksCount) 
-    : null;
-
-  return {
-    responseTime: avgResponseTime, 
-    isAvailable,
-    statusCode: isAvailable ? 200 : (worstStatus ?? 500), 
-    errorMessage: isAvailable ? null : (worstError ?? "Multiple checks failed"),
-  };
-}
-
 
   /**
    * Parses an AxiosError to generate a human-readable error message.
@@ -172,7 +163,7 @@ export class WebsiteMonitor {
       if (error.code === "ENOTFOUND")
         return "DNS lookup failed (domain not found)";
       if (error.code === "ECONNREFUSED") return "Connection refused by server";
-      if (error.code === "ETIMEDOUT") return "Connection timed out"; 
+      if (error.code === "ETIMEDOUT") return "Connection timed out";
       if (error.code === "EHOSTUNREACH") return "No route to host";
       if (error.code === "ECONNRESET") return "Connection reset by peer";
       return "No response received from server";
@@ -219,11 +210,9 @@ export class WebsiteMonitor {
       );
       try {
         if (!savedResult) {
-          
-          
           await prisma.website.update({
             where: { id: website.id },
-            data: { lastChecked: new Date() }, 
+            data: { lastChecked: new Date() },
           });
           console.warn(
             `${logPrefix} Updated lastChecked after error during check/processing (result not saved).`,
@@ -235,7 +224,7 @@ export class WebsiteMonitor {
           updateError,
         );
       }
-      throw error; 
+      throw error;
     }
   }
 }
@@ -429,7 +418,7 @@ export class StatsCalculator {
 
     const totalChecks = successfulChecks + failedChecks;
 
-    if (totalChecks === 0) return 100; 
+    if (totalChecks === 0) return 100;
 
     const uptimePercentage = (successfulChecks / totalChecks) * 100;
     return parseFloat(uptimePercentage.toFixed(2));
@@ -475,16 +464,16 @@ export class StatsCalculator {
       case "week":
         return 7;
       case "month":
-        return 30; 
+        return 30;
       case "year":
-        return 365; 
+        return 365;
     }
     if (typeof period === "number") return period > 0 ? period : 7;
     if (typeof period === "string") {
       const value = parseInt(period);
       if (!isNaN(value) && value > 0) return value;
     }
-    return 7; 
+    return 7;
   }
 
   /**
@@ -539,12 +528,11 @@ export class StatsCalculator {
       by: ["type"],
       where: {
         websiteId: websiteId,
-        
         OR: [
-          { startTime: { gte: startDate, lte: endDate } }, 
-          { endTime: { gte: startDate, lte: endDate } },   
-          { startTime: { lt: startDate }, endTime: null }, 
-          { startTime: { lt: startDate }, endTime: { gt: endDate } }, 
+          { startTime: { gte: startDate, lte: endDate } },
+          { endTime: { gte: startDate, lte: endDate } },
+          { startTime: { lt: startDate }, endTime: null },
+          { startTime: { lt: startDate }, endTime: { gt: endDate } },
         ],
       },
       _count: { type: true },
@@ -606,11 +594,10 @@ export class StatsCalculator {
     const activeWebsiteIds = activeWebsitesList.map((w) => w.id);
 
     let websiteStats: WebsiteStatsData[] = [];
-    let overallUptime = 100; 
+    let overallUptime = 100;
     let overallResponseTime = null;
 
     if (activeWebsiteIds.length === 0) {
-      
     } else if (includeWebsiteBreakdown) {
       const websiteStatsPromises = activeWebsiteIds.map((websiteId) =>
         this.getWebsiteStats(websiteId, userId, period),
@@ -623,8 +610,8 @@ export class StatsCalculator {
       overallUptime =
         validUptimeStats.length > 0
           ? validUptimeStats.reduce((sum, stat) => sum + stat.uptime, 0) /
-            validUptimeStats.length
-          : 100; 
+          validUptimeStats.length
+          : 100;
 
       const validResponseStats = websiteStats.filter(
         (stat) => stat.averageResponseTime !== null,
@@ -632,14 +619,13 @@ export class StatsCalculator {
       overallResponseTime =
         validResponseStats.length > 0
           ? Math.round(
-              validResponseStats.reduce(
-                (sum, stat) => sum + stat.averageResponseTime!,
-                0,
-              ) / validResponseStats.length,
-            )
+            validResponseStats.reduce(
+              (sum, stat) => sum + stat.averageResponseTime!,
+              0,
+            ) / validResponseStats.length,
+          )
           : null;
     } else {
-      
       const websiteUptimeAndCheckCounts = await Promise.all(
         activeWebsiteIds.map(async (id) => {
           const uptime = await this.calculateUptimeBetweenDates(id, periodStartDate, new Date());
@@ -662,10 +648,8 @@ export class StatsCalculator {
           websitesWithChecksInPeriod.reduce((sum, site) => sum + site.uptime, 0) /
           websitesWithChecksInPeriod.length;
       } else if (activeWebsiteIds.length > 0) {
-        
         overallUptime = 100;
       }
-      
 
       const avgRespResult = await prisma.monitoringResult.aggregate({
         _avg: { responseTime: true },
@@ -747,7 +731,7 @@ export class StatsCalculator {
     } => {
       const totalChecks = resultsInPeriod.length;
       if (totalChecks === 0)
-        return { avgResponseTime: null, uptimeRatio: 1.0, checkCount: 0 }; 
+        return { avgResponseTime: null, uptimeRatio: 1.0, checkCount: 0 };
 
       const successfulChecks = resultsInPeriod.filter(
         (r) => r.isAvailable,
@@ -758,9 +742,9 @@ export class StatsCalculator {
       const avgResponseTime =
         validResponseTimes.length > 0
           ? Math.round(
-              validResponseTimes.reduce((s, rt) => s + rt, 0) /
-                validResponseTimes.length,
-            )
+            validResponseTimes.reduce((s, rt) => s + rt, 0) /
+            validResponseTimes.length,
+          )
           : null;
       const uptimeRatio = successfulChecks / totalChecks;
 
@@ -778,20 +762,35 @@ export class StatsCalculator {
           const hourResults = await prisma.monitoringResult.findMany({
             where: { websiteId, checkedAt: { gte: startDate, lte: endDate } },
             orderBy: { checkedAt: "asc" },
-            take: 200, 
           });
-          chartData = hourResults.map((r) => ({
-            label: format(new Date(r.checkedAt), "HH:mm"),
-            timestamp: getUnixTime(new Date(r.checkedAt)),
-            avgResponseTime: r.isAvailable ? r.responseTime : null,
-            uptimeRatio: r.isAvailable ? 1.0 : 0.0,
-            checkCount: 1,
-          }));
+
+          const intervalMinutesHour = 5; 
+          const intervalsHour = new Map<number, MonitoringResultPrisma[]>();
+
+          hourResults.forEach((r) => {
+            const intervalTimestamp =
+              Math.floor(
+                getUnixTime(new Date(r.checkedAt)) / (intervalMinutesHour * 60),
+              ) *
+              (intervalMinutesHour * 60);
+            if (!intervalsHour.has(intervalTimestamp)) {
+              intervalsHour.set(intervalTimestamp, []);
+            }
+            intervalsHour.get(intervalTimestamp)?.push(r);
+          });
+
+          chartData = Array.from(intervalsHour.entries()).map(
+            ([timestamp, results]) => ({
+              label: format(new Date(timestamp * 1000), "HH:mm"),
+              timestamp: timestamp,
+              ...calculatePeriodStats(results),
+            }),
+          );
           break;
         case "day":
-          startDate = subDays(endDate, 1); 
-          intervalStart = startOfDay(startDate); 
-          intervalEnd = endOfDay(endDate); 
+          startDate = subDays(endDate, 1);
+          intervalStart = startOfDay(startDate);
+          intervalEnd = endOfDay(endDate);
           const dayResults = await prisma.monitoringResult.findMany({
             where: {
               websiteId,
@@ -799,7 +798,7 @@ export class StatsCalculator {
             },
             orderBy: { checkedAt: "asc" },
           });
-          
+
           const intervalMinutesDay = 30;
           const intervalsDay = new Map<number, MonitoringResultPrisma[]>();
           dayResults.forEach((r) => {
@@ -837,7 +836,7 @@ export class StatsCalculator {
             },
             orderBy: { checkedAt: "asc" },
           });
-          
+
           const resultsByDay = new Map<string, MonitoringResultPrisma[]>();
           periodResultsWkMo.forEach((r) => {
             const dayKey = format(new Date(r.checkedAt), "yyyy-MM-dd");
@@ -858,8 +857,8 @@ export class StatsCalculator {
           break;
         case "year":
           startDate = subYears(endDate, 1);
-          intervalStart = startOfMonth(startDate); 
-          intervalEnd = endOfDay(endDate); 
+          intervalStart = startOfMonth(startDate);
+          intervalEnd = endOfDay(endDate);
           const monthsInPeriod = eachMonthOfInterval({
             start: intervalStart,
             end: intervalEnd,
@@ -871,7 +870,7 @@ export class StatsCalculator {
             },
             orderBy: { checkedAt: "asc" },
           });
-          
+
           const resultsByMonth = new Map<string, MonitoringResultPrisma[]>();
           yearResults.forEach((r) => {
             const monthKey = format(new Date(r.checkedAt), "yyyy-MM");
@@ -894,15 +893,15 @@ export class StatsCalculator {
           console.warn(
             `[StatsCalculator] Unsupported timeframe for chart data: ${timeframe}. Defaulting to 'week'.`,
           );
-          return this.getChartDataForWebsite(websiteId, "week"); 
+          return this.getChartDataForWebsite(websiteId, "week");
       }
-      chartData.sort((a, b) => a.timestamp - b.timestamp); 
+      chartData.sort((a, b) => a.timestamp - b.timestamp);
     } catch (error) {
       console.error(
         `[StatsCalculator] Error generating chart data for website ${websiteId}, timeframe ${timeframe}:`,
         error,
       );
-      return []; 
+      return [];
     }
     return chartData;
   }
