@@ -1,4 +1,3 @@
-// server/src/services/incidentService.ts
 import {
   Incident as PrismaIncident,
   Prisma,

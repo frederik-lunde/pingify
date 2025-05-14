@@ -1,7 +1,6 @@
-// server/src/services/monitoringService.ts
 import axios, { AxiosError } from "axios";
 import { performance } from "perf_hooks";
-import { Prisma, Incident as PrismaIncident } from "@prisma/client"; // Added PrismaIncident here
+import { Prisma, Incident as PrismaIncident } from "@prisma/client"; 
 import { monitoringConfig } from "../config/config";
 import { handleResultProcessing } from "./alertService";
 import * as IncidentService from "./incidentService";
@@ -30,7 +29,7 @@ import {
   ChartDataPoint,
   WebsitePrisma,
   MonitoringResultPrisma,
-  // IncidentPrisma, // Already imported as PrismaIncident
+  
 } from "../types";
 
 const REQUEST_TIMEOUT_MS = monitoringConfig.requestTimeoutMs;
@@ -53,7 +52,7 @@ export class WebsiteMonitor {
   let worstStatus: number | null = null;
   let worstError: string | null = null;
   let totalResponseTime = 0;
-  let bestResponseTime: number | null = null; // This was being used as worst, corrected to actual best/fastest if needed, or sum for avg
+  let bestResponseTime: number | null = null; 
   let successfulChecksCount = 0;
   let sumOfSuccessfulResponseTimes = 0;
 
@@ -99,7 +98,7 @@ export class WebsiteMonitor {
         errorMessage = `HTTP Status ${statusCode}`;
       }
     } catch (error: unknown) {
-      responseTime = Math.round(performance.now() - start); // record response time even on error
+      responseTime = Math.round(performance.now() - start); 
       isAvailable = false;
       if (axios.isAxiosError(error)) {
         statusCode = error.response?.status ?? null;
@@ -123,7 +122,7 @@ export class WebsiteMonitor {
       if (worstStatus === null || (result.statusCode !== null && result.statusCode > (worstStatus || 0) )) {
         worstStatus = result.statusCode;
       }
-       if (result.errorMessage && (!worstError || (worstError && result.errorMessage !== worstError))) { // Prioritize more specific error
+       if (result.errorMessage && (!worstError || (worstError && result.errorMessage !== worstError))) { 
         worstError = result.errorMessage;
       }
     } else {
@@ -132,29 +131,29 @@ export class WebsiteMonitor {
             sumOfSuccessfulResponseTimes += result.responseTime;
         }
     }
-    // Store overall response time for averaging, regardless of success for this specific interpretation
-    // If only avg of successful checks is needed, this logic would differ.
-    // The prompt implies an overall average response time from the checks.
-    // However, the original logic used `bestResponseTime` which was actually the *slowest* successful.
-    // Let's stick to averaging successful checks' response times.
-    totalResponseTime += result.responseTime ?? REQUEST_TIMEOUT_MS; // Add timeout if responseTime is null for averaging
+    
+    
+    
+    
+    
+    totalResponseTime += result.responseTime ?? REQUEST_TIMEOUT_MS; 
     
     if (i < CHECK_COUNT - 1) {
       await delay(CHECK_DELAY_MS);
     }
   }
 
-  const isAvailable = failures < 2; // Available if less than 2 out of 3 checks fail
+  const isAvailable = failures < 2; 
   
-  // Calculate average response time only from successful checks
+  
   const avgResponseTime = successfulChecksCount > 0 
     ? Math.round(sumOfSuccessfulResponseTimes / successfulChecksCount) 
     : null;
 
   return {
-    responseTime: avgResponseTime, // Avg of successful, or null if all failed
+    responseTime: avgResponseTime, 
     isAvailable,
-    statusCode: isAvailable ? 200 : (worstStatus ?? 500), // Default to 500 if no specific status from failures
+    statusCode: isAvailable ? 200 : (worstStatus ?? 500), 
     errorMessage: isAvailable ? null : (worstError ?? "Multiple checks failed"),
   };
 }
@@ -173,7 +172,7 @@ export class WebsiteMonitor {
       if (error.code === "ENOTFOUND")
         return "DNS lookup failed (domain not found)";
       if (error.code === "ECONNREFUSED") return "Connection refused by server";
-      if (error.code === "ETIMEDOUT") return "Connection timed out"; // Axios can also use ETIMEDOUT for request timeout
+      if (error.code === "ETIMEDOUT") return "Connection timed out"; 
       if (error.code === "EHOSTUNREACH") return "No route to host";
       if (error.code === "ECONNRESET") return "Connection reset by peer";
       return "No response received from server";
@@ -220,11 +219,11 @@ export class WebsiteMonitor {
       );
       try {
         if (!savedResult) {
-          // Attempt to update lastChecked even if result saving failed,
-          // to prevent immediate re-check if scheduler runs frequently.
+          
+          
           await prisma.website.update({
             where: { id: website.id },
-            data: { lastChecked: new Date() }, // Mark as checked now
+            data: { lastChecked: new Date() }, 
           });
           console.warn(
             `${logPrefix} Updated lastChecked after error during check/processing (result not saved).`,
@@ -236,7 +235,7 @@ export class WebsiteMonitor {
           updateError,
         );
       }
-      throw error; // Re-throw original error
+      throw error; 
     }
   }
 }
@@ -430,7 +429,7 @@ export class StatsCalculator {
 
     const totalChecks = successfulChecks + failedChecks;
 
-    if (totalChecks === 0) return 100; // Default to 100% if no checks in the period
+    if (totalChecks === 0) return 100; 
 
     const uptimePercentage = (successfulChecks / totalChecks) * 100;
     return parseFloat(uptimePercentage.toFixed(2));
@@ -476,16 +475,16 @@ export class StatsCalculator {
       case "week":
         return 7;
       case "month":
-        return 30; // Approximation
+        return 30; 
       case "year":
-        return 365; // Approximation
+        return 365; 
     }
     if (typeof period === "number") return period > 0 ? period : 7;
     if (typeof period === "string") {
       const value = parseInt(period);
       if (!isNaN(value) && value > 0) return value;
     }
-    return 7; // Default to 7 days (week)
+    return 7; 
   }
 
   /**
@@ -540,12 +539,12 @@ export class StatsCalculator {
       by: ["type"],
       where: {
         websiteId: websiteId,
-        // Consider incidents that started OR were active within the period
+        
         OR: [
-          { startTime: { gte: startDate, lte: endDate } }, // Started in period
-          { endTime: { gte: startDate, lte: endDate } },   // Ended in period
-          { startTime: { lt: startDate }, endTime: null }, // Started before, still open
-          { startTime: { lt: startDate }, endTime: { gt: endDate } }, // Spanned the entire period
+          { startTime: { gte: startDate, lte: endDate } }, 
+          { endTime: { gte: startDate, lte: endDate } },   
+          { startTime: { lt: startDate }, endTime: null }, 
+          { startTime: { lt: startDate }, endTime: { gt: endDate } }, 
         ],
       },
       _count: { type: true },
@@ -611,7 +610,7 @@ export class StatsCalculator {
     let overallResponseTime = null;
 
     if (activeWebsiteIds.length === 0) {
-      // No active websites, stats remain at their defaults (overallUptime = 100)
+      
     } else if (includeWebsiteBreakdown) {
       const websiteStatsPromises = activeWebsiteIds.map((websiteId) =>
         this.getWebsiteStats(websiteId, userId, period),
@@ -625,7 +624,7 @@ export class StatsCalculator {
         validUptimeStats.length > 0
           ? validUptimeStats.reduce((sum, stat) => sum + stat.uptime, 0) /
             validUptimeStats.length
-          : 100; // If no sites with checks, default to 100%
+          : 100; 
 
       const validResponseStats = websiteStats.filter(
         (stat) => stat.averageResponseTime !== null,
@@ -640,7 +639,7 @@ export class StatsCalculator {
             )
           : null;
     } else {
-      // Calculate overall stats more efficiently
+      
       const websiteUptimeAndCheckCounts = await Promise.all(
         activeWebsiteIds.map(async (id) => {
           const uptime = await this.calculateUptimeBetweenDates(id, periodStartDate, new Date());
@@ -663,10 +662,10 @@ export class StatsCalculator {
           websitesWithChecksInPeriod.reduce((sum, site) => sum + site.uptime, 0) /
           websitesWithChecksInPeriod.length;
       } else if (activeWebsiteIds.length > 0) {
-        // Active websites exist, but none had checks in the period. Uptime is 100%.
+        
         overallUptime = 100;
       }
-      // If activeWebsiteIds.length is 0, overallUptime remains its initial 100%
+      
 
       const avgRespResult = await prisma.monitoringResult.aggregate({
         _avg: { responseTime: true },

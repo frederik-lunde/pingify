@@ -1,4 +1,3 @@
-// server/src/controllers/monitoringController.ts
 import {
   Prisma,
   MonitoringResult as PrismaMonitoringResult,
@@ -30,7 +29,7 @@ const getStartDateForTimeframe = (timeframe: TimeframeKey): Date => {
     case "hour":
       return subHours(now, 1);
     case "day":
-    default: // Default to 'day' if timeframe is invalid or not provided
+    default: 
       return subDays(now, 1);
     case "week":
       return subDays(now, 7);
@@ -57,7 +56,7 @@ const mapPrismaResultToSharedCore = (
     statusCode: prismaResult.statusCode,
     errorMessage: prismaResult.errorMessage,
   };
-  return coreData as SharedMonitoringResult; // Cast as we'll add website later if needed
+  return coreData as SharedMonitoringResult; 
 };
 
 /**
@@ -81,7 +80,7 @@ export const getUserResults = async (
       to: to ? new Date(to as string) : undefined,
     });
 
-    // Type assertion for results from ResultsManager.getResultsForUser
+    
     const typedResults = results as (PrismaMonitoringResult & {
         website: { url: string; websiteUsers: { name: string | null }[] } | null;
     })[];
@@ -96,7 +95,7 @@ export const getUserResults = async (
           website: r.website
             ? {
                 url: r.website.url,
-                name: r.website.websiteUsers?.[0]?.name ?? undefined, // Use undefined if name is null
+                name: r.website.websiteUsers?.[0]?.name ?? undefined, 
               }
             : undefined,
         };
@@ -199,14 +198,14 @@ export const triggerWebsiteCheck = async (
       `[triggerWebsiteCheck] User ${userId} initiating check for website ID: ${websiteId}`,
     );
 
-    // Don't await WebsiteMonitor.checkWebsite. Let it run in the background.
+    
     WebsiteMonitor.checkWebsite(websitePrisma)
       .then(result => {
         console.log(
           `[triggerWebsiteCheck BG] Background check completed for website ID: ${websiteId}. Result ID: ${result?.id}`,
         );
-        // Here you could potentially emit a WebSocket event or log,
-        // but the HTTP response has already been sent.
+        
+        
       })
       .catch(error => {
         console.error(
@@ -215,11 +214,11 @@ export const triggerWebsiteCheck = async (
         );
       });
 
-    // Respond immediately to the client that the check has been initiated.
+    
     res.status(202).json({ message: "Website check initiated." });
 
   } catch (error) {
-    // Catch errors from the synchronous part (auth, findUnique, etc.)
+    
     console.error(`[triggerWebsiteCheck SYNC ERR] Failed to initiate check for website ${req.params.websiteId}:`, error);
     next(error);
   }
@@ -240,7 +239,7 @@ export const getUserStats = async (
       return;
     }
     const userId = req.user.id;
-    const period = (req.query.period as string) ?? "week"; // Default to 'week'
+    const period = (req.query.period as string) ?? "week"; 
     const stats: OverallStats = await StatsCalculator.getUserDashboardStats(
       userId,
       period,
@@ -270,7 +269,7 @@ export const getWebsiteStats = async (
       res.status(400).json({ message: "Invalid Website ID." });
       return;
     }
-    const period = (req.query.period as string) ?? "week"; // Default to 'week'
+    const period = (req.query.period as string) ?? "week"; 
 
     const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
     if (!hasAccess) {
@@ -312,7 +311,7 @@ export const getWebsiteDetails = async (
 
     const timeframe = (req.query.timeframe as TimeframeKey) ?? "day";
     if (VALID_TIMEFRAMES && !VALID_TIMEFRAMES.includes(timeframe)) {
-        // Log warning or default, current getStartDateForTimeframe defaults to 'day'
+        
         console.warn(`Invalid timeframe '${req.query.timeframe}' provided, defaulting to 'day'.`);
     }
 
@@ -340,12 +339,12 @@ export const getWebsiteDetails = async (
     let orderByClause: Prisma.MonitoringResultOrderByWithRelationInput[] = [];
     if (sortBy === "statusCode" || sortBy === "responseTime") {
       orderByClause.push({ [sortBy]: { sort: sortDir, nulls: "last" } });
-    } else { // Default to checkedAt or other direct fields
+    } else { 
       orderByClause.push({ [sortBy]: sortDir });
     }
-    // Add secondary sort by checkedAt if primary sort is not checkedAt, to ensure consistent ordering
+    
     if (sortBy !== "checkedAt") {
-      orderByClause.push({ checkedAt: "desc" }); // Or 'asc' depending on desired secondary tie-breaker
+      orderByClause.push({ checkedAt: "desc" }); 
     }
 
     const [
@@ -374,7 +373,7 @@ export const getWebsiteDetails = async (
       IncidentService.getCurrentOpenIncidentForWebsite(websiteId),
       IncidentService.getIncidents(
         { websiteId: websiteId, limit: incidentLimit },
-        userId, // Pass userId for correct website name mapping in incident DTO
+        userId, 
       ),
     ]);
 
@@ -399,7 +398,7 @@ export const getWebsiteDetails = async (
       chartData: safeChartData,
       recentChecks: mappedRecentChecks,
       uptimePercent:
-        typeof uptimePercentData === "number" ? uptimePercentData : 100, // Default to 100 if not a number
+        typeof uptimePercentData === "number" ? uptimePercentData : 100, 
       currentIncident: currentIncidentData ?? null,
       recentIncidents: safeRecentIncidents,
     };

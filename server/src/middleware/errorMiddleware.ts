@@ -2,23 +2,26 @@ import { Request, Response, NextFunction } from "express";
 import { Prisma } from "@prisma/client";
 
 interface CustomError extends Error {
-  status?: number;
+  status?: number; 
+  statusCode?: number; 
 }
 
 const errorMiddleware = (
   err: CustomError,
   req: Request,
   res: Response,
+  next: NextFunction,
 ): void => {
   const prismaMeta =
     err instanceof Prisma.PrismaClientKnownRequestError ? err.meta : undefined;
+
   console.error(
-    `Error caught: [${req.method}] ${req.originalUrl} - Status: ${err.status || "N/A"} - Message: ${err.message}`,
-    prismaMeta ? `- PrismaMeta: ${JSON.stringify(prismaMeta)}` : "",
-    err.stack,
+    `[ERROR HANDLER] Timestamp: ${new Date().toISOString()} | Method: ${req.method} | URL: ${req.originalUrl} | Status: ${err.statusCode || err.status || 500} | Message: ${err.message}`,
+    prismaMeta ? `| PrismaMeta: ${JSON.stringify(prismaMeta)}` : "",
+    (process.env.NODE_ENV === 'development' || (err.statusCode || err.status || 500) >= 500) ? `| Stack: ${err.stack}` : ""
   );
 
-  let statusCode = err.status || 500;
+  let statusCode = err.statusCode || err.status || 500; 
   let responseMessage = err.message || "An unexpected error occurred.";
 
   if (err.message === "Invalid credentials") {
@@ -29,7 +32,8 @@ const errorMiddleware = (
     responseMessage = "An account with this email already exists.";
   } else if (
     err.message === "Invalid or expired token" ||
-    err.message.includes("jwt") ||
+    err.name === 'JsonWebTokenError' || 
+    err.name === 'TokenExpiredError' ||
     err.message === "Authentication required"
   ) {
     statusCode = 401;
@@ -60,9 +64,9 @@ const errorMiddleware = (
     statusCode = 400;
     responseMessage =
       "The website URL provided is not valid. Please include http:// or https://";
-  } else if (err.message.includes("already exists")) {
+  } else if (err.message.includes("already exists") && err.message.toLowerCase().includes("website")) {
     statusCode = 409;
-    responseMessage = "This website URL is already being monitored.";
+    responseMessage = "This website URL is already being monitored by you or another user.";
   } else if (
     err.message.startsWith("Website with ID") &&
     err.message.includes("not found")
@@ -77,19 +81,30 @@ const errorMiddleware = (
     statusCode = 403;
     responseMessage = "You do not have permission to modify this alert.";
   } else if (err.message.startsWith("Failed to send email")) {
-    console.error("Email sending failed:", err.message);
+    console.error("Email sending failed details:", err);
     statusCode = 500;
     responseMessage =
-      "An internal error occurred while trying to send a notification.";
+      "An internal error occurred while trying to send a notification. Please contact support if this persists.";
   }
 
-  if (statusCode === 500 && process.env.NODE_ENV === "production") {
+
+
+  if (statusCode >= 500 && process.env.NODE_ENV === "production") {
     responseMessage =
-      "An internal server error occurred. Please try again later.";
+      "An internal server error occurred. Our team has been notified. Please try again later.";
+  }
+
+  if (res.headersSent) {
+    return next(err);
   }
 
   res.status(statusCode).json({
     message: responseMessage,
+
+    ...(process.env.NODE_ENV === 'development' && {
+        errorType: err.name,
+        originalMessage: err.message, 
+    })
   });
 };
 
