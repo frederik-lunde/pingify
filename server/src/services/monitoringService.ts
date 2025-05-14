@@ -1,6 +1,7 @@
+// server/src/services/monitoringService.ts
 import axios, { AxiosError } from "axios";
 import { performance } from "perf_hooks";
-import { Prisma } from "@prisma/client";
+import { Prisma, Incident as PrismaIncident } from "@prisma/client"; // Added PrismaIncident here
 import { monitoringConfig } from "../config/config";
 import { handleResultProcessing } from "./alertService";
 import * as IncidentService from "./incidentService";
@@ -29,7 +30,7 @@ import {
   ChartDataPoint,
   WebsitePrisma,
   MonitoringResultPrisma,
-  IncidentPrisma,
+  // IncidentPrisma, // Already imported as PrismaIncident
 } from "../types";
 
 const REQUEST_TIMEOUT_MS = monitoringConfig.requestTimeoutMs;
@@ -45,6 +46,21 @@ export class WebsiteMonitor {
    * @returns A promise that resolves to a MonitoringResponse object.
    */
   static async performWebsiteCheck(url: string): Promise<MonitoringResponse> {
+  const CHECK_COUNT = 3;
+  const CHECK_DELAY_MS = 5000;
+
+  let failures = 0;
+  let worstStatus: number | null = null;
+  let worstError: string | null = null;
+  let totalResponseTime = 0;
+  let bestResponseTime: number | null = null; // This was being used as worst, corrected to actual best/fastest if needed, or sum for avg
+  let successfulChecksCount = 0;
+  let sumOfSuccessfulResponseTimes = 0;
+
+
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const singleCheck = async (): Promise<MonitoringResponse> => {
     const start = performance.now();
     let responseTime: number | null = null;
     let isAvailable = false;
@@ -60,15 +76,30 @@ export class WebsiteMonitor {
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
           "Accept-Encoding": "gzip, deflate, br",
         },
-        validateStatus: () => true, // Handle all status codes without throwing errors
+        validateStatus: () => true,
       });
 
       responseTime = Math.round(performance.now() - start);
       statusCode = response.status;
       isAvailable = statusCode >= 200 && statusCode < 300;
-      if (!isAvailable) errorMessage = `HTTP Status ${statusCode}`;
+
+      if (statusCode === 200 && typeof response.data === "string") {
+        const lowerCaseBody = response.data.toLowerCase();
+        if (
+          lowerCaseBody.includes("502 bad gateway") ||
+          lowerCaseBody.includes("error 502")
+        ) {
+          statusCode = 502;
+          isAvailable = false;
+          errorMessage = "Detected 502 message in body";
+        }
+      }
+
+      if (!isAvailable && !errorMessage) {
+        errorMessage = `HTTP Status ${statusCode}`;
+      }
     } catch (error: unknown) {
-      responseTime = Math.round(performance.now() - start);
+      responseTime = Math.round(performance.now() - start); // record response time even on error
       isAvailable = false;
       if (axios.isAxiosError(error)) {
         statusCode = error.response?.status ?? null;
@@ -78,12 +109,56 @@ export class WebsiteMonitor {
       } else {
         errorMessage = "Unknown error occurred during check.";
       }
-      console.error(
-        `[Check Error] ${url}: ${errorMessage} (Status: ${statusCode ?? "N/A"})`,
-      );
+      console.error(`[Check Error] ${url}: ${errorMessage} (Status: ${statusCode ?? "N/A"})`);
     }
+
     return { responseTime, isAvailable, statusCode, errorMessage };
+  };
+
+  for (let i = 0; i < CHECK_COUNT; i++) {
+    const result = await singleCheck();
+
+    if (!result.isAvailable) {
+      failures++;
+      if (worstStatus === null || (result.statusCode !== null && result.statusCode > (worstStatus || 0) )) {
+        worstStatus = result.statusCode;
+      }
+       if (result.errorMessage && (!worstError || (worstError && result.errorMessage !== worstError))) { // Prioritize more specific error
+        worstError = result.errorMessage;
+      }
+    } else {
+        successfulChecksCount++;
+        if (result.responseTime !== null) {
+            sumOfSuccessfulResponseTimes += result.responseTime;
+        }
+    }
+    // Store overall response time for averaging, regardless of success for this specific interpretation
+    // If only avg of successful checks is needed, this logic would differ.
+    // The prompt implies an overall average response time from the checks.
+    // However, the original logic used `bestResponseTime` which was actually the *slowest* successful.
+    // Let's stick to averaging successful checks' response times.
+    totalResponseTime += result.responseTime ?? REQUEST_TIMEOUT_MS; // Add timeout if responseTime is null for averaging
+    
+    if (i < CHECK_COUNT - 1) {
+      await delay(CHECK_DELAY_MS);
+    }
   }
+
+  const isAvailable = failures < 2; // Available if less than 2 out of 3 checks fail
+  
+  // Calculate average response time only from successful checks
+  const avgResponseTime = successfulChecksCount > 0 
+    ? Math.round(sumOfSuccessfulResponseTimes / successfulChecksCount) 
+    : null;
+
+  return {
+    responseTime: avgResponseTime, // Avg of successful, or null if all failed
+    isAvailable,
+    statusCode: isAvailable ? 200 : (worstStatus ?? 500), // Default to 500 if no specific status from failures
+    errorMessage: isAvailable ? null : (worstError ?? "Multiple checks failed"),
+  };
+}
+
 
   /**
    * Parses an AxiosError to generate a human-readable error message.
@@ -98,7 +173,7 @@ export class WebsiteMonitor {
       if (error.code === "ENOTFOUND")
         return "DNS lookup failed (domain not found)";
       if (error.code === "ECONNREFUSED") return "Connection refused by server";
-      if (error.code === "ETIMEDOUT") return "Connection timed out";
+      if (error.code === "ETIMEDOUT") return "Connection timed out"; // Axios can also use ETIMEDOUT for request timeout
       if (error.code === "EHOSTUNREACH") return "No route to host";
       if (error.code === "ECONNRESET") return "Connection reset by peer";
       return "No response received from server";
@@ -145,12 +220,14 @@ export class WebsiteMonitor {
       );
       try {
         if (!savedResult) {
+          // Attempt to update lastChecked even if result saving failed,
+          // to prevent immediate re-check if scheduler runs frequently.
           await prisma.website.update({
             where: { id: website.id },
-            data: { lastChecked: new Date() },
+            data: { lastChecked: new Date() }, // Mark as checked now
           });
           console.warn(
-            `${logPrefix} Updated lastChecked after error during check/processing.`,
+            `${logPrefix} Updated lastChecked after error during check/processing (result not saved).`,
           );
         }
       } catch (updateError) {
@@ -159,7 +236,7 @@ export class WebsiteMonitor {
           updateError,
         );
       }
-      throw error;
+      throw error; // Re-throw original error
     }
   }
 }
@@ -329,7 +406,6 @@ export class StatsCalculator {
     startDate: Date,
     endDate: Date = new Date(),
   ): Promise<number> {
-    // Aggregate counts of available and unavailable checks
     const resultsAggregate = await prisma.monitoringResult.groupBy({
       by: ["isAvailable"],
       where: {
@@ -354,7 +430,7 @@ export class StatsCalculator {
 
     const totalChecks = successfulChecks + failedChecks;
 
-    if (totalChecks === 0) return 100;
+    if (totalChecks === 0) return 100; // Default to 100% if no checks in the period
 
     const uptimePercentage = (successfulChecks / totalChecks) * 100;
     return parseFloat(uptimePercentage.toFixed(2));
@@ -400,16 +476,16 @@ export class StatsCalculator {
       case "week":
         return 7;
       case "month":
-        return 30;
+        return 30; // Approximation
       case "year":
-        return 365;
+        return 365; // Approximation
     }
-    if (typeof period === "number") return period > 0 ? period : 7; // Default to 7 if number is not positive
+    if (typeof period === "number") return period > 0 ? period : 7;
     if (typeof period === "string") {
       const value = parseInt(period);
       if (!isNaN(value) && value > 0) return value;
     }
-    return 7;
+    return 7; // Default to 7 days (week)
   }
 
   /**
@@ -460,12 +536,17 @@ export class StatsCalculator {
 
     const totalChecks = totalChecksData;
 
-    // Count incidents within the period
     const incidentCounts = await prisma.incident.groupBy({
       by: ["type"],
       where: {
         websiteId: websiteId,
-        startTime: { gte: startDate, lte: endDate },
+        // Consider incidents that started OR were active within the period
+        OR: [
+          { startTime: { gte: startDate, lte: endDate } }, // Started in period
+          { endTime: { gte: startDate, lte: endDate } },   // Ended in period
+          { startTime: { lt: startDate }, endTime: null }, // Started before, still open
+          { startTime: { lt: startDate }, endTime: { gt: endDate } }, // Spanned the entire period
+        ],
       },
       _count: { type: true },
     });
@@ -526,19 +607,17 @@ export class StatsCalculator {
     const activeWebsiteIds = activeWebsitesList.map((w) => w.id);
 
     let websiteStats: WebsiteStatsData[] = [];
-    let overallUptime = 100; // Default to 100%
+    let overallUptime = 100; 
     let overallResponseTime = null;
 
     if (activeWebsiteIds.length === 0) {
-      // No active websites, so stats remain at their defaults
+      // No active websites, stats remain at their defaults (overallUptime = 100)
     } else if (includeWebsiteBreakdown) {
-      // Fetch detailed stats for each active website
       const websiteStatsPromises = activeWebsiteIds.map((websiteId) =>
         this.getWebsiteStats(websiteId, userId, period),
       );
       websiteStats = await Promise.all(websiteStatsPromises);
 
-      // Calculate overall uptime and response time from the breakdown
       const validUptimeStats = websiteStats.filter(
         (stat) => stat.totalChecks > 0,
       );
@@ -546,7 +625,7 @@ export class StatsCalculator {
         validUptimeStats.length > 0
           ? validUptimeStats.reduce((sum, stat) => sum + stat.uptime, 0) /
             validUptimeStats.length
-          : 100;
+          : 100; // If no sites with checks, default to 100%
 
       const validResponseStats = websiteStats.filter(
         (stat) => stat.averageResponseTime !== null,
@@ -561,44 +640,39 @@ export class StatsCalculator {
             )
           : null;
     } else {
-      // Calculate overall stats more efficiently without individual breakdowns
-
-      // Calculate overall uptime
-      const avgUptimePromises = activeWebsiteIds.map((id) =>
-        this.calculateUptimeBetweenDates(id, periodStartDate, new Date()),
-      );
-      const avgUptimes = await Promise.all(avgUptimePromises);
-
-      // Filter out websites that had no checks (uptime is 100 by default from calculateUptimeBetweenDates)
-      // and average the rest.
-      const websitesWithActualChecks = avgUptimes.filter(
-        (u) =>
-          u !== 100 || // Had some downtime
-          (u === 100 &&
-            (async () =>
-              (await prisma.monitoringResult.count({
-                where: {
-                  websiteId: activeWebsiteIds[avgUptimes.indexOf(u)],
-                  checkedAt: { gte: periodStartDate },
-                },
-              })) > 0)()), // Was 100% and had checks
+      // Calculate overall stats more efficiently
+      const websiteUptimeAndCheckCounts = await Promise.all(
+        activeWebsiteIds.map(async (id) => {
+          const uptime = await this.calculateUptimeBetweenDates(id, periodStartDate, new Date());
+          const checkCount = await prisma.monitoringResult.count({
+            where: {
+              websiteId: id,
+              checkedAt: { gte: periodStartDate, lte: new Date() },
+            },
+          });
+          return { id, uptime, checkCount };
+        })
       );
 
-      if (websitesWithActualChecks.length > 0) {
+      const websitesWithChecksInPeriod = websiteUptimeAndCheckCounts.filter(
+        (site) => site.checkCount > 0
+      );
+
+      if (websitesWithChecksInPeriod.length > 0) {
         overallUptime =
-          websitesWithActualChecks.reduce((s, u) => s + u, 0) /
-          websitesWithActualChecks.length;
+          websitesWithChecksInPeriod.reduce((sum, site) => sum + site.uptime, 0) /
+          websitesWithChecksInPeriod.length;
       } else if (activeWebsiteIds.length > 0) {
-        // All active websites had no checks in the period, so assume 100%
+        // Active websites exist, but none had checks in the period. Uptime is 100%.
         overallUptime = 100;
       }
+      // If activeWebsiteIds.length is 0, overallUptime remains its initial 100%
 
-      // Calculate overall average response time
       const avgRespResult = await prisma.monitoringResult.aggregate({
         _avg: { responseTime: true },
         where: {
           websiteId: { in: activeWebsiteIds },
-          checkedAt: { gte: periodStartDate },
+          checkedAt: { gte: periodStartDate, lte: new Date() },
           isAvailable: true,
           responseTime: { not: null },
         },
@@ -609,15 +683,18 @@ export class StatsCalculator {
           : null;
     }
 
-    // Fetch incident data
     let incidentsLast24h = 0;
-    let lastIncident: IncidentPrisma | null = null;
+    let lastIncident: PrismaIncident | null = null;
     if (activeWebsiteIds.length > 0) {
       incidentsLast24h = await IncidentService.countIncidents({
         from: twentyFourHoursAgo,
-        ...(userId && { userId: userId }),
+        to: new Date(),
+        ...(userId ? { userId: userId } : { websiteIds: activeWebsiteIds }),
       });
-      lastIncident = await IncidentService.getMostRecentIncident(userId);
+      lastIncident = await IncidentService.getMostRecentIncident(
+        userId,
+        userId ? undefined : activeWebsiteIds
+      );
     }
 
     return {
@@ -643,7 +720,6 @@ export class StatsCalculator {
     userId: string,
     period: TimeframeKey | string | number = "week",
   ): Promise<OverallStats> {
-    // Calls getOverallStats with includeWebsiteBreakdown set to false
     return this.getOverallStats(userId, period, false);
   }
 
@@ -663,7 +739,6 @@ export class StatsCalculator {
     let startDate: Date;
     let intervalStart: Date, intervalEnd: Date;
 
-    // Helper function to calculate stats for a period's results
     const calculatePeriodStats = (
       resultsInPeriod: MonitoringResultPrisma[],
     ): {
@@ -673,7 +748,7 @@ export class StatsCalculator {
     } => {
       const totalChecks = resultsInPeriod.length;
       if (totalChecks === 0)
-        return { avgResponseTime: null, uptimeRatio: 1.0, checkCount: 0 }; // Assume 100% uptime if no checks
+        return { avgResponseTime: null, uptimeRatio: 1.0, checkCount: 0 }; 
 
       const successfulChecks = resultsInPeriod.filter(
         (r) => r.isAvailable,
@@ -701,11 +776,10 @@ export class StatsCalculator {
       switch (timeframe) {
         case "hour":
           startDate = subHours(endDate, 1);
-          // For 'hour', show individual checks if not too many, or aggregate slightly if needed
           const hourResults = await prisma.monitoringResult.findMany({
             where: { websiteId, checkedAt: { gte: startDate, lte: endDate } },
             orderBy: { checkedAt: "asc" },
-            take: 200, // Limit to avoid overly dense charts
+            take: 200, 
           });
           chartData = hourResults.map((r) => ({
             label: format(new Date(r.checkedAt), "HH:mm"),
@@ -716,9 +790,9 @@ export class StatsCalculator {
           }));
           break;
         case "day":
-          startDate = subDays(endDate, 1); // Last 24 hours
-          intervalStart = startOfDay(startDate); // Start of yesterday
-          intervalEnd = endOfDay(endDate); // End of today
+          startDate = subDays(endDate, 1); 
+          intervalStart = startOfDay(startDate); 
+          intervalEnd = endOfDay(endDate); 
           const dayResults = await prisma.monitoringResult.findMany({
             where: {
               websiteId,
@@ -726,7 +800,7 @@ export class StatsCalculator {
             },
             orderBy: { checkedAt: "asc" },
           });
-          // Aggregate by 30-minute intervals for 'day' view
+          
           const intervalMinutesDay = 30;
           const intervalsDay = new Map<number, MonitoringResultPrisma[]>();
           dayResults.forEach((r) => {
@@ -764,7 +838,7 @@ export class StatsCalculator {
             },
             orderBy: { checkedAt: "asc" },
           });
-          // Group results by day
+          
           const resultsByDay = new Map<string, MonitoringResultPrisma[]>();
           periodResultsWkMo.forEach((r) => {
             const dayKey = format(new Date(r.checkedAt), "yyyy-MM-dd");
@@ -785,8 +859,8 @@ export class StatsCalculator {
           break;
         case "year":
           startDate = subYears(endDate, 1);
-          intervalStart = startOfMonth(startDate); // Start of the month, 1 year ago
-          intervalEnd = endOfDay(endDate); // End of today
+          intervalStart = startOfMonth(startDate); 
+          intervalEnd = endOfDay(endDate); 
           const monthsInPeriod = eachMonthOfInterval({
             start: intervalStart,
             end: intervalEnd,
@@ -798,7 +872,7 @@ export class StatsCalculator {
             },
             orderBy: { checkedAt: "asc" },
           });
-          // Group results by month
+          
           const resultsByMonth = new Map<string, MonitoringResultPrisma[]>();
           yearResults.forEach((r) => {
             const monthKey = format(new Date(r.checkedAt), "yyyy-MM");
@@ -821,15 +895,15 @@ export class StatsCalculator {
           console.warn(
             `[StatsCalculator] Unsupported timeframe for chart data: ${timeframe}. Defaulting to 'week'.`,
           );
-          return this.getChartDataForWebsite(websiteId, "week"); // Recursive call with default
+          return this.getChartDataForWebsite(websiteId, "week"); 
       }
-      chartData.sort((a, b) => a.timestamp - b.timestamp); // Ensure chronological order
+      chartData.sort((a, b) => a.timestamp - b.timestamp); 
     } catch (error) {
       console.error(
         `[StatsCalculator] Error generating chart data for website ${websiteId}, timeframe ${timeframe}:`,
         error,
       );
-      return []; // Return empty array on error
+      return []; 
     }
     return chartData;
   }

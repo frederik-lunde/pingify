@@ -1,11 +1,10 @@
+// server/src/services/incidentService.ts
 import {
-  
   Incident as PrismaIncident,
   Prisma,
-
 } from "@prisma/client";
 import prisma from "../prisma/prismaClient";
-import {  differenceInSeconds } from "date-fns";
+import { differenceInSeconds } from "date-fns";
 
 import {
   Incident,
@@ -25,10 +24,6 @@ type IncidentWithIncludedWebsite = PrismaIncident & {
   } | null;
 };
 
-
-/**
- * Maps a Prisma Incident object to a shared Incident DTO. It prioritizes the user-specific website name if available.
- */
 const mapPrismaIncidentToShared = (
   incident: IncidentWithIncludedWebsite | null,
   userId?: string,
@@ -42,7 +37,6 @@ const mapPrismaIncidentToShared = (
     incident.website?.websiteUsers &&
     incident.website.websiteUsers.length > 0
   ) {
-
     const userWebsite = incident.website.websiteUsers.find(
       (wu) => wu.userId === userId,
     );
@@ -71,11 +65,6 @@ const mapPrismaIncidentToShared = (
   };
 };
 
-
-/**
- * Retrieves an open incident of a specific type for a given website.
- * An open incident is one that does not have an endTime.
- */
 export async function getOpenIncident(
   websiteId: number,
   type: IncidentType,
@@ -90,16 +79,12 @@ export async function getOpenIncident(
   });
 }
 
-/**
- * Creates a new incident or returns an existing open one of the same type for the website.
- * This prevents duplicate open incidents.
- */
 export async function createIncident(
   websiteId: number,
   type: IncidentType,
-  confirmedAt: Date,
-  initialResultId?: number,
-  confirmingResultId?: number,
+  confirmedAt: Date, 
+  initialResultId?: number | null, 
+  confirmingResultId?: number | null, 
 ): Promise<PrismaIncident | null> {
   const logPrefix = `[IncidentService W:${websiteId} T:${type}]`;
   console.log(
@@ -109,7 +94,7 @@ export async function createIncident(
   const existingOpenIncident = await getOpenIncident(websiteId, type);
   if (existingOpenIncident) {
     console.log(
-      `${logPrefix} Incident creation skipped: An open incident (ID: ${existingOpenIncident.id}) of type '${type}' already exists.`,
+      `${logPrefix} Incident creation skipped: An open incident (ID: ${existingOpenIncident.id}) of type '${type}' already exists. Returning existing.`,
     );
     return existingOpenIncident;
   }
@@ -138,25 +123,66 @@ export async function createIncident(
     console.error(`${logPrefix} Error creating incident:`, error);
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
+      error.code === "P2002" 
     ) {
       console.warn(
         `${logPrefix} Potential race condition (P2002) creating incident. Re-checking for open incident.`,
       );
-      return getOpenIncident(websiteId, type);
+      return getOpenIncident(websiteId, type); 
     }
     throw error;
   }
 }
 
-/**
- * Resolves an open incident by setting its end time, duration, and resolving result ID.
- * If the incident is already resolved or not found, it takes no action or returns null.
- */
+export async function updateIncidentConfirmation(
+  incidentId: number,
+  confirmingResultId: number,
+): Promise<PrismaIncident | null> {
+  const logPrefix = `[IncidentService I:${incidentId}]`;
+  try {
+    const incident = await prisma.incident.findUnique({
+      where: { id: incidentId },
+    });
+    if (!incident) {
+      console.warn(`${logPrefix} UpdateConfirmation failed: Incident not found.`);
+      return null;
+    }
+    if (incident.endTime !== null) {
+      console.warn(`${logPrefix} UpdateConfirmation skipped: Incident ${incidentId} is already resolved.`);
+      return incident;
+    }
+     if (incident.confirmingResultId === confirmingResultId) {
+      console.log(`${logPrefix} UpdateConfirmation skipped: confirmingResultId already set to ${confirmingResultId}.`);
+      return incident;
+    }
+     if (incident.confirmingResultId !== null && incident.confirmingResultId !== confirmingResultId) {
+      console.warn(`${logPrefix} UpdateConfirmation: overwriting existing confirmingResultId ${incident.confirmingResultId} with ${confirmingResultId}.`);
+    }
+
+
+    const updatedIncident = await prisma.incident.update({
+      where: { id: incidentId },
+      data: {
+        confirmingResultId: confirmingResultId,
+      },
+    });
+    console.log(`${logPrefix} Successfully updated incident with confirmingResultId: ${confirmingResultId}.`);
+    return updatedIncident;
+  } catch (error) {
+    console.error(`${logPrefix} Error updating incident confirmation:`, error);
+     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") { 
+      console.warn(`${logPrefix} UpdateConfirmation failed: Incident not found during update attempt.`);
+      return null;
+    }
+    throw error;
+  }
+}
+
+
 export async function resolveIncident(
   incidentId: number,
   resolvedAt: Date,
-  resolvingResultId?: number,
+  resolvingResultId?: number | null, 
 ): Promise<PrismaIncident | null> {
   const logPrefix = `[IncidentService I:${incidentId}]`;
   try {
@@ -191,7 +217,7 @@ export async function resolveIncident(
     console.error(`${logPrefix} Error resolving incident:`, error);
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
+      error.code === "P2025" 
     ) {
       console.warn(
         `${logPrefix} Resolve failed: Incident not found during update attempt.`,
@@ -202,11 +228,6 @@ export async function resolveIncident(
   }
 }
 
-
-/**
- * Retrieves a list of incidents based on various filter options.
- * It can filter by user, website, type, date range, and status (open/closed).
- */
 export async function getIncidents(
   options: IncidentQueryOptions = {},
   requestingUserId?: string,
@@ -222,19 +243,13 @@ export async function getIncidents(
     websiteId,
     status,
   } = options;
-  const userId = optionsUserId as string | undefined;
-
-  console.log(
-    `${logPrefix} Received options:`,
-    JSON.stringify({ ...options, userId }),
-  );
+  const userId = optionsUserId as string | undefined; 
 
   const whereClause: Prisma.IncidentWhereInput = {};
 
   if (websiteId !== undefined) {
     whereClause.websiteId = websiteId;
   } else if (userId !== undefined) {
-
     whereClause.website = {
       websiteUsers: { some: { userId: userId } },
     };
@@ -251,11 +266,6 @@ export async function getIncidents(
 
   const needsWebsiteUsers = !!(userId || requestingUserId);
   const targetUserIdForName = userId ?? requestingUserId;
-
-  console.log(
-    `${logPrefix} Constructed Prisma Where Clause:`,
-    JSON.stringify(whereClause),
-  );
 
   try {
     const incidentsPrisma = await prisma.incident.findMany({
@@ -277,10 +287,6 @@ export async function getIncidents(
         },
       },
     });
-    console.log(
-      `${logPrefix} Prisma findMany returned ${incidentsPrisma.length} raw records.`,
-    );
-
 
     const mappedIncidents = incidentsPrisma
       .map((inc) =>
@@ -290,9 +296,6 @@ export async function getIncidents(
         ),
       )
       .filter((inc) => inc !== null) as Incident[];
-    console.log(
-      `${logPrefix} Returning ${mappedIncidents.length} mapped incidents.`,
-    );
     return mappedIncidents;
   } catch (error) {
     console.error(`${logPrefix} Error executing Prisma findMany:`, error);
@@ -302,26 +305,34 @@ export async function getIncidents(
 
 /**
  * Counts the number of incidents based on various filter options.
+ * Can be scoped by userId, a specific websiteId, or a list of websiteIds.
  */
 export async function countIncidents(
-  options: IncidentQueryOptions = {},
+  options: IncidentQueryOptions & { websiteIds?: number[] } = {},
 ): Promise<number> {
-
-  const { type, from, to, userId: optionsUserId, websiteId, status } = options;
+  const { type, from, to, userId: optionsUserId, websiteId, status, websiteIds } = options;
   const userId = optionsUserId as string | undefined;
 
   const whereClause: Prisma.IncidentWhereInput = {};
 
-  if (websiteId !== undefined) whereClause.websiteId = websiteId;
-  else if (userId !== undefined)
+  if (websiteId !== undefined) { // Specific websiteId takes precedence
+    whereClause.websiteId = websiteId;
+  } else if (userId !== undefined) { // Then filter by user
     whereClause.website = { websiteUsers: { some: { userId: userId } } };
+  } else if (websiteIds && websiteIds.length > 0) { // Then by a list of website IDs
+    whereClause.websiteId = { in: websiteIds };
+  }
 
   if (type && VALID_INCIDENT_TYPES.includes(type)) whereClause.type = type;
-  if (from || to) {
-    whereClause.startTime = {};
-    if (from) whereClause.startTime.gte = from;
-    if (to) whereClause.startTime.lte = to;
+  
+  if (from && to) {
+    whereClause.startTime = { gte: from, lte: to };
+  } else if (from) {
+    whereClause.startTime = { gte: from };
+  } else if (to) {
+    whereClause.startTime = { lte: to };
   }
+
   if (status === "open") whereClause.endTime = null;
   else if (status === "closed") whereClause.endTime = { not: null };
 
@@ -329,20 +340,23 @@ export async function countIncidents(
 }
 
 /**
- * Retrieves the most recent incident, optionally filtered by user ID.
+ * Retrieves the most recent incident, optionally filtered by user ID or a list of website IDs.
  */
 export async function getMostRecentIncident(
   userId?: string,
+  websiteIds?: number[], 
 ): Promise<PrismaIncident | null> {
   const whereClause: Prisma.IncidentWhereInput = {};
   if (userId) {
     whereClause.website = { websiteUsers: { some: { userId: userId } } };
+  } else if (websiteIds && websiteIds.length > 0) {
+    whereClause.websiteId = { in: websiteIds };
   }
 
   return prisma.incident.findFirst({
     where: whereClause,
     orderBy: { startTime: "desc" },
-    select: {
+    select: { 
       id: true,
       websiteId: true,
       type: true,
@@ -356,9 +370,6 @@ export async function getMostRecentIncident(
   });
 }
 
-/**
- * Retrieves the current open incident for a specific website, if one exists.
- */
 export async function getCurrentOpenIncidentForWebsite(
   websiteId: number,
 ): Promise<Incident | null> {
@@ -369,11 +380,11 @@ export async function getCurrentOpenIncidentForWebsite(
     },
     orderBy: { startTime: "desc" },
     include: {
-      website: { select: { url: true } },
+      website: { select: { url: true } }, 
     },
   });
 
   return mapPrismaIncidentToShared(
-    openIncidentPrisma as IncidentWithIncludedWebsite,
+    openIncidentPrisma as IncidentWithIncludedWebsite, 
   );
 }

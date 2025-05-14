@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+// src/hooks/api/useWebsiteMutations.ts
+import { useCallback, useState } from "react";
 import {
     useQuery,
     useMutation,
@@ -22,6 +23,7 @@ import {
     SetPinStatusDTO,
     Website,
     ApiError,
+    TimeframeKey, // Added TimeframeKey
 } from "../../types";
 import { useAuth } from '../../context/AuthContext';
 import { monitoringQueryKeys, useWebsiteCheckMutation } from './useMonitoring';
@@ -53,8 +55,8 @@ export function useUserWebsitesQuery(options?: CustomQueryOptions<WebsiteUser[]>
         queryKey: websiteQueryKeys.lists(userId),
         queryFn: () => { if (!userId) return Promise.resolve([]); return fetchUserWebsites(); },
         enabled: options?.enabled === undefined ? !!userId : options.enabled,
-        staleTime: 1000,
-        gcTime: 1000 * 60 * 15,
+        staleTime: 1000 * 60, 
+        gcTime: 1000 * 60 * 15, 
         ...options,
     });
 }
@@ -69,8 +71,8 @@ export function useUserWebsiteQuery(websiteId: number | undefined, options?: Cus
         queryKey: websiteQueryKeys.detail(websiteId, userId),
         queryFn: () => { if (!userId || !websiteId) return Promise.reject(new Error("Missing user or website ID for query")); return fetchUserWebsite(websiteId); },
         enabled: options?.enabled === undefined ? (!!userId && !!websiteId && websiteId > 0) : options.enabled,
-        staleTime: 1000,
-        gcTime: 1000 * 60 * 5,
+        staleTime: 1000 * 60, 
+        gcTime: 1000 * 60 * 5, 
         ...options,
     });
 }
@@ -83,7 +85,27 @@ export function useWebsiteSearch(limit: number = 10) {
     const [results, setResults] = useState<Website[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<ApiError | null>(null);
-    const search = useCallback(async (searchQuery: string) => { setQuery(searchQuery); if (!searchQuery.trim()) { setResults([]); return []; } setLoading(true); setError(null); try { const data = await apiSearchWebsites(searchQuery, limit); setResults(data); return data; } catch (err) { setError(err as ApiError); console.error("Error searching websites:", err); setResults([]); return []; } finally { setLoading(false); } }, [limit]);
+    const search = useCallback(async (searchQuery: string) => {
+        setQuery(searchQuery);
+        if (!searchQuery.trim()) {
+            setResults([]);
+            return [];
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await apiSearchWebsites(searchQuery, limit);
+            setResults(data);
+            return data;
+        } catch (err) {
+            setError(err as ApiError);
+            console.error("Error searching websites:", err);
+            setResults([]);
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, [limit]);
     return { query, results, loading, error, search };
  }
 
@@ -94,33 +116,47 @@ export function useWebsiteMutations() {
     const queryClient = useQueryClient();
     const auth = useAuth();
     const userId = auth?.user?.id;
-    const { mutateAsync: triggerCheck, isPending: isChecking } = useWebsiteCheckMutation();
+    const { mutateAsync: triggerCheck, isPending: isCheckingBackend } = useWebsiteCheckMutation();
 
     const userWebsiteListKey: QueryKey = websiteQueryKeys.lists(userId);
-    const userMonitoringResultsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'userResults', { userId }];
-    const userOverallStatsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'stats', 'user', { userId }];
-    const userAlertListKeyPattern: QueryKey = alertQueryKeys.lists();
-    const userAlertStatsKeyPattern: QueryKey = alertQueryKeys.stats();
+    // CORRECTED: Provide 'undefined' for the limit parameter
+    const userAggregatedMonitoringResultsKeyPattern: QueryKey = monitoringQueryKeys.userResults(undefined, userId);
+    const defaultUserStatsPeriod: TimeframeKey = 'week'; // Define a default or get from config
+    const userOverallStatsKeyPattern: QueryKey = monitoringQueryKeys.userStats(defaultUserStatsPeriod, userId); 
+    const userAlertListKeyPattern: QueryKey = alertQueryKeys.lists(); 
+    const userAlertStatsKeyPattern: QueryKey = alertQueryKeys.stats(); 
 
     const addWebsiteMutation = useMutation<WebsiteUser, ApiError, AddWebsiteUserDTO>({
         mutationFn: (websiteData) => {
              if (!userId) return Promise.reject(new Error("User not authenticated for adding website"));
              return apiAddWebsiteToUser({ ...websiteData, isPinned: websiteData.isPinned ?? false });
         },
-        onSuccess: async (newWebsiteUser) => {
+        onSuccess: (newWebsiteUser) => { 
             const websiteId = newWebsiteUser?.websiteId;
             if (!userId) return;
+
             queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
-            queryClient.invalidateQueries({ queryKey: userMonitoringResultsKeyPattern });
+            queryClient.invalidateQueries({ queryKey: userAggregatedMonitoringResultsKeyPattern });
             queryClient.invalidateQueries({ queryKey: userOverallStatsKeyPattern });
             queryClient.invalidateQueries({ queryKey: userAlertListKeyPattern, exact: false });
             queryClient.invalidateQueries({ queryKey: userAlertStatsKeyPattern, exact: false });
+
             if (websiteId) {
-                try {
-                    await triggerCheck(websiteId);
-                } catch (checkError) {
-                    console.error(`Failed to trigger initial check for website ${websiteId}:`, checkError);
-                }
+                console.log(`Initiating background check for new website ${websiteId}.`);
+                triggerCheck(websiteId)
+                    .then(() => {
+                        console.log(`Background check for website ${websiteId} successfully initiated.`);
+                        // Optionally invalidate specific results for this new website after a delay
+                        // if you want the UI to pick up the first check result sooner.
+                        // setTimeout(() => {
+                        //   if (monitoringQueryKeys.websiteResults) { 
+                        //     queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.websiteResults(websiteId, userId) });
+                        //   }
+                        // }, 15000); 
+                    })
+                    .catch((checkError) => {
+                        console.error(`Background initial check for website ${websiteId} failed to initiate or errored:`, checkError);
+                    });
             } else {
                  console.warn("Could not trigger initial check: Website ID not found after addWebsite operation.");
             }
@@ -138,15 +174,19 @@ export function useWebsiteMutations() {
         onSuccess: (updatedWebsiteUser, variables) => {
             const websiteId = variables.websiteId;
             if (!userId || !updatedWebsiteUser) return;
+
             queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
             const detailKey: QueryKey = websiteQueryKeys.detail(websiteId, userId);
-            queryClient.setQueryData(detailKey, updatedWebsiteUser);
+            queryClient.setQueryData(detailKey, updatedWebsiteUser); 
+
             if (variables.websiteData.interval !== undefined) {
-                const websiteStatsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { userId }];
-                queryClient.invalidateQueries({ queryKey: websiteStatsKeyPattern });
+                if (monitoringQueryKeys.websiteStats) { 
+                    const websiteStatsKey: QueryKey = monitoringQueryKeys.websiteStats(websiteId, defaultUserStatsPeriod, userId);
+                    queryClient.invalidateQueries({ queryKey: websiteStatsKey });
+                }
                 queryClient.invalidateQueries({ queryKey: userOverallStatsKeyPattern });
             }
-            if (variables.websiteData.alertEnabled !== undefined || variables.websiteData.alertThreshold !== undefined) {
+            if (variables.websiteData.alertEnabled !== undefined || variables.websiteData.alertThreshold !== undefined || variables.websiteData.notifyEmail !== undefined) {
                  queryClient.invalidateQueries({ queryKey: userAlertListKeyPattern, exact: false });
                  queryClient.invalidateQueries({ queryKey: userAlertStatsKeyPattern, exact: false });
             }
@@ -179,17 +219,34 @@ export function useWebsiteMutations() {
              if (!userId) return Promise.reject(new Error("User not authenticated for removing website"));
              return apiRemoveWebsiteFromUser(websiteId);
         },
-        onSuccess: (_, websiteId) => {
+        onSuccess: (_, websiteId) => { 
             if (!userId) return;
             queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
             const detailKey: QueryKey = websiteQueryKeys.detail(websiteId, userId);
             queryClient.removeQueries({ queryKey: detailKey });
-            queryClient.invalidateQueries({ queryKey: userMonitoringResultsKeyPattern });
-            queryClient.invalidateQueries({ queryKey: userOverallStatsKeyPattern });
-            const websiteStatsKeyPattern: QueryKey = [...monitoringQueryKeys.all, 'stats', 'website', websiteId, { userId }];
-            queryClient.removeQueries({ queryKey: websiteStatsKeyPattern });
-            const detailsKeyPatternForUser: QueryKey = [...monitoringQueryKeys.all, 'details', websiteId, { userId }];
-            queryClient.removeQueries({ queryKey: detailsKeyPatternForUser, exact: false });
+
+            queryClient.invalidateQueries({ queryKey: userAggregatedMonitoringResultsKeyPattern }); 
+            queryClient.invalidateQueries({ queryKey: userOverallStatsKeyPattern }); 
+
+            if (monitoringQueryKeys.websiteResults && typeof monitoringQueryKeys.websiteResults === 'function') {
+                const websiteSpecificMonitoringResultsKey: QueryKey = monitoringQueryKeys.websiteResults(websiteId, userId);
+                queryClient.removeQueries({ queryKey: websiteSpecificMonitoringResultsKey, exact: false });
+            } else {
+                console.warn("monitoringQueryKeys.websiteResults is not defined or not a function. Cannot remove specific website monitoring results.");
+            }
+            
+            if (monitoringQueryKeys.websiteStats && typeof monitoringQueryKeys.websiteStats === 'function') {
+                const websiteStatsKey: QueryKey = monitoringQueryKeys.websiteStats(websiteId, defaultUserStatsPeriod, userId);
+                queryClient.removeQueries({ queryKey: websiteStatsKey });
+            }
+
+            if (monitoringQueryKeys.details && typeof monitoringQueryKeys.details === 'function') {
+                // Assuming params for details requires at least websiteId
+                // Adjust if FetchWebsiteDetailsParams needs more for this invalidation context
+                const monitoringDetailsKeyPattern: QueryKey = monitoringQueryKeys.details({ websiteId }, userId); // Cast as any if params are complex
+                queryClient.removeQueries({ queryKey: monitoringDetailsKeyPattern, exact: false });
+            }
+
             queryClient.invalidateQueries({ queryKey: userAlertListKeyPattern, exact: false });
             queryClient.invalidateQueries({ queryKey: userAlertStatsKeyPattern, exact: false });
         },
@@ -208,7 +265,7 @@ export function useWebsiteMutations() {
              const websiteId = variables.websiteId;
              queryClient.invalidateQueries({ queryKey: userWebsiteListKey });
              const detailKey: QueryKey = websiteQueryKeys.detail(websiteId, userId);
-             queryClient.setQueryData(detailKey, updatedWebsiteUser);
+             queryClient.setQueryData(detailKey, updatedWebsiteUser); 
              queryClient.invalidateQueries({ queryKey: userAlertListKeyPattern, exact: false });
              queryClient.invalidateQueries({ queryKey: userAlertStatsKeyPattern, exact: false });
         },
@@ -223,12 +280,14 @@ export function useWebsiteMutations() {
         removeWebsite: removeWebsiteMutation.mutateAsync,
         toggleAlertEnabled: toggleAlertEnabledMutation.mutateAsync,
         setPinStatus: setPinStatusMutation.mutateAsync,
+
         isAdding: addWebsiteMutation.isPending,
         isUpdating: updateSettingsMutation.isPending,
         isRemoving: removeWebsiteMutation.isPending,
         isTogglingAlert: toggleAlertEnabledMutation.isPending,
         isSettingPin: setPinStatusMutation.isPending,
-        isTriggeringCheck: isChecking,
+        isTriggeringCheck: isCheckingBackend,
+
         errorAdding: addWebsiteMutation.error,
         errorUpdating: updateSettingsMutation.error,
         errorRemoving: removeWebsiteMutation.error,

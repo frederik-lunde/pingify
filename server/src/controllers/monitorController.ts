@@ -1,3 +1,4 @@
+// server/src/controllers/monitoringController.ts
 import {
   Prisma,
   MonitoringResult as PrismaMonitoringResult,
@@ -29,7 +30,7 @@ const getStartDateForTimeframe = (timeframe: TimeframeKey): Date => {
     case "hour":
       return subHours(now, 1);
     case "day":
-    default:
+    default: // Default to 'day' if timeframe is invalid or not provided
       return subDays(now, 1);
     case "week":
       return subDays(now, 7);
@@ -56,7 +57,7 @@ const mapPrismaResultToSharedCore = (
     statusCode: prismaResult.statusCode,
     errorMessage: prismaResult.errorMessage,
   };
-  return coreData as SharedMonitoringResult;
+  return coreData as SharedMonitoringResult; // Cast as we'll add website later if needed
 };
 
 /**
@@ -80,8 +81,14 @@ export const getUserResults = async (
       to: to ? new Date(to as string) : undefined,
     });
 
-    const responseData: SharedMonitoringResult[] = results
-      .map((r: any): SharedMonitoringResult | null => {
+    // Type assertion for results from ResultsManager.getResultsForUser
+    const typedResults = results as (PrismaMonitoringResult & {
+        website: { url: string; websiteUsers: { name: string | null }[] } | null;
+    })[];
+
+
+    const responseData: SharedMonitoringResult[] = typedResults
+      .map((r): SharedMonitoringResult | null => {
         const coreData = mapPrismaResultToSharedCore(r);
         if (!coreData) return null;
         return {
@@ -89,7 +96,7 @@ export const getUserResults = async (
           website: r.website
             ? {
                 url: r.website.url,
-                name: r.website.websiteUsers?.[0]?.name ?? undefined,
+                name: r.website.websiteUsers?.[0]?.name ?? undefined, // Use undefined if name is null
               }
             : undefined,
         };
@@ -148,6 +155,7 @@ export const getResultsByWebsite = async (
 
 /**
  * POST /api/monitoring/check/:websiteId - Trigger a manual check for a website.
+ * This endpoint is now non-blocking for the check itself.
  */
 export const triggerWebsiteCheck = async (
   req: Request<{ websiteId: string }>,
@@ -161,6 +169,7 @@ export const triggerWebsiteCheck = async (
     }
     const userId = req.user.id;
     const websiteId = parseInt(req.params.websiteId, 10);
+
     if (isNaN(websiteId)) {
       res.status(400).json({ message: "Invalid Website ID." });
       return;
@@ -175,28 +184,47 @@ export const triggerWebsiteCheck = async (
     const websitePrisma = await prisma.website.findUnique({
       where: { id: websiteId },
     });
+
     if (!websitePrisma) {
       res.status(404).json({ message: "Website data not found." });
       return;
     }
 
+    if (!websitePrisma.isActive) {
+        res.status(400).json({ message: "Cannot check an inactive website." });
+        return;
+    }
+
     console.log(
-      `[triggerWebsiteCheck] User ${userId} starting check for website ID: ${websiteId}`,
-    );
-    const newPrismaResult = await WebsiteMonitor.checkWebsite(websitePrisma);
-    console.log(
-      `[triggerWebsiteCheck] Check completed for website ID: ${websiteId}. Result ID: ${newPrismaResult?.id}`,
+      `[triggerWebsiteCheck] User ${userId} initiating check for website ID: ${websiteId}`,
     );
 
-    const newSharedResult = mapPrismaResultToSharedCore(newPrismaResult);
-    if (!newSharedResult) {
-      return next(new Error("Failed to process check result after execution."));
-    }
-    res.status(200).json(newSharedResult);
+    // Don't await WebsiteMonitor.checkWebsite. Let it run in the background.
+    WebsiteMonitor.checkWebsite(websitePrisma)
+      .then(result => {
+        console.log(
+          `[triggerWebsiteCheck BG] Background check completed for website ID: ${websiteId}. Result ID: ${result?.id}`,
+        );
+        // Here you could potentially emit a WebSocket event or log,
+        // but the HTTP response has already been sent.
+      })
+      .catch(error => {
+        console.error(
+          `[triggerWebsiteCheck BG] Error during background check for website ID: ${websiteId}:`,
+          error,
+        );
+      });
+
+    // Respond immediately to the client that the check has been initiated.
+    res.status(202).json({ message: "Website check initiated." });
+
   } catch (error) {
+    // Catch errors from the synchronous part (auth, findUnique, etc.)
+    console.error(`[triggerWebsiteCheck SYNC ERR] Failed to initiate check for website ${req.params.websiteId}:`, error);
     next(error);
   }
 };
+
 
 /**
  * GET /api/monitoring/user/stats - Get stats for the authenticated user's dashboard.
@@ -212,7 +240,7 @@ export const getUserStats = async (
       return;
     }
     const userId = req.user.id;
-    const period = (req.query.period as string) ?? "week";
+    const period = (req.query.period as string) ?? "week"; // Default to 'week'
     const stats: OverallStats = await StatsCalculator.getUserDashboardStats(
       userId,
       period,
@@ -242,7 +270,7 @@ export const getWebsiteStats = async (
       res.status(400).json({ message: "Invalid Website ID." });
       return;
     }
-    const period = (req.query.period as string) ?? "week";
+    const period = (req.query.period as string) ?? "week"; // Default to 'week'
 
     const hasAccess = await websiteService.hasUserWebsite(userId, websiteId);
     if (!hasAccess) {
@@ -282,12 +310,11 @@ export const getWebsiteDetails = async (
       return;
     }
 
-    // Add validation/default for timeframe if desired
     const timeframe = (req.query.timeframe as TimeframeKey) ?? "day";
     if (VALID_TIMEFRAMES && !VALID_TIMEFRAMES.includes(timeframe)) {
-      // Handle invalid timeframe - default or error
+        // Log warning or default, current getStartDateForTimeframe defaults to 'day'
+        console.warn(`Invalid timeframe '${req.query.timeframe}' provided, defaulting to 'day'.`);
     }
-    // Add similar validation/defaults for limit, incidentLimit, sortBy, sortDir
 
     const limit = req.query.limit
       ? parseInt(req.query.limit as string, 10)
@@ -313,11 +340,12 @@ export const getWebsiteDetails = async (
     let orderByClause: Prisma.MonitoringResultOrderByWithRelationInput[] = [];
     if (sortBy === "statusCode" || sortBy === "responseTime") {
       orderByClause.push({ [sortBy]: { sort: sortDir, nulls: "last" } });
-    } else {
+    } else { // Default to checkedAt or other direct fields
       orderByClause.push({ [sortBy]: sortDir });
     }
+    // Add secondary sort by checkedAt if primary sort is not checkedAt, to ensure consistent ordering
     if (sortBy !== "checkedAt") {
-      orderByClause.push({ checkedAt: "desc" });
+      orderByClause.push({ checkedAt: "desc" }); // Or 'asc' depending on desired secondary tie-breaker
     }
 
     const [
@@ -342,11 +370,11 @@ export const getWebsiteDetails = async (
         websiteId,
         startDate,
         endDate,
-      ), // Uses optimized version
+      ),
       IncidentService.getCurrentOpenIncidentForWebsite(websiteId),
       IncidentService.getIncidents(
         { websiteId: websiteId, limit: incidentLimit },
-        userId,
+        userId, // Pass userId for correct website name mapping in incident DTO
       ),
     ]);
 
@@ -355,7 +383,6 @@ export const getWebsiteDetails = async (
     const safeRecentChecksPrisma = Array.isArray(recentChecksData)
       ? recentChecksData
       : [];
-    // Ensure IncidentService.getIncidents returns the shared Incident type or map here
     const safeRecentIncidents = Array.isArray(recentIncidentsData)
       ? recentIncidentsData
       : [];
@@ -372,9 +399,9 @@ export const getWebsiteDetails = async (
       chartData: safeChartData,
       recentChecks: mappedRecentChecks,
       uptimePercent:
-        typeof uptimePercentData === "number" ? uptimePercentData : 100,
-      currentIncident: currentIncidentData ?? null, // Ensure IncidentService maps correctly
-      recentIncidents: safeRecentIncidents, // Ensure IncidentService maps correctly
+        typeof uptimePercentData === "number" ? uptimePercentData : 100, // Default to 100 if not a number
+      currentIncident: currentIncidentData ?? null,
+      recentIncidents: safeRecentIncidents,
     };
     res.json(responseData);
   } catch (error) {

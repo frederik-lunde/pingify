@@ -1,3 +1,4 @@
+// server/src/services/alertService.ts
 import {
   Website as PrismaWebsite,
   Alert as PrismaAlert,
@@ -25,31 +26,32 @@ const RECHECK_DELAY_SECONDS = monitoringConfig.recheckDelaySeconds;
 
 /**
  * Processes a monitoring result to detect recoveries or potential new incidents.
- * Handles incident resolution, alert dismissal, and scheduling of confirmation checks.
+ * Handles incident resolution, alert dismissal, and scheduling of confirmation checks for alerts.
+ * Incidents are created immediately if initial checks indicate a problem.
+ * Alerts are only sent after a recheck confirms the problem.
  */
 export async function handleResultProcessing(
   website: PrismaWebsite,
-  result: PrismaMonitoringResult,
+  initialResult: PrismaMonitoringResult,
 ): Promise<void> {
-  const logPrefix = `[ResultProc W:${website.id} R:${result.id}]`;
+  const logPrefix = `[ResultProc W:${website.id} R:${initialResult.id}]`;
   console.log(
-    `${logPrefix} Processing result. Available: ${result.isAvailable}, RT: ${result.responseTime}ms`,
+    `${logPrefix} Processing initial result. Available: ${initialResult.isAvailable}, RT: ${initialResult.responseTime}ms`,
   );
   let recoveryProcessed = false;
-
 
   const openDownIncident = await IncidentService.getOpenIncident(
     website.id,
     "down",
   );
-  if (openDownIncident && result.isAvailable) {
+  if (openDownIncident && initialResult.isAvailable) {
     console.log(
-      `${logPrefix} Recovery detected for DOWN incident (ID: ${openDownIncident.id}).`,
+      `${logPrefix} Recovery detected for DOWN incident (ID: ${openDownIncident.id}) based on initial check.`,
     );
     await IncidentService.resolveIncident(
       openDownIncident.id,
-      result.checkedAt,
-      result.id,
+      initialResult.checkedAt,
+      initialResult.id,
     );
     await dismissAlertsByType(website.id, "down");
     recoveryProcessed = true;
@@ -59,7 +61,7 @@ export async function handleResultProcessing(
     website.id,
     "slow",
   );
-  if (openSlowIncident) {
+  if (openSlowIncident && !recoveryProcessed) {
     const usersPotentiallyAlerted = await prisma.websiteUser.findMany({
       where: {
         websiteId: website.id,
@@ -71,61 +73,69 @@ export async function handleResultProcessing(
       .map((u) => u.alertThreshold)
       .filter((t): t is number => t !== null);
 
-    const recoveryThreshold =
+    const lowestUserAlertThreshold =
       relevantThresholds.length > 0 ? Math.min(...relevantThresholds) : null;
 
     const isRecoveredSlow =
-      result.isAvailable &&
-      (recoveryThreshold === null ||
-        (result.responseTime !== null &&
-          result.responseTime <= recoveryThreshold));
+      initialResult.isAvailable &&
+      (lowestUserAlertThreshold === null ||
+        (initialResult.responseTime !== null &&
+          initialResult.responseTime <= lowestUserAlertThreshold));
 
     if (isRecoveredSlow) {
       console.log(
-        `${logPrefix} Recovery detected for SLOW incident (ID: ${openSlowIncident.id}). RT: ${result.responseTime}ms <= Lowest Threshold: ${recoveryThreshold ?? "N/A"}`,
+        `${logPrefix} Recovery detected for SLOW incident (ID: ${openSlowIncident.id}) based on initial check. RT: ${initialResult.responseTime}ms <= Lowest User Threshold: ${lowestUserAlertThreshold ?? "N/A"}`,
       );
       await IncidentService.resolveIncident(
         openSlowIncident.id,
-        result.checkedAt,
-        result.id,
+        initialResult.checkedAt,
+        initialResult.id,
       );
       await dismissAlertsByType(website.id, "slow");
       recoveryProcessed = true;
     }
   }
 
-
   if (recoveryProcessed) {
     console.log(
-      `${logPrefix} Skipping new incident check as recovery was just processed.`,
+      `${logPrefix} Skipping new incident/alert logic as recovery was processed.`,
     );
     return;
   }
 
-  let potentialType: IncidentType | null = null;
-  let thresholdForSlow: number | null = null;
+  let potentialTypeForAlertConfirmation: IncidentType | null = null;
+  let thresholdInitiallyExceededForSlow: number | null = null;
+  let incidentForAlertConfirmation: PrismaIncident | null = null;
 
-  if (!result.isAvailable) {
-    const isDownIncidentOpen = !!(await IncidentService.getOpenIncident(
-      website.id,
-      "down",
-    ));
-    if (!isDownIncidentOpen) {
-      potentialType = "down";
+  if (!initialResult.isAvailable) {
+    const existingDownIncident = await IncidentService.getOpenIncident(website.id, "down");
+    if (!existingDownIncident) {
       console.log(
-        `${logPrefix} Potential DOWN incident detected (Result unavailable, no open 'down' incident).`,
+        `${logPrefix} Initial check indicates DOWN. Creating/getting 'down' incident.`,
       );
+      incidentForAlertConfirmation = await IncidentService.createIncident(
+        website.id,
+        "down",
+        initialResult.checkedAt,
+        initialResult.id, // initialResultId
+        null, // confirmingResultId is null for now
+      );
+      if (incidentForAlertConfirmation) {
+        potentialTypeForAlertConfirmation = "down";
+        console.log(
+          `${logPrefix} 'Down' Incident ID: ${incidentForAlertConfirmation.id} established. Scheduling alert confirmation.`,
+        );
+      } else {
+        console.error(`${logPrefix} Failed to create/get 'down' incident.`);
+      }
     } else {
       console.log(
-        `${logPrefix} Result unavailable, but DOWN incident already open. No action needed.`,
+        `${logPrefix} Initial check indicates DOWN, but 'down' incident (ID: ${existingDownIncident.id}) already open. Alert confirmation process for that incident should handle alerts if not already done/pending.`,
       );
     }
-  } else if (result.responseTime !== null) {
-    const isSlowIncidentOpen = !!(await IncidentService.getOpenIncident(
-      website.id,
-      "slow",
-    ));
-    if (!isSlowIncidentOpen) {
+  } else if (initialResult.responseTime !== null) {
+    const existingSlowIncident = await IncidentService.getOpenIncident(website.id, "slow");
+    if (!existingSlowIncident) {
       const allUserThresholds = await prisma.websiteUser.findMany({
         where: {
           websiteId: website.id,
@@ -133,66 +143,90 @@ export async function handleResultProcessing(
         },
         select: { alertThreshold: true },
       });
-      const relevantThresholds = allUserThresholds
+      const relevantUserThresholds = allUserThresholds
         .map((u) => u.alertThreshold)
-        .filter((t): t is number => t !== null);
+        .filter((t): t is number => t !== null && t > 0);
 
       let lowestExceededThreshold: number | null = null;
-      for (const threshold of relevantThresholds) {
-        if (result.responseTime > threshold) {
-          if (
-            lowestExceededThreshold === null ||
-            threshold < lowestExceededThreshold
-          ) {
-            lowestExceededThreshold = threshold;
+      if (relevantUserThresholds.length > 0) {
+        for (const threshold of relevantUserThresholds) {
+          if (initialResult.responseTime > threshold) {
+            if (lowestExceededThreshold === null || threshold < lowestExceededThreshold) {
+              lowestExceededThreshold = threshold;
+            }
           }
         }
       }
 
       if (lowestExceededThreshold !== null) {
-        potentialType = "slow";
-        thresholdForSlow = lowestExceededThreshold;
         console.log(
-          `${logPrefix} Potential SLOW incident detected (RT: ${result.responseTime}ms > Lowest Exceeded Threshold: ${thresholdForSlow}ms, no open 'slow' incident).`,
+          `${logPrefix} Initial check indicates SLOW (RT: ${initialResult.responseTime}ms > Lowest Exceeded Threshold: ${lowestExceededThreshold}ms). Creating/getting 'slow' incident.`,
+        );
+        incidentForAlertConfirmation = await IncidentService.createIncident(
+          website.id,
+          "slow",
+          initialResult.checkedAt,
+          initialResult.id, // initialResultId
+          null, // confirmingResultId is null for now
+        );
+        if (incidentForAlertConfirmation) {
+          potentialTypeForAlertConfirmation = "slow";
+          thresholdInitiallyExceededForSlow = lowestExceededThreshold;
+          console.log(
+            `${logPrefix} 'Slow' Incident ID: ${incidentForAlertConfirmation.id} established. Scheduling alert confirmation.`,
+          );
+        } else {
+          console.error(`${logPrefix} Failed to create/get 'slow' incident.`);
+        }
+      } else {
+         console.log(
+            `${logPrefix} Initial check available (RT: ${initialResult.responseTime}ms), but not slow enough to trigger any user's alert threshold.`,
         );
       }
     } else {
       console.log(
-        `${logPrefix} Result is slow (RT: ${result.responseTime}ms), but SLOW incident already open. No action needed.`,
+        `${logPrefix} Initial check indicates SLOW (RT: ${initialResult.responseTime}ms), but 'slow' incident (ID: ${existingSlowIncident.id}) already open. Alert confirmation process for that incident should handle alerts if not already done/pending.`,
       );
     }
   }
 
-  if (potentialType) {
-    await scheduleIncidentConfirmationCheck(
+  if (potentialTypeForAlertConfirmation && incidentForAlertConfirmation) {
+    console.log(
+      `${logPrefix} Scheduling alert confirmation for Incident ID: ${incidentForAlertConfirmation.id}, Type: ${potentialTypeForAlertConfirmation}.`,
+    );
+    await scheduleAlertConfirmationCheck(
       website.id,
-      result,
-      potentialType,
-      thresholdForSlow,
+      incidentForAlertConfirmation,
+      initialResult.id, // Pass initialResultId for logging context
+      potentialTypeForAlertConfirmation,
+      thresholdInitiallyExceededForSlow,
     );
   } else {
-    console.log(`${logPrefix} No new potential incident detected.`);
+    console.log(
+      `${logPrefix} No new incident created from this initial check, or incident of this type already open. No new alert confirmation scheduled.`,
+    );
   }
 }
 
 /**
- * Schedules a delayed check to confirm a potential incident.
+ * Schedules a delayed recheck to confirm a potential incident before sending alerts.
  */
-async function scheduleIncidentConfirmationCheck(
+async function scheduleAlertConfirmationCheck(
   websiteId: number,
-  initialResult: PrismaMonitoringResult,
+  incidentToConfirm: PrismaIncident,
+  initialResultIdForContext: number,
   potentialType: IncidentType,
-  thresholdForSlow: number | null,
+  thresholdInitiallyExceeded: number | null,
 ): Promise<void> {
   const delayMs = RECHECK_DELAY_SECONDS * 1000;
-  const logPrefix = `[IncidentConfirmSched W:${websiteId} T:${potentialType}]`;
+  const logPrefix = `[AlertConfirmSched W:${websiteId} I:${incidentToConfirm.id} T:${potentialType}]`;
   console.log(
-    `${logPrefix} Scheduling confirmation check in ${RECHECK_DELAY_SECONDS}s. Initial Result ID: ${initialResult.id}`,
+    `${logPrefix} Scheduling alert confirmation recheck in ${RECHECK_DELAY_SECONDS}s. Initial Result ID for context: ${initialResultIdForContext}.`,
   );
 
   setTimeout(async () => {
     console.log(
-      `${logPrefix} Executing delayed ${potentialType} confirmation check.`,
+      `${logPrefix} Executing delayed ${potentialType} alert confirmation recheck for Incident ${incidentToConfirm.id}.`,
     );
     try {
       const website = await prisma.website.findUnique({
@@ -200,28 +234,43 @@ async function scheduleIncidentConfirmationCheck(
       });
       if (!website || !website.isActive) {
         console.log(
-          `${logPrefix} Confirmation check cancelled (website not found or inactive).`,
+          `${logPrefix} Alert confirmation recheck cancelled (website not found or inactive).`,
         );
         return;
       }
-      const freshInitialResult = await prisma.monitoringResult.findUnique({
-        where: { id: initialResult.id },
+
+      const currentIncidentState = await prisma.incident.findUnique({
+        where: { id: incidentToConfirm.id },
       });
-      if (!freshInitialResult) {
+
+      if (!currentIncidentState) {
         console.log(
-          `${logPrefix} Confirmation check cancelled (initial result ${initialResult.id} missing).`,
+          `${logPrefix} Alert confirmation recheck cancelled (Incident ${incidentToConfirm.id} not found).`,
         );
         return;
       }
-      await handleIncidentConfirmation(
+      if (currentIncidentState.endTime !== null) {
+         console.log(
+          `${logPrefix} Alert confirmation recheck cancelled (Incident ${incidentToConfirm.id} was resolved before recheck).`,
+        );
+        return;
+      }
+      if (currentIncidentState.confirmingResultId !== null) {
+          console.log(
+              `${logPrefix} Alert confirmation recheck for Incident ${currentIncidentState.id} already has a confirmingResultId (${currentIncidentState.confirmingResultId}). Assuming alerts handled or in progress by another confirmation process. Aborting.`,
+          );
+          return;
+      }
+
+      await handleAlertConfirmation(
         website,
-        freshInitialResult,
-        potentialType,
-        thresholdForSlow,
+        currentIncidentState,
+        potentialType, // This is incident.type, but passed for clarity
+        thresholdInitiallyExceeded,
       );
     } catch (error) {
       console.error(
-        `${logPrefix} Error during delayed confirmation check execution:`,
+        `${logPrefix} Error during delayed alert confirmation recheck execution:`,
         error,
       );
     }
@@ -229,31 +278,21 @@ async function scheduleIncidentConfirmationCheck(
 }
 
 /**
- * Performs a confirmation check for a potential incident. If confirmed,
- * creates an incident record and triggers alert notifications for relevant users.
+ * Performs a confirmation recheck for an incident. If confirmed,
+ * updates the incident and triggers alert notifications for relevant users.
  */
-async function handleIncidentConfirmation(
+async function handleAlertConfirmation(
   website: PrismaWebsite,
-  initialResult: PrismaMonitoringResult,
-  potentialType: IncidentType,
-  thresholdForSlow: number | null,
+  incidentForConfirmation: PrismaIncident,
+  incidentType: IncidentType, // Type of incidentForConfirmation
+  thresholdInitiallyExceeded: number | null, // The threshold that the *initial* check exceeded for SLOW
 ): Promise<void> {
-  const logPrefix = `[IncidentConfirm W:${website.id} T:${potentialType}]`;
-  console.log(`${logPrefix} Performing confirmation check.`);
-
-  const existingOpenIncident = await IncidentService.getOpenIncident(
-    website.id,
-    potentialType,
-  );
-  if (existingOpenIncident) {
-    console.log(
-      `${logPrefix} Confirmation check skipped: An incident (ID: ${existingOpenIncident.id}) of type '${potentialType}' was already opened.`,
-    );
-    return;
-  }
+  const logPrefix = `[AlertConfirm W:${website.id} I:${incidentForConfirmation.id} T:${incidentType}]`;
+  console.log(`${logPrefix} Performing alert confirmation recheck for Incident ${incidentForConfirmation.id}.`);
 
   const confirmationCheckData: MonitoringResponse =
-    await WebsiteMonitor.performWebsiteCheck(website.url);
+    await WebsiteMonitor.performWebsiteCheck(website.url); // This is the recheck
+  
   let confirmingResultDb: PrismaMonitoringResult;
   try {
     confirmingResultDb = await ResultsManager.saveResult(
@@ -261,86 +300,70 @@ async function handleIncidentConfirmation(
       confirmationCheckData,
     );
     console.log(
-      `${logPrefix} Confirmation check result saved (ID: ${confirmingResultDb.id}). Avail=${confirmingResultDb.isAvailable}, RT=${confirmingResultDb.responseTime}ms`,
+      `${logPrefix} Confirmation recheck result saved (ID: ${confirmingResultDb.id}). Avail=${confirmingResultDb.isAvailable}, RT=${confirmingResultDb.responseTime}ms`,
     );
   } catch (saveError) {
     console.error(
-      `${logPrefix} CRITICAL: Failed to save confirmation check result:`,
+      `${logPrefix} CRITICAL: Failed to save confirmation recheck result for Incident ${incidentForConfirmation.id}:`,
       saveError,
     );
     return;
   }
 
-  let issueConfirmed = false;
-  let confirmedType: IncidentType | null = null;
+  // Update the incident with the confirmingResultId
+  await IncidentService.updateIncidentConfirmation(incidentForConfirmation.id, confirmingResultDb.id);
 
-  if (potentialType === "down" && !confirmingResultDb.isAvailable) {
-    issueConfirmed = true;
-    confirmedType = "down";
-    console.log(`${logPrefix} CONFIRMED DOWN.`);
+  let issueConfirmedForAlerting = false;
+
+  if (incidentType === "down" && !confirmingResultDb.isAvailable) {
+    issueConfirmedForAlerting = true;
+    console.log(`${logPrefix} CONFIRMED DOWN for alerts for Incident ${incidentForConfirmation.id}.`);
   } else if (
-    potentialType === "slow" &&
+    incidentType === "slow" &&
     confirmingResultDb.isAvailable &&
-    thresholdForSlow !== null &&
+    thresholdInitiallyExceeded !== null &&
     confirmingResultDb.responseTime !== null &&
-    confirmingResultDb.responseTime > thresholdForSlow
+    confirmingResultDb.responseTime > thresholdInitiallyExceeded
   ) {
-    issueConfirmed = true;
-    confirmedType = "slow";
+    issueConfirmedForAlerting = true;
     console.log(
-      `${logPrefix} CONFIRMED SLOW (RT: ${confirmingResultDb.responseTime}ms > Original Threshold: ${thresholdForSlow}ms).`,
+      `${logPrefix} CONFIRMED SLOW for alerts for Incident ${incidentForConfirmation.id} (Recheck RT: ${confirmingResultDb.responseTime}ms > Original Trigger Threshold: ${thresholdInitiallyExceeded}ms).`,
     );
   } else {
     console.log(
-      `${logPrefix} ${potentialType.toUpperCase()} condition NOT confirmed by check. Check Result -> Avail: ${confirmingResultDb.isAvailable}, RT: ${confirmingResultDb.responseTime}ms. Original Threshold (if slow): ${thresholdForSlow ?? "N/A"}`,
+      `${logPrefix} ${incidentType.toUpperCase()} condition NOT confirmed by recheck for alerts for Incident ${incidentForConfirmation.id}. Recheck Result -> Avail: ${confirmingResultDb.isAvailable}, RT: ${confirmingResultDb.responseTime}ms. Original Trigger Threshold (if slow): ${thresholdInitiallyExceeded ?? "N/A"}`,
     );
   }
 
-  if (issueConfirmed && confirmedType) {
-    const newIncident = await IncidentService.createIncident(
-      website.id,
-      confirmedType,
-      confirmingResultDb.checkedAt,
-      initialResult.id,
-      confirmingResultDb.id,
-    );
-
-    if (!newIncident) {
-      console.error(
-        `${logPrefix} Failed to create incident record. Aborting alert generation.`,
-      );
-      return;
-    }
+  if (issueConfirmedForAlerting) {
     console.log(
-      `${logPrefix} Incident ${newIncident.id} created/confirmed. Checking users for alerts.`,
+      `${logPrefix} Issue confirmed for Incident ${incidentForConfirmation.id}. Checking users for alerts.`,
     );
-
 
     const baseWhereClause: Prisma.WebsiteUserWhereInput = {
       websiteId: website.id,
       alertEnabled: true,
     };
 
-
-    if (confirmedType === "slow") {
+    if (incidentType === "slow") {
       if (confirmingResultDb.responseTime !== null) {
         baseWhereClause.alertThreshold = {
           not: null,
-          lte: confirmingResultDb.responseTime,
+          gt: 0,
+          // User's threshold must be LESS THAN the measured response time for an alert
+          lt: confirmingResultDb.responseTime,
         };
       } else {
         console.log(
-          `${logPrefix} Confirmed SLOW incident ${newIncident.id} but confirmation check had null responseTime. No threshold-based alerts will be sent.`,
+          `${logPrefix} Confirmed SLOW incident ${incidentForConfirmation.id} but confirmation recheck had null responseTime. No threshold-based alerts will be sent.`,
         );
-        baseWhereClause.id = -1;
+        baseWhereClause.id = -1; // Effectively no users
       }
     }
-
 
     const usersToAlert = await prisma.websiteUser.findMany({
       where: baseWhereClause,
       select: {
-
         id: true,
         userId: true,
         websiteId: true,
@@ -356,21 +379,20 @@ async function handleIncidentConfirmation(
 
     if (usersToAlert.length === 0) {
       console.log(
-        `${logPrefix} No users found requiring an alert for this confirmed ${confirmedType} incident ${newIncident.id}.`,
+        `${logPrefix} No users found requiring an alert for this confirmed ${incidentType} incident ${incidentForConfirmation.id}.`,
       );
       return;
     }
     console.log(
-      `${logPrefix} Found ${usersToAlert.length} users to notify for incident ${newIncident.id}.`,
+      `${logPrefix} Found ${usersToAlert.length} users to notify for incident ${incidentForConfirmation.id}.`,
     );
 
     for (const user of usersToAlert) {
-
       await createAlertAndNotify(
         website,
         user,
-        newIncident,
-        confirmingResultDb,
+        incidentForConfirmation, // Pass the existing incident
+        confirmingResultDb,   // Pass the result of the recheck
       );
     }
   }
@@ -384,12 +406,10 @@ async function createAlertAndNotify(
   website: PrismaWebsite,
   websiteUser: PrismaWebsiteUser,
   incident: PrismaIncident,
-  confirmingResult: PrismaMonitoringResult,
+  confirmingResult: PrismaMonitoringResult, // This is the result from the recheck
 ): Promise<void> {
-
   const logPrefix = `[AlertNotify U:${websiteUser.userId} W:${website.id} I:${incident.id}]`;
   const alertType = incident.type as AlertType;
-
 
   const existingAlert = await prisma.alert.findFirst({
     where: {
@@ -423,12 +443,15 @@ async function createAlertAndNotify(
       confirmingResult.responseTime !== null
         ? `${confirmingResult.responseTime}ms`
         : "N/A";
-    message = `Website is responding slowly: ${websiteDisplayName} (${responseTimeMsg} > ${websiteUser.alertThreshold ?? "N/A"}ms) (Incident ID: ${incident.id})`;
+    const userThresholdMsg = 
+      websiteUser.alertThreshold !== null 
+        ? `${websiteUser.alertThreshold}ms` 
+        : "N/A";
+    message = `Website is responding slowly: ${websiteDisplayName} (${responseTimeMsg} > ${userThresholdMsg}) (Incident ID: ${incident.id})`;
   }
 
   let newAlert: PrismaAlert | null = null;
   try {
-
     newAlert = await prisma.alert.create({
       data: {
         userId: websiteUser.userId,
@@ -470,8 +493,9 @@ async function createAlertAndNotify(
         confirmingResult.responseTime !== null
           ? `${confirmingResult.responseTime}ms`
           : "N/A";
+      const userThresholdEmail = websiteUser.alertThreshold ?? "N/A";
       emailSubject = `🟠 CONFIRMED SLOW: ${websiteDisplayName}`;
-      emailBody = `<p>Your monitored website <strong>${websiteDisplayName}</strong> is confirmed to be responding slowly.</p><p>Response Time: ${responseTimeBody} (Your Threshold: ${websiteUser.alertThreshold ?? "N/A"}ms)<br>Time Confirmed: ${incident.startTime.toLocaleString()}</p><p>Incident ID: ${incident.id}</p><p>Alert ID: ${newAlert.id}</p><p>Please check the dashboard for details and recovery status.</p>`;
+      emailBody = `<p>Your monitored website <strong>${websiteDisplayName}</strong> is confirmed to be responding slowly.</p><p>Response Time: ${responseTimeBody} (Your Threshold: ${userThresholdEmail}ms)<br>Time Confirmed: ${incident.startTime.toLocaleString()}</p><p>Incident ID: ${incident.id}</p><p>Alert ID: ${newAlert.id}</p><p>Please check the dashboard for details and recovery status.</p>`;
     }
     try {
       console.log(
@@ -510,6 +534,8 @@ async function dismissAlertsByType(
       where: {
         websiteId: websiteId,
         type: type,
+        // Optionally, only dismiss alerts linked to incidents that are now closed.
+        // For simplicity, current logic dismisses all of type for the website.
       },
     });
     if (deleteResult.count > 0) {
@@ -588,7 +614,6 @@ export async function getAlertsByWebsite(
     take: limit,
     include: {
       website: { select: { id: true, url: true } },
-
       user: { select: { id: true, name: true, email: true } },
       incident: { select: { id: true, startTime: true, endTime: true } },
     },
@@ -614,7 +639,6 @@ export async function dismissAlert(
     console.log(`${logPrefix} Alert not found.`);
     return null;
   }
-
 
   if (alert.userId !== userId) {
     console.warn(
