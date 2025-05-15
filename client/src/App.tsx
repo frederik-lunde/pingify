@@ -1,15 +1,13 @@
-import{ Suspense, lazy } from 'react'; 
+import { Suspense, lazy } from 'react';
 import { Routes, Route } from "react-router"; 
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-
 
 import { AuthProvider } from "./context/AuthContext";
 import { TvModeProvider } from "./context/TvModeContext";
 
-
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
-
+import LoadingScreen from "./components/common/LoadingScreen"; 
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const WebsiteDetails = lazy(() => import("./pages/WebsiteDetails"));
@@ -26,8 +24,7 @@ const NotFoundPage = lazy(() => import("./pages/NotFound"));
  */
 function AppRoutes() {
     return (
-        
-        <Suspense fallback={<div>Loading page...</div>}> {/* Or a nice spinner component */}
+        <Suspense fallback={<LoadingScreen />}> {/* <--- USE YOUR LOADING SCREEN HERE */}
             <Routes>
                 {/* Public Routes */}
                 <Route path="/login" element={<Login />} />
@@ -49,24 +46,21 @@ function AppRoutes() {
                     <Route path="/profile" element={<ProfilePage />} />
                 </Route>
 
-                {/* Not Found Route */}
                 <Route path="*" element={<NotFoundPage />} />
             </Routes>
         </Suspense>
     );
 }
 
-/**
- * Root component of the application, sets up providers and routes.
- */
+
 function App() {
     return (
         <>
-            {/* Context Providers */}
+            
             <AuthProvider>
-                    <TvModeProvider>
-                        <AppRoutes />
-                    </TvModeProvider>
+                <TvModeProvider>
+                    <AppRoutes />
+                </TvModeProvider>
             </AuthProvider>
             {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
         </>
