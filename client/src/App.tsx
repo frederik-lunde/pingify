@@ -1,47 +1,58 @@
-import { Routes, Route } from "react-router";
+import{ Suspense, lazy } from 'react'; 
+import { Routes, Route } from "react-router"; 
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
+
+import { AuthProvider } from "./context/AuthContext";
+import { TvModeProvider } from "./context/TvModeContext";
+
+
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
-import Dashboard from "./pages/Dashboard";
-import WebsiteDetails from "./pages/WebsiteDetails";
-import WebsiteSettings from "./pages/WebsiteSettings";
-import AddWebsite from "./pages/AddWebsite";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import IncidentsPage from "./pages/Incidents";
-import ProfilePage from "./pages/Profile";
-import NotFoundPage from "./pages/NotFound";
-import { AuthProvider } from "./context/AuthContext";
-import { ThemeProviderWrapper } from "./context/ThemeContext";
-import { TvModeProvider } from "./context/TvModeContext";
+
+
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const WebsiteDetails = lazy(() => import("./pages/WebsiteDetails"));
+const WebsiteSettings = lazy(() => import("./pages/WebsiteSettings"));
+const AddWebsite = lazy(() => import("./pages/AddWebsite"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const IncidentsPage = lazy(() => import("./pages/Incidents"));
+const ProfilePage = lazy(() => import("./pages/Profile"));
+const NotFoundPage = lazy(() => import("./pages/NotFound"));
 
 /**
  * Defines the application's routing structure.
  */
 function AppRoutes() {
     return (
-        <Routes>
-            {}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            {}
-            <Route
-                element={
-                    <ProtectedRoute>
-                        <MainLayout />
-                    </ProtectedRoute>
-                }
-            >
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/website/:websiteId" element={<WebsiteDetails />} />
-                <Route path="/website/:websiteId/settings" element={<WebsiteSettings />} />
-                <Route path="/add-website" element={<AddWebsite />} />
-                <Route path="/incidents" element={<IncidentsPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-            </Route>
-            {}
-            <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        
+        <Suspense fallback={<div>Loading page...</div>}> {/* Or a nice spinner component */}
+            <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+
+                {/* Protected Routes */}
+                <Route
+                    element={
+                        <ProtectedRoute>
+                            <MainLayout />
+                        </ProtectedRoute>
+                    }
+                >
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/website/:websiteId" element={<WebsiteDetails />} />
+                    <Route path="/website/:websiteId/settings" element={<WebsiteSettings />} />
+                    <Route path="/add-website" element={<AddWebsite />} />
+                    <Route path="/incidents" element={<IncidentsPage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
+                </Route>
+
+                {/* Not Found Route */}
+                <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+        </Suspense>
     );
 }
 
@@ -51,13 +62,11 @@ function AppRoutes() {
 function App() {
     return (
         <>
-            {}
+            {/* Context Providers */}
             <AuthProvider>
-                <ThemeProviderWrapper>
                     <TvModeProvider>
                         <AppRoutes />
                     </TvModeProvider>
-                </ThemeProviderWrapper>
             </AuthProvider>
             {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
         </>
