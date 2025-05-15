@@ -19,12 +19,9 @@ const IncidentsPage = lazy(() => import("./pages/Incidents"));
 const ProfilePage = lazy(() => import("./pages/Profile"));
 const NotFoundPage = lazy(() => import("./pages/NotFound"));
 
-/**
- * Defines the application's routing structure.
- */
 function AppRoutes() {
     return (
-        <Suspense fallback={<LoadingScreen />}> {/* <--- USE YOUR LOADING SCREEN HERE */}
+        <Suspense fallback={<LoadingScreen />}>
             <Routes>
                 {/* Public Routes */}
                 <Route path="/login" element={<Login />} />
