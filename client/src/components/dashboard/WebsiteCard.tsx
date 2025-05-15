@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import {
     Card, CardContent, Typography, Box, Chip, IconButton,
@@ -98,6 +98,8 @@ const WebsiteCard = React.memo(
         const currentIncident = userWebsite.currentIncident;
 
         const [isHovered, setIsHovered] = useState(false);
+        const [isCardFocused, setIsCardFocused] = useState(false); 
+        const pinButtonContainerRef = useRef<HTMLSpanElement>(null)
 
         const handleMouseEnter = useCallback(() => {
             if (isTvMode || isSkeleton) return;
@@ -107,6 +109,19 @@ const WebsiteCard = React.memo(
         const handleMouseLeave = useCallback(() => {
             if (isTvMode || isSkeleton) return;
             setIsHovered(false);
+        }, [isTvMode, isSkeleton]);
+        
+        const handleCardFocus = useCallback(() => {
+            if (isTvMode || isSkeleton) return;
+            setIsCardFocused(true);
+        }, [isTvMode, isSkeleton]);
+
+        const handleCardBlur = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
+            if (isTvMode || isSkeleton) return;
+            if (pinButtonContainerRef.current && pinButtonContainerRef.current.contains(event.relatedTarget as Node)) {
+                return;
+            }
+            setIsCardFocused(false);
         }, [isTvMode, isSkeleton]);
 
         const limitedChartDataPoints = aggregatedChartDataProp?.length ? aggregatedChartDataProp : undefined;
@@ -142,8 +157,17 @@ const WebsiteCard = React.memo(
             navigate(`/website/${websiteId}`);
         }, [navigate, websiteId, isTvMode, isSkeleton]);
 
-        const handlePinClick = useCallback(async (e: React.MouseEvent) => {
-            e.stopPropagation();
+     
+        const handleCardKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+            if (isTvMode || isSkeleton) return;
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault(); 
+                handleClick();
+            }
+        }, [handleClick, isTvMode, isSkeleton]);
+
+        const handlePinClick = useCallback(async (e: React.MouseEvent<HTMLButtonElement>) => {
+            e.stopPropagation(); 
             if (isSkeleton) return;
             try { await setPinStatus({ websiteId: websiteId, isPinned: !isPinned }); }
             catch (err) { console.error("Failed to set pin status from card:", err); }
@@ -170,9 +194,15 @@ const WebsiteCard = React.memo(
                 display: "flex",
                 flexDirection: "column",
                 position: 'relative',
-                overflow: 'hidden',
+                overflow: 'hidden', 
                 transition: theme.transitions.create(['opacity', 'transform', 'box-shadow', 'border-color'], { duration: theme.transitions.duration.short }),
                 "&:hover": isTvMode || isSkeleton ? {} : { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
+                 '&:focus-visible': !isTvMode && !isSkeleton ? { 
+                     outline: `2px solid ${theme.palette.primary.main}`,
+                     outlineOffset: '2px',
+                     boxShadow: theme.shadows[6], 
+                     transform: "translateY(-4px)", 
+                 } : {},
                 opacity: isSkeleton ? 0.7 : 1,
                 backgroundColor: isSkeleton ? alpha(theme.palette.background.paper, 0.5) : theme.palette.background.paper,
             };
@@ -234,6 +264,11 @@ const WebsiteCard = React.memo(
         };
 
         const cardId = isSkeleton ? `skeleton-card-${userWebsite.websiteId}` : `website-card-grid-${websiteId}`;
+        
+
+
+        const showPinButtonArea = !isTvMode && !isSkeleton && (isHovered || isCardFocused || isPinned || isSettingPin);
+
         const cardContent = (
             <Card
                 id={cardId}
@@ -241,6 +276,11 @@ const WebsiteCard = React.memo(
                 onClick={handleClick}
                 onMouseEnter={handleMouseEnter} 
                 onMouseLeave={handleMouseLeave}
+                tabIndex={isTvMode || isSkeleton ? -1 : 0} 
+                role={isTvMode || isSkeleton ? undefined : "button"} 
+                onKeyDown={handleCardKeyDown}
+                onFocus={handleCardFocus}  
+                onBlur={handleCardBlur}    
                 aria-label={isSkeleton ? "Loading website data" : `View details for ${displayName}${isPinned ? ', Pinned' : ''}${cardStatus !== 'up' ? `, Status: ${cardStatus}` : ''}${shouldHighlightThisCard ? ', Highlighted as Last Incident Source' : ''}`}
             >
                 <CardContent sx={{
@@ -257,12 +297,13 @@ const WebsiteCard = React.memo(
                         {!isSkeleton && (
                             <Tooltip title={pinTooltipText} placement="top">
                                 <Box
+                                    ref={pinButtonContainerRef}
                                     component="span" 
                                     sx={{
                                         display: 'inline-flex',
                                         alignItems: 'center',   
-                                        opacity: (isHovered || isPinned || isSettingPin) ? 1 : 0,
-                                        visibility: (isHovered || isPinned || isSettingPin) ? 'visible' : 'hidden',
+                                        opacity: showPinButtonArea ? 1 : 0,
+                                        visibility: showPinButtonArea ? 'visible' : 'hidden',
                                         transition: theme.transitions.create(['opacity', 'visibility'], {
                                             duration: theme.transitions.duration.shortest,
                                         }),
@@ -271,14 +312,15 @@ const WebsiteCard = React.memo(
                                     <IconButton 
                                         size="small" 
                                         onClick={handlePinClick} 
-                                        disabled={isSettingPin} 
+                                        disabled={isSettingPin || isTvMode || isSkeleton} 
                                         aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`} 
                                         sx={{ 
                                             color: hasPinError && !isSettingPin 
                                                 ? theme.palette.error.main 
                                                 : isPinned 
                                                     ? theme.palette.primary.main 
-                                                    : 'inherit' 
+                                                    : 'inherit',
+                                           
                                         }}
                                     >
                                         {isSettingPin ? <CircularProgress size={20} color="inherit" /> : isPinned ? <PinIcon fontSize="small" /> : <PinOutlinedIcon fontSize="small" />}
