@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef } from "react";
+import React, { useCallback, useMemo, useState, useRef, Suspense } from "react";
 import { useNavigate } from "react-router";
 import {
     Card, CardContent, Typography, Box, Chip, IconButton,
@@ -18,7 +18,6 @@ import {
     InfoOutlined as InfoIcon,
     SsidChart as SlowIcon,
 } from "@mui/icons-material";
-import { Line } from 'react-chartjs-2';
 import { ChartOptions, ChartData } from 'chart.js';
 import { format, formatDistanceToNowStrict, parseISO } from "date-fns";
 import {
@@ -33,6 +32,8 @@ import {
     WebsiteUser,
 } from "../../types";
 
+const LazyChartJSLine = React.lazy(() => import('react-chartjs-2').then(module => ({ default: module.Line })));
+
 interface WebsiteCardProps {
     userWebsite: WebsiteUser;
     shouldHighlightThisCard?: boolean;
@@ -44,13 +45,13 @@ const TICKS_AREA_HEIGHT = 8;
 const TICKS_MARGIN_TOP = 1;
 const CHIPS_ROW_MIN_HEIGHT = '32px';
 
-
 const SimpleLineChart = React.memo(
     ({ data, options }: { data: ChartData<'line'>; options: ChartOptions<'line'> }) => {
         const hasPlottableData = useMemo(() =>
             data?.datasets?.[0]?.data?.some(
                 (d) => d !== null && d !== undefined && !isNaN(d as number)
             ) ?? false, [data]);
+
         if (!hasPlottableData) {
             return (
                 <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center" sx={{ height: '100%', color: 'text.disabled' }}>
@@ -61,13 +62,14 @@ const SimpleLineChart = React.memo(
         }
         return (
             <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Line data={data} options={options} />
+                <Suspense fallback={<CircularProgress size={20} sx={{ color: 'text.secondary' }} />}>
+                    <LazyChartJSLine data={data} options={options} />
+                </Suspense>
             </Box>
         );
     },
 );
 SimpleLineChart.displayName = 'SimpleLineChart';
-
 
 const formatIncidentStartTime = (isoDateString: string | null | undefined): string | null => {
     if (!isoDateString) return null;
@@ -75,9 +77,6 @@ const formatIncidentStartTime = (isoDateString: string | null | undefined): stri
     catch (e) { console.error("Error parsing incident start time:", isoDateString, e); return "Invalid Date"; }
 };
 
-/**
- * Displays a card with website status, metrics, and a mini chart.
- */
 const WebsiteCard = React.memo(
     ({
         userWebsite,
@@ -98,8 +97,8 @@ const WebsiteCard = React.memo(
         const currentIncident = userWebsite.currentIncident;
 
         const [isHovered, setIsHovered] = useState(false);
-        const [isCardFocused, setIsCardFocused] = useState(false); 
-        const pinButtonContainerRef = useRef<HTMLSpanElement>(null)
+        const [isCardFocused, setIsCardFocused] = useState(false);
+        const pinButtonContainerRef = useRef<HTMLSpanElement>(null);
 
         const handleMouseEnter = useCallback(() => {
             if (isTvMode || isSkeleton) return;
@@ -110,7 +109,7 @@ const WebsiteCard = React.memo(
             if (isTvMode || isSkeleton) return;
             setIsHovered(false);
         }, [isTvMode, isSkeleton]);
-        
+
         const handleCardFocus = useCallback(() => {
             if (isTvMode || isSkeleton) return;
             setIsCardFocused(true);
@@ -157,17 +156,16 @@ const WebsiteCard = React.memo(
             navigate(`/website/${websiteId}`);
         }, [navigate, websiteId, isTvMode, isSkeleton]);
 
-     
         const handleCardKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
             if (isTvMode || isSkeleton) return;
             if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault(); 
+                event.preventDefault();
                 handleClick();
             }
         }, [handleClick, isTvMode, isSkeleton]);
 
         const handlePinClick = useCallback(async (e: React.MouseEvent<HTMLButtonElement>) => {
-            e.stopPropagation(); 
+            e.stopPropagation();
             if (isSkeleton) return;
             try { await setPinStatus({ websiteId: websiteId, isPinned: !isPinned }); }
             catch (err) { console.error("Failed to set pin status from card:", err); }
@@ -194,14 +192,14 @@ const WebsiteCard = React.memo(
                 display: "flex",
                 flexDirection: "column",
                 position: 'relative',
-                overflow: 'hidden', 
+                overflow: 'hidden',
                 transition: theme.transitions.create(['opacity', 'transform', 'box-shadow', 'border-color'], { duration: theme.transitions.duration.short }),
                 "&:hover": isTvMode || isSkeleton ? {} : { transform: "translateY(-4px)", boxShadow: theme.shadows[6] },
-                 '&:focus-visible': !isTvMode && !isSkeleton ? { 
+                 '&:focus-visible': !isTvMode && !isSkeleton ? {
                      outline: `2px solid ${theme.palette.primary.main}`,
                      outlineOffset: '2px',
-                     boxShadow: theme.shadows[6], 
-                     transform: "translateY(-4px)", 
+                     boxShadow: theme.shadows[6],
+                     transform: "translateY(-4px)",
                  } : {},
                 opacity: isSkeleton ? 0.7 : 1,
                 backgroundColor: isSkeleton ? alpha(theme.palette.background.paper, 0.5) : theme.palette.background.paper,
@@ -216,9 +214,6 @@ const WebsiteCard = React.memo(
             return { ...baseSx, ...dynamicStyles };
         }, [shouldHighlightThisCard, isPinned, theme, isTvMode, isSkeleton]);
 
-        /**
-         * Renders status chips based on website status and data.
-         */
         const renderStatusChips = () => {
             if (cardStatus === 'pending') return <Chip size="small" icon={<PendingIcon fontSize="inherit" />} label="Pending" variant="outlined" color="warning" sx={{ fontWeight: 500 }} />;
             let statusChip: React.ReactNode = null;
@@ -232,14 +227,12 @@ const WebsiteCard = React.memo(
                 <>
                     {statusChip}
                     {statusCode != null && cardStatus !== 'down' && <Tooltip title={`Last HTTP Status: ${statusCode}`}><Chip size="small" label={`${statusCode}`} variant="outlined" /></Tooltip>}
-               
                     {responseTime !== null && cardStatus !== 'down' && (
                         <Tooltip title={`Last Response Time: ${formatResponseTime(responseTime)}`}>
                             <Chip
                                 size="small"
                                 label={formatResponseTime(responseTime)}
                                 color={
-                           
                                     currentIncident && currentIncident.type === 'slow'
                                         ? 'warning'
                                         : getResponseTimeColor(responseTime)
@@ -264,9 +257,6 @@ const WebsiteCard = React.memo(
         };
 
         const cardId = isSkeleton ? `skeleton-card-${userWebsite.websiteId}` : `website-card-grid-${websiteId}`;
-        
-
-
         const showPinButtonArea = !isTvMode && !isSkeleton && (isHovered || isCardFocused || isPinned || isSettingPin);
 
         const cardContent = (
@@ -274,13 +264,13 @@ const WebsiteCard = React.memo(
                 id={cardId}
                 sx={cardStyles}
                 onClick={handleClick}
-                onMouseEnter={handleMouseEnter} 
+                onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
-                tabIndex={isTvMode || isSkeleton ? -1 : 0} 
-                role={isTvMode || isSkeleton ? undefined : "button"} 
+                tabIndex={isTvMode || isSkeleton ? -1 : 0}
+                role={isTvMode || isSkeleton ? undefined : "button"}
                 onKeyDown={handleCardKeyDown}
-                onFocus={handleCardFocus}  
-                onBlur={handleCardBlur}    
+                onFocus={handleCardFocus}
+                onBlur={handleCardBlur}
                 aria-label={isSkeleton ? "Loading website data" : `View details for ${displayName}${isPinned ? ', Pinned' : ''}${cardStatus !== 'up' ? `, Status: ${cardStatus}` : ''}${shouldHighlightThisCard ? ', Highlighted as Last Incident Source' : ''}`}
             >
                 <CardContent sx={{
@@ -298,10 +288,10 @@ const WebsiteCard = React.memo(
                             <Tooltip title={pinTooltipText} placement="top">
                                 <Box
                                     ref={pinButtonContainerRef}
-                                    component="span" 
+                                    component="span"
                                     sx={{
                                         display: 'inline-flex',
-                                        alignItems: 'center',   
+                                        alignItems: 'center',
                                         opacity: showPinButtonArea ? 1 : 0,
                                         visibility: showPinButtonArea ? 'visible' : 'hidden',
                                         transition: theme.transitions.create(['opacity', 'visibility'], {
@@ -309,18 +299,17 @@ const WebsiteCard = React.memo(
                                         }),
                                     }}
                                 >
-                                    <IconButton 
-                                        size="small" 
-                                        onClick={handlePinClick} 
-                                        disabled={isSettingPin || isTvMode || isSkeleton} 
-                                        aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`} 
-                                        sx={{ 
-                                            color: hasPinError && !isSettingPin 
-                                                ? theme.palette.error.main 
-                                                : isPinned 
-                                                    ? theme.palette.primary.main 
+                                    <IconButton
+                                        size="small"
+                                        onClick={handlePinClick}
+                                        disabled={isSettingPin || isTvMode || isSkeleton}
+                                        aria-label={isPinned ? `Unpin ${displayName}` : `Pin ${displayName}`}
+                                        sx={{
+                                            color: hasPinError && !isSettingPin
+                                                ? theme.palette.error.main
+                                                : isPinned
+                                                    ? theme.palette.primary.main
                                                     : 'inherit',
-                                           
                                         }}
                                     >
                                         {isSettingPin ? <CircularProgress size={20} color="inherit" /> : isPinned ? <PinIcon fontSize="small" /> : <PinOutlinedIcon fontSize="small" />}
