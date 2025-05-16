@@ -24,35 +24,32 @@ export interface WebsiteUrlSearchProps {
     required?: boolean;
     onSelect?: (website: Website | null) => void;
     formikConfig?: Omit<FieldHookConfig<string>, 'name'>;
+    formatUrlInput?: (url: string) => string;
 }
 
-/**
- * An Autocomplete component for searching and selecting website URLs, integrated with Formik.
- */
 const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
     name,
     label = "Website URL or Name",
-    placeholder = "Search by URL (e.g., https://example.com) or name",
+    placeholder = "Search by URL (e.g., https://www.example.com) or name",
     helperText = "Enter a URL or name to search existing sites, or enter a new URL.",
     searchLimit = 10,
     disabled = false,
     required = false,
     onSelect: externalOnSelect,
     formikConfig = {},
+    formatUrlInput,
 }) => {
     const [field, meta, helpers] = useField({ name, ...formikConfig });
     const { setValue, setTouched } = helpers;
     const { isSubmitting } = useFormikContext();
+    
     const [inputValue, setInputValue] = useState(field.value || "");
 
-    /**
-     * Synchronizes internal input value with Formik field value.
-     */
     useEffect(() => {
         if (field.value !== inputValue) {
             setInputValue(field.value || "");
         }
-    }, [field.value]);
+    }, [field.value]); 
 
     const {
         results: options,
@@ -60,10 +57,7 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
         error: searchError,
         search: searchWebsites,
     } = useWebsiteSearch(searchLimit);
-
-    /**
-     * Debounces the website search API call.
-     */
+   
     const debouncedSearch = useMemo(
         () =>
             debounce((searchTerm: string) => {
@@ -74,30 +68,11 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
         [searchWebsites]
     );
 
-    /**
-     * Ensures a URL string has a protocol (http/https).
-     */
-    const ensureUrlProtocol = useCallback((url: string): string => {
-        if (!url || typeof url !== 'string') return "";
-        const trimmedUrl = url.trim();
-        if (!trimmedUrl) return "";
-        if (!/^(https?|ftp):\/\//i.test(trimmedUrl)) {
-            if (trimmedUrl.includes('.') && !trimmedUrl.includes(' ') && !trimmedUrl.startsWith('/')) {
-                return `https://${trimmedUrl}`;
-            }
-            return trimmedUrl;
-        }
-        return trimmedUrl;
-    }, []);
-
-    /**
-     * Handles changes to the Autocomplete input field.
-     */
     const handleInputChange = useCallback(
         (_event: React.SyntheticEvent, newValue: string, reason: string) => {
             setInputValue(newValue);
             if (reason === 'input') {
-                setValue(newValue);
+                setValue(newValue); 
                 debouncedSearch(newValue);
             } else if (reason === 'clear') {
                 setValue('');
@@ -107,38 +82,57 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
         [setValue, externalOnSelect, debouncedSearch]
     );
 
-    /**
-     * Handles selection of an item from the Autocomplete suggestions.
-     */
     const handleSelectionChange = useCallback(
         (
             _event: React.SyntheticEvent,
             selectedValue: string | Website | null,
         ) => {
-            let finalUrl = "";
-            let selectedWebsite: Website | null = null;
+            let urlToSetInFormik = "";
+            let selectedWebsiteObject: Website | null = null;
+
             if (typeof selectedValue === "string") {
-                finalUrl = ensureUrlProtocol(selectedValue.trim());
+                urlToSetInFormik = selectedValue.trim();
             } else if (selectedValue && typeof selectedValue === 'object' && 'url' in selectedValue) {
-                finalUrl = selectedValue.url;
-                selectedWebsite = selectedValue;
+                urlToSetInFormik = selectedValue.url;
+                selectedWebsiteObject = selectedValue;
             }
-            setInputValue(finalUrl);
-            setValue(finalUrl);
-            setTouched(true, false);
+            
+            const valueForFormik = formatUrlInput ? formatUrlInput(urlToSetInFormik) : urlToSetInFormik;
+            
+            setInputValue(valueForFormik);
+            setValue(valueForFormik);
+            setTouched(true, false); 
+
             if (externalOnSelect) {
-                externalOnSelect(selectedWebsite);
+                externalOnSelect(selectedWebsiteObject);
             }
         },
-        [ensureUrlProtocol, setValue, setTouched, externalOnSelect]
+        [setValue, setTouched, externalOnSelect, formatUrlInput]
     );
+
+    const handleBlur = useCallback((event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        field.onBlur(event);
+        const currentValueOnBlur = event.target.value || '';
+        
+        if (formatUrlInput) {
+            const formattedValue = formatUrlInput(currentValueOnBlur);
+            setInputValue(formattedValue);
+            if (formattedValue !== field.value) {
+                setValue(formattedValue);
+            }
+        } else {
+            if (currentValueOnBlur !== field.value) {
+                setValue(currentValueOnBlur);
+            }
+        }
+    }, [field, setValue, formatUrlInput]);
 
     const autocompleteValue = useMemo(() => {
         if (!field.value) return null;
         const matchedOption = options.find(
             (opt): opt is Website => typeof opt !== 'string' && opt.url === field.value
         );
-        return matchedOption || field.value;
+        return matchedOption || field.value; 
     }, [field.value, options]);
 
     const hasError = (meta.touched && !!meta.error) || !!searchError;
@@ -152,8 +146,8 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
                 freeSolo
                 autoSelect
                 options={options}
-                filterOptions={(x) => x}
-                getOptionLabel={(option) => typeof option === "string" ? option : option.url}
+                filterOptions={(x) => x} 
+                getOptionLabel={(option) => typeof option === "string" ? option : (option.name || option.url)}
                 isOptionEqualToValue={(option, val) =>
                     typeof option === 'string' && typeof val === 'string' ? option === val :
                     typeof option !== 'string' && typeof val !== 'string' ? option.id === val.id :
@@ -173,7 +167,7 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
                     </li>
                 )}
                 value={autocompleteValue}
-                inputValue={inputValue}
+                inputValue={inputValue}  
                 onInputChange={handleInputChange}
                 onChange={handleSelectionChange}
                 loading={loading}
@@ -181,18 +175,8 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
                 renderInput={(params) => (
                     <TextField
                         {...params}
-                        name={field.name}
-                        onBlur={(event) => {
-                            field.onBlur(event);
-                            const currentValue = event.target.value || '';
-                             if (currentValue) {
-                                const formattedUrl = ensureUrlProtocol(currentValue);
-                                if (formattedUrl !== field.value) {
-                                    setInputValue(formattedUrl);
-                                    setValue(formattedUrl);
-                                }
-                            }
-                        }}
+                        name={field.name} 
+                        onBlur={handleBlur}
                         label={label}
                         variant="outlined"
                         placeholder={placeholder}

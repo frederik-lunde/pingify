@@ -20,13 +20,15 @@ import FormNotification, {
 } from "../components/common/FormNotification";
 import { useWebsiteMutations } from "../hooks/api/useWebsites";
 
-/**
- * Ensures a URL string has a protocol.
- */
 const ensureUrlProtocol = (url: string): string => {
     if (!url) return "";
-    if (!/^(https?|ftp):\/\//i.test(url)) { return `https://${url}`; }
-    return url;
+    let tempUrl = url.trim();
+    if (!tempUrl) return "";
+    tempUrl = tempUrl.replace(/^(https?|ftp):\/\//i, "");
+    if (tempUrl.toLowerCase().startsWith("www.")) {
+        tempUrl = tempUrl.substring(4);
+    }
+    return `https://www.${tempUrl}`;
 };
 
 interface AddWebsiteFormValues {
@@ -44,7 +46,7 @@ const AddWebsiteSchema = Yup.object().shape({
   url: Yup.string()
     .trim()
     .transform(value => ensureUrlProtocol(value))
-    .matches(websiteUrlRegex, "Enter a valid URL (e.g., https://example.com)")
+    .matches(websiteUrlRegex, "Enter a valid URL (e.g., https://www.example.com or https://www.localhost)")
     .required("URL is required"),
   interval: Yup.number()
     .typeError("Interval must be a number")
@@ -72,9 +74,6 @@ const AddWebsiteSchema = Yup.object().shape({
      }),
 });
 
-/**
- * Extracts a user-friendly error message.
- */
 const getErrorMessage = (error: unknown): string => {
     const defaultMessage = "An unexpected error occurred.";
     if (error instanceof Error) {
@@ -89,9 +88,6 @@ const getErrorMessage = (error: unknown): string => {
     return defaultMessage;
 };
 
-/**
- * Page component for adding a new website.
- */
 const AddWebsite: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -111,9 +107,6 @@ const AddWebsite: React.FC = () => {
     notifyEmail: "",
   };
 
-  /**
-   * Handles form submission for adding a website.
-   */
   const handleSubmit = async (
     values: AddWebsiteFormValues,
     formikHelpers: FormikHelpers<AddWebsiteFormValues>
@@ -159,9 +152,6 @@ const AddWebsite: React.FC = () => {
     }
   };
 
-  /**
-   * Handles closing of the notification snackbar.
-   */
   const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') {
       return;
@@ -169,9 +159,6 @@ const AddWebsite: React.FC = () => {
     setNotification((prev) => ({ ...prev, open: false }));
   }, []);
 
-  /**
-   * Handles selection of a URL from search results.
-   */
   const handleUrlSelect = useCallback((
         website: Website | null,
         setFieldValue: FormikHelpers<AddWebsiteFormValues>['setFieldValue'],
@@ -209,7 +196,6 @@ const AddWebsite: React.FC = () => {
             <Form noValidate>
               <Box sx={{ mt: 3 }}>
                 <Grid container spacing={3}>
-                  {}
                   <Grid size={12}>
                     <Field
                       as={TextField}
@@ -222,20 +208,19 @@ const AddWebsite: React.FC = () => {
                       disabled={isSubmitting || isProcessing}
                     />
                   </Grid>
-                  {}
                   <Grid size={12}>
                     <WebsiteUrlSearch
                       name="url"
                       label="Website URL"
-                      placeholder="https://example.com"
-                      helperText="Enter the full URL or search existing sites"
+                      placeholder="https://www.example.com"
+                      helperText={touched.url && errors.url ? errors.url : "Enter the full URL or search existing sites"}
                       searchLimit={10}
                       disabled={isSubmitting || isProcessing}
                       onSelect={(website) => handleUrlSelect(website, setFieldValue, values.name)}
                       required
+                      formatUrlInput={ensureUrlProtocol}
                     />
                   </Grid>
-                  {}
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Field
                       as={TextField}
@@ -252,7 +237,6 @@ const AddWebsite: React.FC = () => {
                     />
                   </Grid>
                    <Grid size={{ xs: 0, sm: 6 }} />
-                  {}
                   <Grid size={12} sx={{ borderTop: 1, borderColor: "divider", pt: 3, mt: 2 }}>
                     <Typography variant="h6" gutterBottom>Alert Settings</Typography>
                     <Box sx={{ display: "flex", alignItems: "center" }}>
@@ -273,7 +257,6 @@ const AddWebsite: React.FC = () => {
                       </Tooltip>
                     </Box>
                   </Grid>
-                  {}
                   {values.alertEnabled && (
                     <>
                       <Grid size={{ xs: 12, sm: 6 }}>
@@ -307,7 +290,6 @@ const AddWebsite: React.FC = () => {
                       </Grid>
                     </>
                   )}
-                  {}
                   <Grid size={12} sx={{ mt: 3, display: "flex", justifyContent: "flex-end", gap: 2 }}>
                     <Button variant="outlined" onClick={() => navigate("/")} disabled={isSubmitting || isProcessing}>
                       Cancel
