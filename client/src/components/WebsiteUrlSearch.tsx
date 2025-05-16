@@ -46,9 +46,7 @@ const WebsiteUrlSearch: React.FC<WebsiteUrlSearchProps> = ({
     const [inputValue, setInputValue] = useState(field.value || "");
 
     useEffect(() => {
-        if (field.value !== inputValue) {
-            setInputValue(field.value || "");
-        }
+        setInputValue(field.value || "");
     }, [field.value]); 
 
     const {
