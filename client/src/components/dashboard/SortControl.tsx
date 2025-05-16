@@ -26,9 +26,7 @@ interface DashboardSortControlProps {
     onSortChange: (option: SortOption) => void;
 }
 
-/**
- * A control component for selecting website sorting options.
- */
+
 const DashboardSortControl: React.FC<DashboardSortControlProps> = ({
     sortOption,
     onSortChange,
@@ -36,23 +34,16 @@ const DashboardSortControl: React.FC<DashboardSortControlProps> = ({
     const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null);
     const openSortMenu = Boolean(sortAnchorEl);
 
-    /**
-     * Opens the sort options menu.
-     */
+    
     const handleSortMenuClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
         setSortAnchorEl(event.currentTarget);
     }, []);
 
-    /**
-     * Closes the sort options menu.
-     */
+   
     const handleSortMenuClose = useCallback(() => {
         setSortAnchorEl(null);
     }, []);
 
-    /**
-     * Handles the selection of a sort option.
-     */
     const handleSortOptionSelect = useCallback((option: SortOption) => {
         onSortChange(option);
         handleSortMenuClose();

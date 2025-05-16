@@ -1,8 +1,6 @@
-// src/components/dashboard/EmptyFilterResults.tsx
 import React from 'react';
 import { Typography, Box } from '@mui/material';
 
-// Define props interface
 interface EmptyFilterResultsProps {
     isTvMode?: boolean; 
 }

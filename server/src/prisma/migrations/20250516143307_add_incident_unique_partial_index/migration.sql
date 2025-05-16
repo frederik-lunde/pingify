@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "incident_websiteId_type_open_unique_idx" ON "Incident" ("websiteId", "type") WHERE "endTime" IS NULL;

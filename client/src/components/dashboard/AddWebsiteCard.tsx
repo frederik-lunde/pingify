@@ -9,16 +9,12 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 
-/**
- * A card component that allows users to navigate to the "add website" page.
- */
+
 const AddWebsiteCard: React.FC = () => {
     const navigate = useNavigate();
     const theme = useTheme();
 
-    /**
-     * Navigates to the add website page.
-     */
+   
     const handleClick = () => {
         navigate('/add-website');
     };

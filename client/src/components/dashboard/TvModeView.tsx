@@ -2,7 +2,6 @@ import React from 'react';
 import { Box, CircularProgress, Snackbar } from '@mui/material';
 import WebsiteGrid from './WebsiteGrid';
 import { WebsiteUser } from '../../types';
-import NoWebsitesAdded from './NoWebsitesAdded';
 import EmptyFilterResults from './EmptyFilterResults';
 
 interface TvModeViewProps {
@@ -73,12 +72,7 @@ const TvModeView: React.FC<TvModeViewProps> = ({
                      <EmptyFilterResults isTvMode={true}/>
                  </Box>
             )}
-            {!isLoading && isEmptyBecauseNoWebsites && (
-                <Box sx={{ p: { xs: 1, sm: 2 } }}> {}
-                    <NoWebsitesAdded isTvMode={true} />
-                </Box>
-            )}
-            {}
+            
             <Snackbar
                 open={showTvExitMessage}
                 message="Press any key or click to exit TV Mode"

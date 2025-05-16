@@ -11,9 +11,7 @@ interface DashboardSearchFilterProps {
     sx?: SxProps<Theme>;
 }
 
-/**
- * A search filter component with debouncing for dashboard filtering.
- */
+
 const DashboardSearchFilter: React.FC<DashboardSearchFilterProps> = ({
     onFilterChange,
     placeholder = "Filter by name or URL...",
@@ -23,9 +21,7 @@ const DashboardSearchFilter: React.FC<DashboardSearchFilterProps> = ({
 }) => {
     const [searchTerm, setSearchTerm] = useState<string>(initialValue);
 
-    /**
-     * Debounces the search term and calls onFilterChange.
-     */
+  
     useEffect(() => {
         const handler = setTimeout(() => {
             onFilterChange(searchTerm.trim());
@@ -35,16 +31,12 @@ const DashboardSearchFilter: React.FC<DashboardSearchFilterProps> = ({
         };
     }, [searchTerm, debounceDelay, onFilterChange]);
 
-    /**
-     * Updates the search term state on input change.
-     */
+ 
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(event.target.value);
     };
 
-    /**
-     * Clears the search input field.
-     */
+
     const handleClear = useCallback(() => {
         setSearchTerm('');
     }, []);

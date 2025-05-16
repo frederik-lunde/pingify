@@ -9,7 +9,7 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid()) // Changed: String, CUID
+  id        String   @id @default(cuid())
   email     String   @unique
   password  String
   name      String?
@@ -39,7 +39,7 @@ model Website {
 
 model WebsiteUser {
   id             Int      @id @default(autoincrement())
-  userId         String // Changed: String
+  userId         String
   websiteId      Int
   name           String?
   interval       Int?
@@ -55,7 +55,7 @@ model WebsiteUser {
   @@unique([userId, websiteId])
   @@index([userId])
   @@index([websiteId])
-  @@map("website_users") // Optional: explicit table name
+  @@map("website_users")
 }
 
 model MonitoringResult {
@@ -76,13 +76,13 @@ model MonitoringResult {
   @@index([websiteId])
   @@index([checkedAt])
   @@index([isAvailable])
-  @@map("monitoring_results") // Optional: explicit table name
+  @@map("monitoring_results")
 }
 
 model Alert {
   id         Int      @id @default(autoincrement())
   websiteId  Int
-  userId     String // Changed: String
+  userId     String
   message    String
   type       String
   createdAt  DateTime @default(now())
@@ -90,7 +90,7 @@ model Alert {
 
   website  Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  incident Incident? @relation(fields: [incidentId], references: [id], onDelete: SetNull) // Ensure onDelete is appropriate
+  incident Incident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
 
   @@index([websiteId])
   @@index([userId])

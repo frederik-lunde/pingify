@@ -151,7 +151,7 @@ export class WebsiteMonitor {
   }
 
   /**
-   * Parses an AxiosError to generate a human-readable error message.
+   * Parses an AxiosError to generate a readable error message.
    * @param error - The AxiosError object.
    * @returns A string describing the error.
    */
