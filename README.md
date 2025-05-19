@@ -95,7 +95,7 @@
 
 ### Backend (`server/.env`) (For development)
 
-Create this file in the `server/` directory. **Replace placeholders and secrets.**
+Create this file in the `server/` directory. **Replace placeholders and secrets. Most configurations have defaults**
 
 ```dotenv
 # --- Application ---
