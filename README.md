@@ -27,9 +27,8 @@
 
 ### Prerequisites
 
-*   Node.js (v18 or later recommended)
+*   Node.js 
 *   npm or yarn
-*   PostgreSQL Database
 
 ### Backend Setup (`server/`)
 
@@ -46,7 +45,7 @@
 3.  **Set up Environment Variables:**
     *   Create a `.env` file in the `server/` directory.
     *   Copy the contents of the example `server/.env` provided below.
-    *   **Crucially, update `DATABASE_URL` to point to your PostgreSQL database.**
+    *   **Crucially, update `DATABASE_URL` to point to your database.**
     *   Update other variables like `JWT_SECRET`, `CORS_ORIGIN`, and `MAIL_*` settings as needed for your environment.
 
 4.  **Run Database Migrations:**
@@ -61,7 +60,7 @@
     # or
     yarn dev
     ```
-    The server should start, typically on the port defined in your `server/.env` (e.g., 3001).
+    The server should start on the port defined in your `server/.env` (e.g., 3001).
 
 ### Frontend Setup (`client/`)
 
@@ -94,7 +93,7 @@
     ```
 ## Environment Variables
 
-### Backend (`server/.env`)
+### Backend (`server/.env`) (For development)
 
 Create this file in the `server/` directory. **Replace placeholders and secrets.**
 
