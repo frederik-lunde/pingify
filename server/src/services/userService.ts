@@ -223,9 +223,7 @@ export async function deleteUserAccount(userId: string): Promise<void> {
 
 import { Request, Response, NextFunction } from "express";
 import * as userService from "../services/userService";
-// UpdateUserData and UpdatePasswordData are already defined above in this file.
-// If they were meant to be imported from a different types file, the import path would need adjustment.
-// For now, assuming they refer to the interfaces defined in this service file.
+
 
 /**
  * Handles the request to get the authenticated user's profile.

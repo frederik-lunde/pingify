@@ -310,10 +310,8 @@ export const getWebsiteDetails = async (
     }
 
     const timeframe = (req.query.timeframe as TimeframeKey) ?? "day";
-    // Assuming VALID_TIMEFRAMES is defined in your types.ts and imported
     if (VALID_TIMEFRAMES && !VALID_TIMEFRAMES.includes(timeframe)) {
         console.warn(`Invalid timeframe '${req.query.timeframe}' provided for getWebsiteDetails, defaulting to 'day'.`);
-        // timeframe = "day"; // No need to reassign if already defaulted above
     }
 
     const limit = req.query.limit
@@ -321,7 +319,7 @@ export const getWebsiteDetails = async (
       : 50;
     const incidentLimit = req.query.incidentLimit
       ? parseInt(req.query.incidentLimit as string, 10)
-      : 10; // Default incident limit
+      : 10; 
     const sortBy = (req.query.sortBy as MonitoringResultSortBy) ?? "checkedAt";
     const sortDir = (req.query.sortDir as SortDirection) ?? "desc";
 
@@ -335,7 +333,7 @@ export const getWebsiteDetails = async (
     }
 
     const startDate = getStartDateForTimeframe(timeframe);
-    const endDate = new Date(); // endDate is always now for recent incidents within the timeframe
+    const endDate = new Date(); 
 
     let orderByClause: Prisma.MonitoringResultOrderByWithRelationInput[] = [];
     if (sortBy === "statusCode" || sortBy === "responseTime") {
@@ -354,7 +352,7 @@ export const getWebsiteDetails = async (
       recentChecksData,
       uptimePercentData,
       currentIncidentData,
-      recentIncidentsData, // This is the one we're focusing on
+      recentIncidentsData, 
     ] = await Promise.all([
       prisma.monitoringResult.findFirst({
         where: { websiteId },
@@ -362,26 +360,26 @@ export const getWebsiteDetails = async (
       }),
       StatsCalculator.getChartDataForWebsite(websiteId, timeframe),
       prisma.monitoringResult.findMany({
-        where: { websiteId: websiteId }, // You might want to filter recent checks by timeframe too if desired
+        where: { websiteId: websiteId }, 
         orderBy: orderByClause,
         take: limit,
       }),
       StatsCalculator.calculateUptimeBetweenDates(
         websiteId,
-        startDate, // Uptime is already calculated for the timeframe
+        startDate, 
         endDate,
       ),
       IncidentService.getCurrentOpenIncidentForWebsite(websiteId),
-      IncidentService.getIncidents( // MODIFIED PART
+      IncidentService.getIncidents( 
         {
           websiteId: websiteId,
           limit: incidentLimit,
-          from: startDate, // Pass the calculated start date
-          to: endDate,     // Pass the calculated end date (now)
-          // You might also want to consider how 'status' (open/closed) interacts here
-          // For "Recent Incidents" usually you want both open and closed within the timeframe.
-          // If getIncidents defaults to only open or closed, you might need to adjust its logic
-          // or pass an explicit status filter if applicable.
+          from: startDate, 
+          to: endDate,     
+          
+          
+          
+          
         },
         userId,
       ),
@@ -410,7 +408,7 @@ export const getWebsiteDetails = async (
       uptimePercent:
         typeof uptimePercentData === "number" ? uptimePercentData : 100,
       currentIncident: currentIncidentData ?? null,
-      recentIncidents: safeRecentIncidents, // This will now be filtered by timeframe
+      recentIncidents: safeRecentIncidents, 
     };
     res.json(responseData);
   } catch (error) {

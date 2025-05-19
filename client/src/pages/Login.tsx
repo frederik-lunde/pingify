@@ -41,9 +41,7 @@ const LoginSchema = Yup.object().shape({
   rememberMe: Yup.boolean(),
 });
 
-/**
- * Login page component for user authentication.
- */
+
 const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [notification, setNotification] = useState<FormNotificationState>(initialNotificationState);
@@ -52,9 +50,7 @@ const Login: React.FC = () => {
 
   const initialValues: LoginFormValues = { email: "", password: "", rememberMe: false };
 
-  /**
-   * Handles the form submission for user login.
-   */
+
   const handleSubmit = async (
     values: LoginFormValues,
     formikHelpers: FormikHelpers<LoginFormValues>
@@ -77,14 +73,10 @@ const Login: React.FC = () => {
     }
   };
 
-  /**
-   * Toggles the visibility of the password field.
-   */
+
   const togglePasswordVisibility = () => setShowPassword((prev) => !prev);
 
-  /**
-   * Handles closing of the notification snackbar.
-   */
+
   const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') {
       return;
@@ -111,11 +103,7 @@ const Login: React.FC = () => {
           {({ errors, touched, isSubmitting  }) => (
             <Form>
               {}
-              {/* {(status?.error || loginError?.message) && (
-                <Alert severity="error" sx={{ mb: 3 }}>
-                  {status?.error || loginError?.message}
-                </Alert>
-              )} */}
+        
               <Grid container spacing={2}>
                 {}
                  <Grid size={12}>

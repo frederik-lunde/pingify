@@ -8,9 +8,7 @@ import {
   SetPinStatusDTO,
 } from "../types";
 
-/**
- * Handles the request to get all websites for the authenticated user.
- */
+
 export const getUserWebsites = async (
   req: Request,
   res: Response,
@@ -31,9 +29,7 @@ export const getUserWebsites = async (
   }
 };
 
-/**
- * Handles the request to get a specific website by ID for the authenticated user.
- */
+
 export const getUserWebsiteById = async (
   req: Request<{ id: string }>,
   res: Response,
@@ -60,9 +56,7 @@ export const getUserWebsiteById = async (
   }
 };
 
-/**
- * Handles the request to update a specific website's settings for the authenticated user.
- */
+
 export const updateUserWebsite = async (
   req: Request<{ id: string }>,
   res: Response,
@@ -92,9 +86,7 @@ export const updateUserWebsite = async (
   }
 };
 
-/**
- * Handles the request to set the pin status of a website for the authenticated user.
- */
+
 export const setPinStatus = async (
   req: Request<{ id: string }>,
   res: Response,
@@ -126,9 +118,7 @@ export const setPinStatus = async (
   }
 };
 
-/**
- * Handles the request to add a new website to the authenticated user's dashboard.
- */
+
 export const addWebsiteToUser = async (
   req: Request,
   res: Response,
@@ -161,9 +151,7 @@ export const addWebsiteToUser = async (
   }
 };
 
-/**
- * Handles the request to remove a website from the authenticated user's dashboard.
- */
+
 export const removeWebsiteFromUser = async (
   req: Request<{ id: string }>,
   res: Response,
@@ -192,9 +180,7 @@ export const removeWebsiteFromUser = async (
   }
 };
 
-/**
- * Handles the request to search for websites based on a query string.
- */
+
 export const searchWebsites = async (
   req: Request,
   res: Response,

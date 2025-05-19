@@ -1,8 +1,4 @@
-// src/config/clientConfig.ts
 
-/**
- * Logs a warning message to the console in development mode.
- */
 function logConfigWarning(message: string) {
   if (import.meta.env.MODE === 'development') {
     console.warn(`Client Config Warning: ${message}`);

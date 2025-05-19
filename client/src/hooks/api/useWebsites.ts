@@ -146,13 +146,7 @@ export function useWebsiteMutations() {
                 triggerCheck(websiteId)
                     .then(() => {
                         console.log(`Background check for website ${websiteId} successfully initiated.`);
-                        // Optionally invalidate specific results for this new website after a delay
-                        // if you want the UI to pick up the first check result sooner.
-                        // setTimeout(() => {
-                        //   if (monitoringQueryKeys.websiteResults) { 
-                        //     queryClient.invalidateQueries({ queryKey: monitoringQueryKeys.websiteResults(websiteId, userId) });
-                        //   }
-                        // }, 15000); 
+                
                     })
                     .catch((checkError) => {
                         console.error(`Background initial check for website ${websiteId} failed to initiate or errored:`, checkError);
@@ -241,8 +235,6 @@ export function useWebsiteMutations() {
             }
 
             if (monitoringQueryKeys.details && typeof monitoringQueryKeys.details === 'function') {
-                // Assuming params for details requires at least websiteId
-                // Adjust if FetchWebsiteDetailsParams needs more for this invalidation context
                 const monitoringDetailsKeyPattern: QueryKey = monitoringQueryKeys.details({ websiteId }, userId); // Cast as any if params are complex
                 queryClient.removeQueries({ queryKey: monitoringDetailsKeyPattern, exact: false });
             }

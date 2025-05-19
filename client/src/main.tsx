@@ -15,9 +15,7 @@ import {
   Filler
 } from 'chart.js';
 
-/**
- * Registers necessary Chart.js components globally.
- */
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -34,10 +32,7 @@ import { ThemeProviderWrapper } from "./context/ThemeContext";
 import App from "./App.tsx";
 import queryClient from './lib/queryClient';
 
-/**
- * Entry point for the React application.
- * Initializes and renders the root component.
- */
+
 const rootElement = document.getElementById("root");
 if (!rootElement) {
   throw new Error("Failed to find the root element with ID 'root'");

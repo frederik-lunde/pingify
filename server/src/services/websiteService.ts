@@ -62,7 +62,7 @@ const mapPrismaResultToSharedBasic = (
 };
 
 /**
- * Maps a Prisma WebsiteUser object (potentially with a nested website) to a shared WebsiteUser DTO.
+ * Maps a Prisma WebsiteUser object  to a shared WebsiteUser DTO.
  */
 const mapPrismaWebsiteUserToSharedBase = (
   websiteUser: any,

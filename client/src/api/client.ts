@@ -9,9 +9,7 @@ import { API_BASE_URL } from "../config/config";
 import { getAuthToken, fireAuthErrorEvent } from "../utils/authTokenUtils";
 import { ApiError } from "../types";
 
-/**
- * API client for making HTTP requests.
- */
+
 class ApiClient {
   private client: AxiosInstance;
 

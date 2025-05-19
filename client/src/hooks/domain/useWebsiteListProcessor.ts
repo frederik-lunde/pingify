@@ -9,9 +9,7 @@ export interface UseWebsiteListProcessorReturn {
     setSortOption: (option: SortOption) => void;
 }
 
-/**
- * Processes a list of websites, enabling filtering and sorting.
- */
+
 export const useWebsiteListProcessor = (
     allWebsites: WebsiteUser[] = []
 ): UseWebsiteListProcessorReturn => {
@@ -19,33 +17,25 @@ export const useWebsiteListProcessor = (
     const [sortOption, setSortOption] = useState<SortOption>('name-asc');
 
     const handleSetFilterTerm = useCallback(
-        /**
-         * Updates the filter term state, converting to lowercase.
-         */
+       
         (term: string) => {
             setFilterTerm(term.toLowerCase());
         },
     []);
 
     const handleSetSortOption = useCallback(
-        /**
-         * Updates the sort option state.
-         */
+      
         (option: SortOption) => {
             setSortOption(option);
         },
     []);
 
     const filteredWebsites = useMemo(
-        /**
-         * Filters websites by name or URL based on the filter term.
-         */
+ 
         () => {
             if (!filterTerm) return allWebsites;
             return allWebsites.filter(
-                /**
-                 * Checks if a website item matches the filter term.
-                 */
+             
                 item => {
                     const name = item.name?.toLowerCase() || '';
                     const url = item.website?.url?.toLowerCase() || '';
@@ -56,15 +46,11 @@ export const useWebsiteListProcessor = (
     [allWebsites, filterTerm]);
 
     const processedWebsites = useMemo(
-        /**
-         * Sorts filtered websites by status and selected option.
-         */
+     
         () => {
             const listToSort = [...filteredWebsites];
 
-            /**
-             * Determines a website's primary sort key (pin, incident).
-             */
+        
             const getPrimarySortOrder = (wu: WebsiteUser): number => {
                 const isPinned = wu.isPinned;
                 const incidentType = wu.currentIncident?.type;
@@ -80,9 +66,7 @@ export const useWebsiteListProcessor = (
             };
 
             return listToSort.sort(
-                /**
-                 * Compares two websites for multi-level sorting.
-                 */
+            
                 (a, b) => {
                      if (!a || !b) return 0;
                      const wuA = a;

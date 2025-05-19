@@ -12,9 +12,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const DEFAULT_LIMIT = 50;
 
-/**
- * Page component for displaying and filtering user incidents.
- */
+
 const IncidentsPage: React.FC = () => {
     const navigate = useNavigate();
     const [filters, setFilters] = useState<IncidentFilterValues>({
@@ -25,9 +23,7 @@ const IncidentsPage: React.FC = () => {
     const [sortBy, setSortBy] = useState<IncidentSortableColumn>('startTime');
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
-    /**
-     * Memoizes query options based on current filters.
-     */
+
     const queryOptions = useMemo((): IncidentQueryOptions => {
         const options: IncidentQueryOptions = {
             limit: DEFAULT_LIMIT,
@@ -55,37 +51,27 @@ const IncidentsPage: React.FC = () => {
         refetchOnWindowFocus: true,
     });
 
-    /**
-     * Updates filter state when filter values change.
-     */
+
     const handleFilterChange = useCallback((newFilters: IncidentFilterValues) => {
         setFilters(newFilters);
     }, []);
 
-    /**
-     * Handles sorting of the incident list.
-     */
+
     const handleSort = useCallback((column: IncidentSortableColumn) => {
         setSortDir(currentDir => (column === sortBy && currentDir === 'desc' ? 'asc' : 'desc'));
         setSortBy(column);
     }, [sortBy]);
 
-    /**
-     * Navigates back to the previous page (dashboard).
-     */
+ 
     const handleBackClick = useCallback(() => {
         navigate('/');
     }, [navigate]);
 
-    /**
-     * Memoizes and sorts incidents based on current sort options.
-     */
+ 
     const sortedIncidents = useMemo(() => {
         if (!incidentsData) return [];
         const listToSort = [...incidentsData];
-        /**
-         * Sorts two incident items.
-         */
+     
         return listToSort.sort((a, b) => {
              let valA: number | string; let valB: number | string;
              switch (sortBy) {
@@ -105,9 +91,7 @@ const IncidentsPage: React.FC = () => {
 
     const isSuccessfullyLoadedAndEmpty = status === 'success' && !isLoading && !isFetching && !error && sortedIncidents.length === 0;
 
-    /**
-     * Renders the page header with back button and title.
-     */
+
     const renderHeader = () => (
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
             <Tooltip title="Back to Dashboard">

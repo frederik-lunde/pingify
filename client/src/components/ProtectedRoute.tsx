@@ -8,9 +8,7 @@ interface ProtectedRouteProps {
   children: React.ReactElement;
 }
 
-/**
- * A route component that protects child routes from unauthenticated access.
- */
+
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const auth = useAuth() as AuthContextType | null;
   const location = useLocation();

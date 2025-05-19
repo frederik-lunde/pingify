@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 
-/**
- * Custom hook to display the time since a given ISO timestamp, updating periodically.
- */
+
 export const useTimeSince = (
     timestampIsoString: string | null | undefined,
     options?: {
@@ -20,9 +18,7 @@ export const useTimeSince = (
         updateIntervalMs = 60000
     } = options ?? {};
 
-    /**
-     * Calculates and formats the time since the given timestamp.
-     */
+   
     const getFormattedTime = useCallback((): string => {
         if (!timestampIsoString) {
             return noIncidentText;
@@ -42,9 +38,7 @@ export const useTimeSince = (
 
     const [formattedTime, setFormattedTime] = useState<string>(getFormattedTime);
 
-    /**
-     * Effect to update the formatted time initially and set up an interval for periodic updates.
-     */
+ 
     useEffect(() => {
         const updateFormattedTime = () => {
             setFormattedTime(getFormattedTime());
@@ -59,10 +53,9 @@ export const useTimeSince = (
                    intervalId = setInterval(updateFormattedTime, updateIntervalMs);
                }
            } catch {
-               // Error parsing, interval won't be set
-           }
+               console.error(`useTimeSince: Error parsing date "${timestampIsoString}"`);
         }
-
+    }
         return () => {
             if (intervalId) {
                 clearInterval(intervalId);

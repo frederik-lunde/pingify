@@ -43,7 +43,7 @@ export const removeAuthToken = (): void => {
 };
 
 /**
- * Dispatches a custom 'auth-error' event on the window.
+ * Dispatches a custom 'auth-error'
  */
 export const fireAuthErrorEvent = (): void => {
   console.debug("Firing auth-error event");

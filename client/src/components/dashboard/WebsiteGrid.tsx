@@ -10,9 +10,6 @@ interface WebsiteGridProps {
   isTvMode: boolean;
 }
 
-/**
- * Creates a dummy WebsiteUser object for skeleton loading states.
- */
 const createDummyWebsiteUser = (index: number): WebsiteUser => ({
     id: -1,
     userId: "-1",

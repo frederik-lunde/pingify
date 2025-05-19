@@ -44,9 +44,7 @@ const RegisterSchema = Yup.object().shape({
   confirmPassword: Yup.string().oneOf([Yup.ref("password")], "Passwords must match").required("Confirm password is required"),
 });
 
-/**
- * Registration page component for new users.
- */
+
 const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -56,9 +54,7 @@ const Register: React.FC = () => {
 
   const initialValues: RegisterFormValues = { email: "", name: "", password: "", confirmPassword: "" };
 
-  /**
-   * Handles the form submission for user registration.
-   */
+
   const handleSubmit = async (
     values: RegisterFormValues,
     formikHelpers: FormikHelpers<RegisterFormValues>
@@ -82,19 +78,11 @@ const Register: React.FC = () => {
     }
   };
 
-  /**
-   * Toggles the visibility of the password field.
-   */
   const togglePasswordVisibility = () => setShowPassword((prev) => !prev);
 
-  /**
-   * Toggles visibility of the confirm password field.
-   */
+
   const toggleConfirmPasswordVisibility = () => setShowConfirmPassword((prev) => !prev);
 
-  /**
-   * Handles closing of the notification snackbar.
-   */
   const handleNotificationClose = useCallback((_event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') {
       return;
@@ -120,12 +108,8 @@ const Register: React.FC = () => {
         >
           {({ errors, touched, isSubmitting  }) => (
             <Form>
-              {}
-              {/* {status?.error && (
-                <Alert severity="error" sx={{ mb: 3 }}>
-                  {status.error}
-                </Alert>
-              )} */}
+             
+              
               <Grid container spacing={2}>
                  <Grid size={12}>
                      <Field as={TextField} required fullWidth id="email" name="email" label="Email Address" autoComplete="email" autoFocus error={touched.email && Boolean(errors.email)} helperText={touched.email && errors.email} InputProps={{ startAdornment: (<InputAdornment position="start"><EmailIcon color="action" /></InputAdornment>), endAdornment: (<InputAdornment position="end"><Tooltip title="We'll never share your email"><IconButton size="small" tabIndex={-1}><HelpIcon fontSize="small" /></IconButton></Tooltip></InputAdornment>), }}/>

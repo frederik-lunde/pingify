@@ -2,9 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import * as userService from "../services/userService";
 import { UpdateUserData, UpdatePasswordData } from "../services/userService";
 
-/**
- * Handles the request to get the authenticated user's profile.
- */
+
 export const getMyProfile = async (
   req: Request,
   res: Response,
@@ -26,9 +24,6 @@ export const getMyProfile = async (
   }
 };
 
-/**
- * Handles the request to update the authenticated user's profile.
- */
 export const updateMyProfile = async (
   req: Request,
   res: Response,
@@ -61,9 +56,7 @@ export const updateMyProfile = async (
     }
   }
 };
-/**
- * Handles the request to update the authenticated user's password.
- */
+
 export const updateMyPassword = async (
   req: Request,
   res: Response,
@@ -99,9 +92,7 @@ export const updateMyPassword = async (
   }
 };
 
-/**
- * Handles the request to delete the authenticated user's account.
- */
+
 export const deleteMyAccount = async (
   req: Request,
   res: Response,

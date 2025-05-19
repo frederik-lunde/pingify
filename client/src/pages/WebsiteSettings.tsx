@@ -51,16 +51,12 @@ const WebsiteSettingsSchema = Yup.object().shape({
         }),
 });
 
-/**
- * Page component for managing settings of a specific website.
- */
+
 const WebsiteSettings: React.FC = () => {
     const { websiteId: websiteIdParam } = useParams<{ websiteId: string }>();
     const navigate = useNavigate();
 
-    /**
-     * Parses the website ID from the URL parameter.
-     */
+ 
     const parseIdParam = (idParam: string | undefined): number | undefined => {
         if (!idParam) return undefined;
         const id = parseInt(idParam, 10);
@@ -101,9 +97,7 @@ const WebsiteSettings: React.FC = () => {
         notifyEmail: userWebsite?.notifyEmail || "",
     }), [userWebsite]);
 
-    /**
-     * Handles form submission for updating website settings.
-     */
+  
     const handleSubmit = async (
         values: WebsiteSettingsFormValues,
     ) => {
@@ -131,26 +125,20 @@ const WebsiteSettings: React.FC = () => {
         }
     };
 
-    /**
-     * Opens the delete confirmation dialog.
-     */
+  
     const openDeleteDialog = useCallback(() => {
         setDeleteError(null);
         setDeleteConfirmOpen(true);
     }, []);
 
-    /**
-     * Closes the delete confirmation dialog.
-     */
+
     const closeDeleteDialog = useCallback(() => {
         if (!isRemoving) {
             setDeleteConfirmOpen(false);
         }
     }, [isRemoving]);
 
-    /**
-     * Handles the confirmation of website deletion.
-     */
+   
     const handleDeleteConfirm = useCallback(async () => {
         if (!numericWebsiteId) return;
         setDeleteError(null);
@@ -169,9 +157,7 @@ const WebsiteSettings: React.FC = () => {
         }
     }, [numericWebsiteId, removeWebsite, navigate, closeDeleteDialog, setNotification]);
 
-    /**
-     * Navigates back to the website details or dashboard.
-     */
+ 
     const handleBackClick = useCallback(() => {
         navigate(numericWebsiteId ? `/website/${numericWebsiteId}` : '/');
     }, [navigate, numericWebsiteId]);

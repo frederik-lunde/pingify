@@ -13,9 +13,7 @@ import { useTvMode } from "../context/TvModeContext";
 import { useWebsiteListProcessor } from "../hooks/";
 import { ApiError } from "../types";
 
-/**
- * Main dashboard component displaying website statistics and cards.
- */
+
 const Dashboard: React.FC = () => {
     const { isTvMode, toggleTvMode } = useTvMode();
     const [isHighlightActive, setIsHighlightActive] = useState(false);
@@ -45,17 +43,13 @@ const Dashboard: React.FC = () => {
 
     const isBackgroundActivity = isFetching;
 
-    /**
-     * Handles changes to the website filter term.
-     */
+
     const handleFilterChangeInternal = useCallback((term: string) => {
         setFilterTerm(term);
         if (term) setIsHighlightActive(false);
     }, [setFilterTerm]);
 
-    /**
-     * Toggles highlighting of the last incident website.
-     */
+   
     const handleToggleHighlight = useCallback(() => {
         const shouldActivate = !isHighlightActive;
         setIsHighlightActive(shouldActivate);
@@ -72,9 +66,7 @@ const Dashboard: React.FC = () => {
     }, [lastIncidentWebsiteId, filterTerm]);
 
     useEffect(() => {
-        /**
-         * Exits TV mode on keydown or mousedown.
-         */
+ 
         const handleExitTvMode = () => { if (isTvMode) toggleTvMode(); };
         if (isTvMode) {
             setShowTvExitMessage(true);

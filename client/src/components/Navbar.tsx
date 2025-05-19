@@ -24,16 +24,12 @@ const pages = [
 ];
 const settings = ["Profile", "Logout"];
 
-/**
- * Type guard to check if a user object is valid.
- */
+
 function isUser(user: User | null): user is User {
   return user !== null;
 }
 
-/**
- * Main navigation bar component for the application.
- */
+
 function Navbar() {
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
@@ -51,27 +47,19 @@ function Navbar() {
 
   const headerUptime = useMemo(() => overallStats?.overallUptime ?? null, [overallStats]);
 
-  /**
-   * Closes the navigation menu.
-   */
+
   const handleCloseNavMenu = useCallback(() => setAnchorElNav(null), []);
 
-  /**
-   * Closes the user settings menu.
-   */
+  
   const handleCloseUserMenu = useCallback(() => setAnchorElUser(null), []);
 
-  /**
-   * Handles navigation to a page from the nav menu.
-   */
+ 
   const handlePageClick = useCallback((path: string) => {
     handleCloseNavMenu();
     if (path !== "#") navigate(path);
   }, [navigate, handleCloseNavMenu]);
 
-  /**
-   * Handles actions from the user settings menu (Profile, Logout).
-   */
+ 
   const handleSettingClick = useCallback(async (setting: string) => {
     handleCloseUserMenu();
     if (!auth || !auth.logout) {
@@ -91,14 +79,10 @@ function Navbar() {
     }
   }, [auth, navigate, handleCloseUserMenu]);
 
-  /**
-   * Opens the navigation menu.
-   */
+ 
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorElNav(event.currentTarget);
 
-  /**
-   * Opens the user settings menu.
-   */
+
   const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorElUser(event.currentTarget);
 
   if (!auth || !isUser(auth.user)) {

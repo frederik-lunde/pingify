@@ -1,4 +1,3 @@
-// server/src/utils/scheduler.ts
 import cron from "node-cron";
 import { Website as PrismaWebsite, Prisma } from "@prisma/client";
 import { monitoringConfig, schedulerConfig } from "../config/config";
@@ -242,9 +241,8 @@ export async function purgeOldMonitoringResults(
 export function scheduleMonitoring(): void {
   console.log("[Scheduler] Initializing schedulers...");
 
-  //
   // 1. Website Monitoring Check
-  //
+
   const monitorCron = schedulerConfig.monitorCronPattern;
   if (cron.validate(monitorCron)) {
     cron.schedule(monitorCron, checkDueWebsites, { name: "websiteChecker" });
@@ -273,9 +271,9 @@ export function scheduleMonitoring(): void {
     );
   }
 
-  //
+  
   // 3. Old Monitoring Results Purge
-  //
+
   const purgeCron = schedulerConfig.purgeCronPattern;
   if (cron.validate(purgeCron)) {
     cron.schedule(

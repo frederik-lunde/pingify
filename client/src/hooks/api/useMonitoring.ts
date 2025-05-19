@@ -55,10 +55,7 @@ type CustomQueryOptions<TQueryFnData, TError = ApiError> = Omit<
     'queryKey' | 'queryFn'
 >;
 
-/**
- * Custom hook to fetch detailed information for a specific website.
- * (This fetches WebsiteDetailsData, which includes recent checks, but is a different query key)
- */
+
 export function useWebsiteDetailsQuery(params: FetchWebsiteDetailsParams, options?: CustomQueryOptions<WebsiteDetailsData>) {
     const auth = useAuth();
     const userId = auth?.user?.id;

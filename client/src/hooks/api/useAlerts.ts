@@ -30,9 +30,7 @@ const DEFAULT_LIST_GC_TIME = 1000 * 60 * 5;
 const DEFAULT_STATS_STALE_TIME = 1000 * 60 * 5;
 const DEFAULT_STATS_GC_TIME = 1000 * 60 * 15;
 
-/**
- * Custom hook to fetch user alerts with TanStack Query.
- */
+
 export function useUserAlertsQuery(
     apiOptions: AlertQueryOptions = {},
     hookOptions?: UseAlertsHookOptions
@@ -49,9 +47,7 @@ export function useUserAlertsQuery(
     });
 }
 
-/**
- * Custom hook to fetch alerts for a specific website with TanStack Query.
- */
+
 export function useWebsiteAlertsQuery(
     websiteId: number | undefined,
     apiOptions: AlertQueryOptions = {},

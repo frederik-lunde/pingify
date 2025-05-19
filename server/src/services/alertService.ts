@@ -1,4 +1,3 @@
-// server/src/services/alertService.ts
 import {
   Website as PrismaWebsite,
   Alert as PrismaAlert,
@@ -117,8 +116,8 @@ export async function handleResultProcessing(
         website.id,
         "down",
         initialResult.checkedAt,
-        initialResult.id, // initialResultId
-        null, // confirmingResultId is null for now
+        initialResult.id, 
+        null, 
       );
       if (incidentForAlertConfirmation) {
         potentialTypeForAlertConfirmation = "down";
@@ -166,8 +165,8 @@ export async function handleResultProcessing(
           website.id,
           "slow",
           initialResult.checkedAt,
-          initialResult.id, // initialResultId
-          null, // confirmingResultId is null for now
+          initialResult.id, 
+          null, 
         );
         if (incidentForAlertConfirmation) {
           potentialTypeForAlertConfirmation = "slow";
@@ -197,7 +196,7 @@ export async function handleResultProcessing(
     await scheduleAlertConfirmationCheck(
       website.id,
       incidentForAlertConfirmation,
-      initialResult.id, // Pass initialResultId for logging context
+      initialResult.id, 
       potentialTypeForAlertConfirmation,
       thresholdInitiallyExceededForSlow,
     );
@@ -265,7 +264,7 @@ async function scheduleAlertConfirmationCheck(
       await handleAlertConfirmation(
         website,
         currentIncidentState,
-        potentialType, // This is incident.type, but passed for clarity
+        potentialType, 
         thresholdInitiallyExceeded,
       );
     } catch (error) {
@@ -284,14 +283,14 @@ async function scheduleAlertConfirmationCheck(
 async function handleAlertConfirmation(
   website: PrismaWebsite,
   incidentForConfirmation: PrismaIncident,
-  incidentType: IncidentType, // Type of incidentForConfirmation
-  thresholdInitiallyExceeded: number | null, // The threshold that the *initial* check exceeded for SLOW
+  incidentType: IncidentType, 
+  thresholdInitiallyExceeded: number | null, 
 ): Promise<void> {
   const logPrefix = `[AlertConfirm W:${website.id} I:${incidentForConfirmation.id} T:${incidentType}]`;
   console.log(`${logPrefix} Performing alert confirmation recheck for Incident ${incidentForConfirmation.id}.`);
 
   const confirmationCheckData: MonitoringResponse =
-    await WebsiteMonitor.performWebsiteCheck(website.url); // This is the recheck
+    await WebsiteMonitor.performWebsiteCheck(website.url); 
   
   let confirmingResultDb: PrismaMonitoringResult;
   try {
@@ -310,7 +309,6 @@ async function handleAlertConfirmation(
     return;
   }
 
-  // Update the incident with the confirmingResultId
   await IncidentService.updateIncidentConfirmation(incidentForConfirmation.id, confirmingResultDb.id);
 
   let issueConfirmedForAlerting = false;
@@ -350,14 +348,13 @@ async function handleAlertConfirmation(
         baseWhereClause.alertThreshold = {
           not: null,
           gt: 0,
-          // User's threshold must be LESS THAN the measured response time for an alert
           lt: confirmingResultDb.responseTime,
         };
       } else {
         console.log(
           `${logPrefix} Confirmed SLOW incident ${incidentForConfirmation.id} but confirmation recheck had null responseTime. No threshold-based alerts will be sent.`,
         );
-        baseWhereClause.id = -1; // Effectively no users
+        baseWhereClause.id = -1; 
       }
     }
 
@@ -391,8 +388,8 @@ async function handleAlertConfirmation(
       await createAlertAndNotify(
         website,
         user,
-        incidentForConfirmation, // Pass the existing incident
-        confirmingResultDb,   // Pass the result of the recheck
+        incidentForConfirmation, 
+        confirmingResultDb,   
       );
     }
   }
@@ -406,7 +403,7 @@ async function createAlertAndNotify(
   website: PrismaWebsite,
   websiteUser: PrismaWebsiteUser,
   incident: PrismaIncident,
-  confirmingResult: PrismaMonitoringResult, // This is the result from the recheck
+  confirmingResult: PrismaMonitoringResult, 
 ): Promise<void> {
   const logPrefix = `[AlertNotify U:${websiteUser.userId} W:${website.id} I:${incident.id}]`;
   const alertType = incident.type as AlertType;
@@ -522,7 +519,6 @@ async function createAlertAndNotify(
 
 /**
  * Dismisses (deletes) all active alerts of a specific type for a given website.
- * Typically used upon incident recovery.
  */
 async function dismissAlertsByType(
   websiteId: number,
@@ -534,8 +530,7 @@ async function dismissAlertsByType(
       where: {
         websiteId: websiteId,
         type: type,
-        // Optionally, only dismiss alerts linked to incidents that are now closed.
-        // For simplicity, current logic dismisses all of type for the website.
+      
       },
     });
     if (deleteResult.count > 0) {
@@ -550,7 +545,7 @@ async function dismissAlertsByType(
 
 
 /**
- * Retrieves alerts for a specific user, with optional filtering.
+ * Retrieves alerts for a specific user
  */
 export async function getAlertsForUser(
   userId: string,
@@ -592,7 +587,6 @@ export async function getAlertsForUser(
 
 /**
  * Retrieves alerts for a specific website, with optional filtering.
- * Includes website URL, user details, and related incident info.
  */
 export async function getAlertsByWebsite(
   websiteId: number,
@@ -620,9 +614,7 @@ export async function getAlertsByWebsite(
   });
 }
 
-/**
- * Dismisses (deletes) a specific alert if the user owns it.
- */
+
 export async function dismissAlert(
   userId: string,
   alertId: number,
@@ -664,9 +656,7 @@ export async function dismissAlert(
   }
 }
 
-/**
- * Calculates statistics about alerts for a specific user over a given period.
- */
+
 export async function getUserAlertStats(
   userId: string,
   days = 7,

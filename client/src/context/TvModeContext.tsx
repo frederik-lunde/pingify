@@ -57,7 +57,7 @@ const isBrowserFullscreen = (): boolean => {
         docWithFullscreen.fullscreenElement ||
         docWithFullscreen.webkitFullscreenElement ||
         docWithFullscreen.msFullscreenElement
-    );
+    );  
 };
 
 interface TvModeContextType {
@@ -78,9 +78,7 @@ export const TvModeProvider: React.FC<TvModeProviderProps> = ({ children }) => {
     const [isTvMode, setIsTvMode] = useState<boolean>(false);
     const isTvModeRef = useRef(isTvMode);
 
-    /**
-     * Effect to keep a ref synchronized with the TV mode state.
-     */
+    
     useEffect(() => {
         isTvModeRef.current = isTvMode;
     }, [isTvMode]);
@@ -102,9 +100,7 @@ export const TvModeProvider: React.FC<TvModeProviderProps> = ({ children }) => {
         }
     }, []);
 
-    /**
-     * Effect to handle fullscreen changes and synchronize TV mode state.
-     */
+
     useEffect(() => {
         const handleFullscreenChange = () => {
             const currentlyFullscreen = isBrowserFullscreen();
@@ -139,9 +135,7 @@ export const TvModeProvider: React.FC<TvModeProviderProps> = ({ children }) => {
     );
 };
 
-/**
- * Custom hook to access the TV mode context.
- */
+
 export const useTvMode = (): TvModeContextType => {
     const context = useContext(TvModeContext);
     if (context === undefined) {

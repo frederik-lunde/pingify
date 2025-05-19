@@ -32,9 +32,7 @@ interface ChartConfigParams {
     timeframeKey?: string;
 }
 
-/**
- * Generates Chart.js options for the small line chart on website cards.
- */
+
 export const getCardLineChartOptions = ({ theme, chartData }: ChartConfigParams): ChartOptions<'line'> => {
     const limitedChartDataPoints = chartData;
     const options: ChartOptions<'line'> = {
@@ -76,9 +74,7 @@ export const getCardLineChartOptions = ({ theme, chartData }: ChartConfigParams)
     return options;
 };
 
-/**
- * Generates Chart.js options for the main response time line chart.
- */
+
 export const getResponseTimeLineChartOptions = ({ theme, chartData, timeframeKey }: ChartConfigParams): ChartOptions<'line'> => {
     const options: ChartOptions<'line'> = {
         ...BASE_CHART_OPTIONS,
@@ -125,9 +121,7 @@ export const getResponseTimeLineChartOptions = ({ theme, chartData, timeframeKey
     return options;
 };
 
-/**
- * Generates Chart.js options for the uptime status bar chart.
- */
+
 export const getUptimeStatusBarChartOptions = ({ theme, chartData }: ChartConfigParams): ChartOptions<'bar'> => {
     const options: ChartOptions<'bar'> = {
         ...BASE_CHART_OPTIONS,
@@ -177,9 +171,7 @@ export const getUptimeStatusBarChartOptions = ({ theme, chartData }: ChartConfig
     return options;
 };
 
-/**
- * Generates Chart.js data structure for the small line chart on website cards.
- */
+
 export const getCardLineChartData = (theme: Theme, dataPoints: ChartDataPoint[] | undefined) => {
     if (!dataPoints || dataPoints.length === 0) return { labels: [], datasets: [] };
     const labels = dataPoints.map(p => p.label);

@@ -137,23 +137,17 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
     const displayedAlerts = useMemo(() => activeAlerts.slice(0, maxItems), [activeAlerts, maxItems]);
     const hasMoreAlerts = useMemo(() => activeAlerts.length > maxItems, [activeAlerts, maxItems]);
 
-    /**
-     * Opens the alerts dropdown menu.
-     */
+ 
     const handleOpenMenu = useCallback((event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);
     }, []);
 
-    /**
-     * Closes the alerts dropdown menu.
-     */
+ 
     const handleCloseMenu = useCallback(() => {
         setAnchorEl(null);
     }, []);
 
-    /**
-     * Navigates to the website associated with an alert.
-     */
+   
     const handleNavigateToWebsite = useCallback(
         (websiteId: number | undefined) => {
             handleCloseMenu();
@@ -166,9 +160,6 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
         [navigate, handleCloseMenu]
     );
 
-    /**
-     * Handles the dismissal of an alert.
-     */
     const handleDismiss = useCallback(
         (event: React.MouseEvent, alertId: number | undefined) => {
             event.stopPropagation();
@@ -181,9 +172,7 @@ const AlertsDropdown: React.FC<AlertsDropdownProps> = ({
         [dismissAlert, isDismissingAlert]
     );
 
-    /**
-     * Navigates to the main alerts page.
-     */
+  
     const handleViewAllAlerts = useCallback(() => {
         handleCloseMenu();
         navigate('/alerts');
